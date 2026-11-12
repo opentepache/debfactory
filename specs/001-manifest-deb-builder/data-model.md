@@ -14,20 +14,21 @@ Lo escribe una persona. Campos y reglas en el JSON Schema; aquí solo se resumen
 | Regla | Mensaje de error (ejemplo) |
 |---|---|
 | `name` coincide con el nombre del archivo (el campo `pav` guarda N de `-0~pav<N>`) | `packages/fnm.yaml: name: "fnmx" no coincide con el archivo "fnm"` |
-| Solo variables `{{version}}`, `{{tag}}`, `{{arch}}` | `…: artifact.url: variable desconocida {{arc}}` |
+| Solo variables `{{version}}`, `{{tag}}`, `{{arch}}` (y `{{name}}` solo en `install[].src` con `format: binary`) | `…: artifact.url: variable desconocida {{arc}}` |
 | `artifact.url` y `checksums.url` empiezan por `https://github.com/<upstream>/releases/download/<tag renderizado>/` | `…: artifact.url: fuera de los releases de Schniz/fnm` |
 | `summary` sin artículo inicial (a/an/the) | `…: summary: no debe empezar con artículo` |
-| Claves de `exclude.suites` y `exclude.arches` existen en la config | `…: exclude.suites.bullseye: suite no soportada` |
-| Arquitecturas de `arch_map` ∖ `exclude.arches` = arquitecturas a construir | `…: arch_map: falta arm64 y no está excluida` |
+| Claves de `exclude.suites` existen en la config | `…: exclude.suites.bullseye: suite no soportada` |
+| `level` es `1` (constitución II) | `…: level: solo se admite 1 en esta fase` |
+| Si `version` no está en el lockfile y este tiene otras versiones, `pav` es `1` | `…: pav: debe ser 1 para una versión upstream nueva` |
 | `license.spdx` es una expresión SPDX válida | `…: license.spdx: "MIT/Apache" no es SPDX` |
 | `lintian_overrides[].tag` no coincide con ningún patrón de `lintian.never_override_patterns` | `…: lintian_overrides[0].tag: "embedded-library" no se puede silenciar` |
-| Destinos únicos (incluidos enlaces y archivos generados) | `…: install[1].dst: /usr/bin/fnm duplicado` |
+| Destinos únicos (incluidos los archivos generados) | `…: install[1].dst: /usr/bin/fnm duplicado` |
 | Con `format: binary`, `install` tiene exactamente un elemento | — |
 
-**Defaults** que aplica el builder: `tag: v{{version}}`, `section: devel`, `mode` 0755 bajo
-`/usr/bin`, `/usr/sbin` y para ejecutables de `type: tree` (según el bit x del artefacto), 0644
-para lo demás, `test.command: <basename del primer destino en /usr/bin> --version`,
-`test.expect: {{version}}`.
+**Defaults** que aplica el builder: `tag: v{{version}}`, `section: devel`, `mode` 0755 si el
+archivo de origen tiene el bit ejecutable y 0644 si no, `test.expect: {{version}}`.
+`test.command` por defecto es `<basename del primer archivo instalado bajo /usr/bin> --version`;
+se resuelve **después** de ensamblar, porque con globs (buf) el nombre no se conoce antes.
 
 ### LockFile (`packages/<name>.lock.yaml`)
 
@@ -39,6 +40,7 @@ Lo genera `debfactory lock`; nunca `build`. Ejemplo:
 | `schema` | int | `1` |
 | `versions.<ver>.source_date_epoch` | int | `published_at` del release upstream |
 | `versions.<ver>.license_sha256` | hex(64) | sha256 del texto de licencia |
+| `versions.<ver>.checksums_sha256` | hex(64), opcional | sha256 del archivo de checksums upstream; obligatorio si el manifiesto declara `checksums` (constitución III) |
 | `versions.<ver>.artifacts.<arch>` | hex(64) | sha256 del asset descargado |
 
 Las versiones viejas se conservan (permiten reconstruir y comparar); `lock --prune` las borra
@@ -78,7 +80,7 @@ acompañado de `dist/<name>_<version>_<arch>.build.json`:
 |---|---|
 | `results[].suite` | bookworm … resolute |
 | `results[].status` | `pass` · `fail` · `excluded` |
-| `results[].stage` | `install` · `run` · `version` · `purge` · `leftovers` (si `fail`) |
+| `results[].stage` | `versions` · `install` · `run` · `version` · `purge` · `leftovers` (si `fail`) |
 | `results[].reason` | motivo de la exclusión o salida relevante del fallo (recortada) |
 | `overall` | `pass` si ningún resultado es `fail` |
 
@@ -93,5 +95,6 @@ manifest editado ──lock──▶ lock con hashes ──build──▶ .deb +
 ```
 
 Errores: cada etapa devuelve un error tipado `{package, version, arch, stage, cause, detail}`
-que se imprime como una línea legible, más el detalle (FR-019). Etapas: `validate`, `fetch`,
-`verify`, `license`, `assemble`, `package`, `lintian`, `test`.
+que se imprime como una línea legible, más el detalle (FR-019). Etapas, en orden: `validate`,
+`lock`, `fetch`, `verify`, `license`, `assemble`, `package`, `lintian`, `test`. El gate de
+licencias va después de `verify` y antes de `assemble` (constitución, Flujo, paso 3).

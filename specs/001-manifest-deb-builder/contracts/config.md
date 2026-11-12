@@ -1,6 +1,7 @@
 # Contrato: configuración compartida
 
-Dos archivos en `config/`, validados con su propio schema al arrancar el binario.
+Dos archivos en `config/`, validados en Go al arrancar el binario (tipos, campos obligatorios y
+que cada patrón de `never_override_patterns` compile como regex).
 
 ## `config/debfactory.yaml`
 

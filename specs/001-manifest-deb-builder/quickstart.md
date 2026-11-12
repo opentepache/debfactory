@@ -10,8 +10,10 @@ Requiere el repositorio `trixie-backports` en las fuentes de APT
 
 ```bash
 sudo apt install -t trixie-backports golang-1.26
-sudo apt install just lintian qemu-user-binfmt   # binfmt registra arm64 para Docker
-export PATH=/usr/lib/go-1.26/bin:$PATH GOTOOLCHAIN=local
+sudo apt install just qemu-user-binfmt   # binfmt registra arm64 para Docker; lintian corre en contenedor
+# Docker: docker.io de Debian o docker-ce de upstream, con el usuario en el grupo docker
+export PATH=/usr/lib/go-1.26/bin:$PWD/bin:$PATH GOTOOLCHAIN=local
+go build -o bin/debfactory ./cmd/debfactory
 docker run --rm --platform linux/arm64 debian:trixie uname -m   # → aarch64
 ```
 
@@ -32,7 +34,7 @@ dpkg-deb -f dist/fnm_1.39.0-0~pav1_amd64.deb Package Version Maintainer Homepage
 
 ```bash
 just build-all
-ls dist/*.deb | wc -l    # → 10 (5 paquetes × 2 arch; ninguno excluye una arquitectura)
+ls dist/*.deb | wc -l    # → 8 (4 paquetes × 2 arch)
 ```
 
 ## Escenario 3: reproducibilidad (SC-006)
@@ -64,7 +66,8 @@ Los fixtures de `testdata/negative/` reproducen cada caso con un servidor HTTP l
 |---|---|---|
 | Manifiesto inválido | quitar `license.file` de una copia del manifiesto | `validate: …: license: falta la propiedad "file"` |
 | Checksum alterado | cambiar un hash de `artifacts.amd64` en el lockfile | `verify: sha256 no coincide …` con esperado y obtenido |
-| Licencia no permitida | fixture con texto BUSL-1.1 | `license: licencia detectada "BUSL-1.1" no está en …` |
+| Licencia no permitida | fixture con texto BUSL-1.1 declarado como `BUSL-1.1` | `license: licencia declarada "BUSL-1.1" no está en …` |
+| Licencia distinta de la declarada | fixture con texto MIT declarado como `Apache-2.0` | `license: licencia detectada "MIT" no coincide con la declarada "Apache-2.0"` |
 | Licencia no identificable | fixture con texto inventado | `license: texto de licencia no identificable …` |
 | URL no oficial | `artifact.url` hacia otro repo | `validate: …: artifact.url: fuera de los releases de …` |
 

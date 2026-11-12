@@ -23,3 +23,6 @@ completions:
   bash: {generate: fnm completions --shell bash}
   zsh: {generate: fnm completions --shell zsh}
   fish: {generate: fnm completions --shell fish}
+lintian_overrides:
+  - {tag: statically-linked-binary, path: /usr/bin/fnm, reason: Upstream arm64 build is fully static by design; level 1 repackaging cannot relink it.}
+  - {tag: unstripped-binary-or-object, path: /usr/bin/fnm, reason: Upstream arm64 binary ships with symbols; stripping would alter the official binary.}

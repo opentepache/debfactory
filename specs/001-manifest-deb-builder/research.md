@@ -50,6 +50,15 @@ detector de texto no puede distinguirlos.
 - **aqua**: `aqua`, `LICENSE`, `README.md` y `third_party_licenses/…` (unas 170 entradas, entre
   ellas archivos `.go` y `.github/` copiados por la herramienta de licencias de upstream).
 
+### 1.2b pnpm: descartado (2026-11-12)
+
+lintian 2.122 sobre el binario oficial de pnpm v12.18.0, en amd64 y arm64, da
+`E: embedded-library libyaml [usr/bin/pnpm]`: el binario incluye su propia copia de libyaml.
+Es una etiqueta de seguridad, que la constitución VII prohíbe silenciar, así que pnpm no puede
+publicarse en nivel 1. Se retiró de los paquetes iniciales (constitución v1.5.0). Su columna se
+conserva arriba como registro. Con él salieron del esquema `type: tree` y `links`, que solo él
+necesitaba.
+
 ### 1.3 Consecuencias para el esquema
 
 | Caso real | Capacidad del esquema |
@@ -60,7 +69,7 @@ detector de texto no puede distinguirlos.
 | buf: 3 ejecutables y 113 man pages | `install` como lista; `src` admite glob; `man` con glob |
 | buf: completions en el artefacto | `completions.<shell>.file` |
 | fnm/pnpm/bob/aqua: completions generadas | `completions.<shell>.generate` (orden a ejecutar) |
-| pnpm: árbol `dist/` + enlace | `install` con `type: tree` + `links` |
+| pnpm: árbol `dist/` + enlace | ~~`type: tree` + `links`~~ (descartado con pnpm, §1.2b) |
 | bob: glibc 2.39 | `Depends` calculado desde ELF + `exclude.suites.bookworm` |
 | buf/aqua: checksums publicados | `checksums.url` + `checksums.format: sha256sum` |
 | fnm/pnpm/bob: sin checksums | hash en lockfile |
@@ -135,8 +144,10 @@ detector de texto no puede distinguirlos.
   - Caché direccionada por contenido en `~/.cache/debfactory/sha256/<hash>`; nada se guarda en
     la caché hasta que se verifica el hash.
   - Lockfile por paquete, `packages/<nombre>.lock.yaml`, con, por versión: sha256 de cada
-    artefacto por arquitectura, sha256 del texto de licencia y la fecha de publicación del
-    release (`source_date_epoch`).
+    artefacto por arquitectura, sha256 del texto de licencia, sha256 del archivo de checksums
+    upstream si el manifiesto lo declara (`checksums_sha256`, exigido por la constitución III) y
+    la fecha de publicación del release (`source_date_epoch`). Con ese hash, `build` lee el
+    archivo de checksums de la caché sin volver a descargarlo.
   - El lockfile solo lo escribe `debfactory lock <pkg>`, nunca `build`. `lock` verifica antes
     contra los checksums upstream cuando existen. El diff del lockfile se revisa en git.
   - `build` verifica cada artefacto contra el lockfile **y**, si existen, contra los checksums
@@ -196,7 +207,9 @@ detector de texto no puede distinguirlos.
 
   | Etiqueta | Severidad | Afecta a |
   |---|---|---|
-  | `statically-linked-binary` | **E** | buf, aqua (Go estático) |
+  | `statically-linked-binary` | **E** | buf, aqua (Go estático, ambas arch); fnm **arm64** |
+  | `unstripped-binary-or-object` | **E** | fnm **arm64** (verificado 2026-11-12) |
+  | `embedded-library` | **E** | pnpm (libyaml); **no silenciable** → pnpm descartado |
   | `debian-revision-is-zero` | **E** | solo con revisión `0` a secas (no `0~pavN`) |
   | `missing-dependency-on-libc` | **E** | binarios dinámicos sin `Depends` (resuelto en D8) |
   | `no-changelog`, `no-copyright-file` | **E** | si faltan (el builder los genera) |
@@ -239,7 +252,7 @@ detector de texto no puede distinguirlos.
 - **Rationale**: ejecutar binarios de terceros en el host contradice el espíritu de III. Con
   plataforma fija, la salida es determinista para la misma versión.
 - **Alternatives considered**: ejecutar en el host (riesgo innecesario); no ofrecer completions
-  para fnm, pnpm, bob y aqua (pierde valor).
+  para fnm, bob y aqua (pierde valor).
 
 ### D12. Reproducibilidad
 
@@ -270,11 +283,9 @@ detector de texto no puede distinguirlos.
 1. **Reproducibilidad byte a byte de nfpm** (D2): si `control.tar.gz` u otro miembro no es
    determinista, se fija con opciones de nfpm o se post-procesa. Se bloquea SC-006 hasta
    verificarlo.
-2. **pnpm SEA con enlace simbólico**: confirmar que `/usr/bin/pnpm → /usr/lib/pnpm/pnpm`
-   encuentra `dist/` (Node resuelve `process.execPath` al destino real). Si no, se instala un
-   envoltorio, que el esquema ya permite como enlace o como archivo.
+2. ~~**pnpm SEA con enlace simbólico**~~: ya no aplica; pnpm se descartó (§1.2b).
 3. **Completions bajo qemu**: algunos binarios pueden fallar bajo emulación; en ese caso se
    generan solo con el binario amd64. Son texto independiente de la arquitectura, pero la
    misma salida debe usarse en los dos `.deb`.
 4. **`licensecheck` con textos MIT y BSD que tienen variaciones de copyright**: confirmar la
-   cobertura con los 5 textos reales en las pruebas unitarias.
+   cobertura con los 4 textos reales (fnm, bob, buf, aqua) en las pruebas unitarias.

@@ -164,7 +164,7 @@ reside solo en el pipeline determinista y en el mantenedor.
   "falla en una, no se publica en ninguna" del principio VII.
 - **Hosting público**: almacenamiento estático S3-compatible (Cloudflare R2), con diseño
   agnóstico del proveedor (ver IX).
-- **Paquetes iniciales**: `fnm`, `pnpm`, `bob`, `buf`, `aqua`. Cada uno MUST cumplir todos los
+- **Paquetes iniciales**: `fnm`, `bob`, `buf`, `aqua`. Cada uno MUST cumplir todos los
   principios (en particular V) antes de publicarse.
 - Ampliar arquitecturas o suites es una enmienda a esta sección.
 
@@ -174,11 +174,13 @@ Todo paquete atraviesa, en este orden, los siguientes gates; cualquier fallo det
 se notifica según el principio VIII:
 
 1. **Validación del manifiesto** contra el esquema (I, II, V).
-2. **Gate de licencias** sobre la versión exacta (IV).
-3. **Descarga desde URL declarada y verificación** de checksum/firma (III).
+2. **Descarga desde URL declarada y verificación** de checksum/firma (III).
+3. **Gate de licencias** sobre la versión exacta, con el texto ya verificado, antes de
+   cualquier paso de construcción (IV).
 4. **Construcción** reproducible en entorno limpio (II, VII).
 5. **lintian** sin errores (VII).
-6. **Prueba de instalación** en contenedor limpio por suite y arquitectura no excluidas (VII).
+6. **Prueba de instalación** en contenedor limpio por cada suite no excluida y cada
+   arquitectura soportada (VII).
 7. **Publicación atómica** en el repositorio con índices firmados con GPG (III, VI).
 
 ## Governance
@@ -195,4 +197,4 @@ se notifica según el principio VIII:
   de los principios I–X en su sección "Constitution Check". Toda desviación MUST justificarse en
   la tabla de seguimiento de complejidad del plan o el plan no se aprueba.
 
-**Version**: 1.4.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-12
+**Version**: 1.5.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-12

@@ -61,11 +61,12 @@ checksum alterado, licencia fuera de la allowlist) y comprobar que cada uno fall
 
 1. **Given** un manifiesto sin el campo de licencia esperada, **When** se intenta construir,
    **Then** el build falla en la validación indicando el archivo, el campo y la regla violada.
-2. **Given** un manifiesto cuyo checksum registrado no coincide con el artefacto descargado,
+2. **Given** un lockfile cuyo hash registrado no coincide con el artefacto descargado,
    **When** se construye, **Then** falla indicando el artefacto, el hash esperado y el obtenido.
-3. **Given** un upstream cuya licencia detectada no está en la allowlist, o no coincide con la
-   licencia esperada del manifiesto, o no puede identificarse, **When** se construye, **Then**
-   falla indicando la licencia detectada (o "no identificable") y la esperada.
+3. **Given** un upstream cuya licencia no puede identificarse, o cuya licencia detectada no
+   coincide con la declarada en el manifiesto, o cuya licencia declarada no está en la
+   allowlist, **When** se construye, **Then** falla indicando cuál de los tres casos ocurrió y
+   las licencias implicadas (detectada y declarada).
 4. **Given** un manifiesto que declara una URL de descarga fuera de las URLs de release
    oficiales del upstream declarado, **When** se construye, **Then** falla sin descargar nada.
 
@@ -86,7 +87,7 @@ suite y arquitectura (aprobado / fallido / excluido con motivo).
 
 **Acceptance Scenarios**:
 
-1. **Given** un `.deb` de `pnpm` para `amd64`, **When** se ejecuta la prueba, **Then** en cada
+1. **Given** un `.deb` de `buf` para `amd64`, **When** se ejecuta la prueba, **Then** en cada
    suite no excluida se instala, la orden de comprobación reporta la versión upstream esperada,
    se desinstala con purga y no quedan archivos del paquete en el sistema.
 2. **Given** un manifiesto que excluye `bookworm` con motivo documentado, **When** se ejecuta la
@@ -100,8 +101,8 @@ suite y arquitectura (aprobado / fallido / excluido con motivo).
 
 ### User Story 4 - Agregar o actualizar una herramienta editando solo datos (Priority: P2)
 
-Para actualizar una herramienta, el mantenedor cambia la versión (y checksums si upstream no los
-publica) en su manifiesto. Para agregar una herramienta nueva de un solo binario estático,
+Para actualizar una herramienta, el mantenedor cambia la versión (y vuelve `N` a 1) en su
+manifiesto y regenera el lockfile con una orden. Para agregar una herramienta nueva de un solo binario estático,
 escribe un manifiesto nuevo de menos de ~25 líneas. En ningún caso escribe ni copia código.
 
 **Why this priority**: es la razón de ser declarativa del proyecto (constitución I), pero se
@@ -112,11 +113,12 @@ permitida) solo con un manifiesto nuevo y comprobar que construye y pasa las pru
 
 **Acceptance Scenarios**:
 
-1. **Given** el sistema con los 5 manifiestos iniciales, **When** se agrega un manifiesto de un
+1. **Given** el sistema con los 4 manifiestos iniciales, **When** se agrega un manifiesto de un
    binario estático de menos de ~25 líneas, **Then** el nuevo paquete se construye y pasa las
    pruebas sin cambios en ningún otro archivo.
-2. **Given** un manifiesto en versión `X` con `N=2`, **When** se sube a versión upstream `Y`,
-   **Then** el paquete resultante tiene versión `Y-0~pav1`.
+2. **Given** un manifiesto en versión `X` con `N=2`, **When** se sube a versión upstream `Y`
+   sin volver `N` a 1, **Then** la validación falla pidiendo `N=1`; con `N=1`, el paquete
+   resultante tiene versión `Y-0~pav1`.
 
 ---
 
@@ -124,14 +126,14 @@ permitida) solo con un manifiesto nuevo y comprobar que construye y pasa las pru
 
 Los manifiestos pueden expresar varios ejecutables en un paquete (buf instala `buf`, `protoc-gen-buf-breaking` y
 `protoc-gen-buf-lint`), binarios que se
-renombran al instalar (pnpm), archivos comprimidos con rutas internas distintas por
+renombran al instalar (ruta de destino con otro nombre), archivos comprimidos con rutas internas distintas por
 arquitectura, completions de shell y man pages opcionales, y dependencias o conflictos con
 otros paquetes.
 
-**Why this priority**: necesario para los 5 paquetes iniciales, pero un binario simple ya aporta
+**Why this priority**: necesario para los 4 paquetes iniciales, pero un binario simple ya aporta
 valor sin estas capacidades.
 
-**Independent Test**: construir los 5 paquetes iniciales para `amd64` y `arm64` y verificar que
+**Independent Test**: construir los 4 paquetes iniciales para `amd64` y `arm64` y verificar que
 cada uno instala exactamente los archivos declarados en sus rutas destino.
 
 **Acceptance Scenarios**:
@@ -139,8 +141,9 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
 1. **Given** el manifiesto de `buf`, **When** se construye, **Then** el `.deb` contiene los tres
    ejecutables en sus rutas destino, las completions de bash, zsh y fish incluidas en el
    artefacto, y todas sus man pages (más de 100) declaradas con un único patrón, no una por una.
-2. **Given** el manifiesto de `pnpm` cuyo artefacto contiene un ejecutable con nombre por
-   plataforma, **When** se construye, **Then** el ejecutable queda instalado como `pnpm`.
+2. **Given** un manifiesto cuyo artefacto contiene un ejecutable `tool-linux-amd64` y declara
+   `dst: /usr/bin/tool`, **When** se construye, **Then** el ejecutable queda instalado como
+   `/usr/bin/tool` (renombrado).
 3. **Given** un manifiesto que declara completions para bash, zsh y fish, **When** se construye,
    **Then** cada archivo queda en la ubicación estándar de Debian para ese shell.
 4. **Given** un manifiesto que declara completions generadas por el propio binario, **When** se
@@ -156,11 +159,11 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
   de alguna suite (por ejemplo, `bob` se compila en Ubuntu 24.04, glibc 2.39, y `bookworm` trae
   2.36). La prueba falla en esa suite; el mantenedor la excluye en el manifiesto con motivo, y
   la exclusión no bloquea las demás suites.
-- **Upstream sin checksums publicados** (hoy `fnm`, `bob` y `pnpm`): el hash queda registrado en
+- **Upstream sin checksums publicados** (hoy `fnm` y `bob`): el hash queda registrado en
   el lockfile del paquete; si el artefacto cambia en upstream para la misma versión, el build falla.
 - **Upstream con checksums publicados** (hoy `aqua`, con firma sigstore, y `buf`, con
-  `sha256.txt` firmado con minisign): se verifica contra el checksum publicado y, si existe, su
-  firma.
+  `sha256.txt` firmado con minisign): se verifica contra el checksum publicado, y el hash del
+  archivo de checksums queda en el lockfile. Las firmas se verificarán en una fase futura.
 - **Licencia no detectable automáticamente** (por ejemplo, el API de GitHub no identifica la
   licencia de `aqua` aunque el repositorio contiene `LICENSE`): el gate falla cerrado salvo que
   el texto de licencia de la versión exacta pueda obtenerse de una fuente declarada en el
@@ -178,8 +181,11 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
   VI), y la herramienta se reevalúa frente a la constitución V. Si el
   paquete oficial divide archivos en otros paquetes, las relaciones declaradas en el manifiesto
   (`Conflicts`/`Replaces`/`Provides`) evitan choques de archivos.
-- **Arquitectura sin binario upstream**: el manifiesto puede excluir una arquitectura con motivo
-  documentado; construir "todas" la omite e informa la exclusión.
+- **Arquitectura sin binario upstream**: el paquete no cumple el alcance (toda arquitectura
+  soportada es obligatoria) y no se incorpora hasta que upstream publique ese binario.
+- **El binario upstream incrusta una biblioteca** (lintian `embedded-library`, p. ej. pnpm con
+  libyaml): el error no se puede silenciar (constitución VII) y el paquete no se incorpora en
+  nivel 1.
 - **Descarga interrumpida o artefacto corrupto**: se trata igual que un checksum alterado; nada
   parcialmente descargado se usa ni se reutiliza.
 
@@ -194,8 +200,8 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
   repositorio upstream, licencia esperada (identificador SPDX), versión upstream, número de
   reempaquetado `N`, justificación de valor (constitución V: no está al día en Debian estable,
   su autor no publica repositorio APT y no está en repositorios comunitarios conocidos, como
-  griffo) y, por arquitectura (`amd64`,
-  `arm64`), la URL del artefacto oficial, su formato y su integridad.
+  griffo), el nivel de construcción (`1` en esta fase) y, para `amd64` y `arm64`, la URL del
+  artefacto oficial y su formato. Los hashes de integridad viven en el lockfile del paquete.
 - **FR-002**: El esquema MUST soportar los formatos de artefacto: binario suelto, `.zip` y
   `.tar.gz`.
 - **FR-003**: El esquema MUST permitir declarar una lista de archivos a instalar, cada uno con
@@ -208,8 +214,8 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
   incluidas en el artefacto.
 - **FR-005**: El esquema MUST permitir declarar relaciones con otros paquetes: dependencias,
   recomendaciones, conflictos, reemplazos y paquetes provistos.
-- **FR-006**: El esquema MUST permitir excluir suites concretas y, opcionalmente, arquitecturas
-  concretas; cada exclusión MUST incluir un motivo no vacío.
+- **FR-006**: El esquema MUST permitir excluir suites concretas, cada una con un motivo no
+  vacío. Las arquitecturas no se pueden excluir (constitución, Alcance).
 - **FR-007**: El esquema MUST permitir declarar la orden de comprobación de la prueba de
   instalación y una subcadena que la salida debe contener, en función de la versión upstream.
 - **FR-008**: El esquema MUST permitir declarar la fuente del texto de licencia de la versión
@@ -226,14 +232,14 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
 **Construcción**
 
 - **FR-011**: Un comando MUST construir un paquete para una versión y una arquitectura dadas, o
-  para todas las arquitecturas no excluidas; y MUST poder construir todos los paquetes.
+  para todas las arquitecturas soportadas; y MUST poder construir todos los paquetes.
 - **FR-012**: El sistema MUST descargar artefactos solo desde las URLs declaradas en el
   manifiesto y MUST rechazar URLs que no pertenezcan a los releases oficiales del repositorio
   upstream declarado.
-- **FR-013**: El sistema MUST verificar la integridad de cada artefacto contra el checksum o la
-  firma publicados por upstream cuando existan, y si no, contra el hash registrado en el
-  lockfile del paquete (que el build nunca escribe); cualquier discrepancia MUST hacer fallar el build indicando hash esperado y
-  obtenido.
+- **FR-013**: El sistema MUST verificar cada artefacto contra el hash registrado en el lockfile
+  del paquete (que el build nunca escribe) y, cuando upstream publique checksums, también contra
+  ellos; el hash del archivo de checksums también vive en el lockfile. Cualquier discrepancia
+  MUST hacer fallar el build indicando hash esperado y obtenido.
 - **FR-014**: Antes de construir, el sistema MUST obtener el texto de licencia de la versión
   exacta desde la fuente declarada, identificarlo y fallar si: no es identificable, no está en
   la allowlist, o no coincide con la licencia esperada del manifiesto.
@@ -252,15 +258,15 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
   parciales en la salida, y el mensaje MUST nombrar paquete, versión, arquitectura, etapa y
   causa exacta.
 - **FR-020**: Ningún paso de construcción MUST requerir código específico de un paquete; los
-  5 paquetes iniciales se expresan solo con el esquema genérico.
+  4 paquetes iniciales se expresan solo con el esquema genérico.
 
 **Prueba de instalación**
 
 - **FR-021**: Un comando MUST probar un `.deb` construido instalándolo en un contenedor limpio
   de cada suite soportada no excluida, para la arquitectura del `.deb`.
 - **FR-022**: La prueba MUST: instalar el paquete con sus dependencias, ejecutar la orden de
-  comprobación declarada sin acceso a red, verificar que la salida coincide con el patrón de
-  versión esperada, desinstalar con purga y verificar que no quedan archivos del paquete.
+  comprobación declarada sin acceso a red, verificar que la salida contiene la subcadena
+  esperada, desinstalar con purga y verificar que no quedan archivos del paquete.
 - **FR-023**: La prueba MUST producir un informe por suite y arquitectura con estado aprobado,
   fallido (con etapa y salida) o excluido (con motivo), y un resultado global que es fallido si
   falla cualquier suite no excluida.
@@ -272,10 +278,10 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
 
 - **Manifiesto**: descripción declarativa de una herramienta. Contiene identidad (nombre,
   descripciones, homepage, upstream), licencia esperada y su fuente, versión upstream y `N`,
-  justificación de valor, artefactos por arquitectura, archivos a instalar, extras opcionales
+  justificación de valor, nivel, artefactos por arquitectura, archivos a instalar, extras opcionales
   (completions, man pages), relaciones con otros paquetes, exclusiones y orden de comprobación.
-- **Lockfile**: hashes verificados por versión y arquitectura (artefactos y texto de licencia)
-  y la fecha del release upstream; lo genera una orden explícita, nunca el build, y se revisa en
+- **Lockfile**: hashes verificados por versión y arquitectura (artefactos), del texto de
+  licencia y del archivo de checksums upstream si existe, y la fecha del release upstream; lo genera una orden explícita, nunca el build, y se revisa en
   el control de versiones.
 - **Artefacto**: archivo oficial publicado por upstream para una versión y arquitectura; tiene
   URL, formato e integridad (checksum upstream, firma upstream o hash registrado).
@@ -290,8 +296,7 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
 
 ### Measurable Outcomes
 
-- **SC-001**: Los paquetes iniciales se construyen para `amd64` y `arm64` (salvo exclusiones
-  documentadas) con cero archivos de código específicos de un paquete.
+- **SC-001**: Los paquetes iniciales se construyen para `amd64` y `arm64` con cero archivos de código específicos de un paquete.
 - **SC-002**: El 100 % de los paquetes construidos se instala, reporta la versión esperada y se
   desinstala limpiamente en cada una de las 5 suites soportadas, salvo exclusiones documentadas
   en su manifiesto.
@@ -300,7 +305,8 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
 - **SC-004**: Actualizar un paquete a una nueva versión upstream requiere cambiar como máximo la
   versión y `N` en su manifiesto, más regenerar su lockfile con una orden.
 - **SC-005**: El 100 % de los casos de prueba negativos (manifiesto inválido, checksum alterado,
-  licencia no permitida, licencia no identificable, URL no oficial) falla antes de producir un
+  licencia no permitida, licencia no identificable, licencia distinta de la declarada, URL no
+  oficial) falla antes de producir un
   `.deb`, con un mensaje que nombra paquete, etapa y causa.
 - **SC-006**: Dos construcciones consecutivas de la misma versión producen `.deb` con hash
   idéntico en el 100 % de los paquetes.
@@ -312,7 +318,6 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
   amd64, arm64). La prueba de `arm64` puede ejecutarse por emulación en la PC `amd64`.
 - **Datos de upstream a la fecha (2026-11-11)**, que motivan el esquema:
   - `fnm` v1.39.0 (GPL-3.0): `.zip` por arquitectura, sin checksums publicados.
-  - `pnpm` v12.18.0 (MIT): `.tar.gz` por plataforma, sin checksums publicados como asset.
   - `bob` v4.3.0 (MIT): `.zip`; el asset `arm` es aarch64 compilado en Ubuntu 24.04 (riesgo de
     glibc en bookworm); sin checksums.
   - `buf` v1.75.0 (Apache-2.0): `.tar.gz` por arquitectura con `sha256.txt` firmado con
@@ -320,10 +325,12 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
     pages y `LICENSE`. No está en Debian ni en Ubuntu ni en griffo; upstream solo ofrece
     Homebrew, sin repositorio APT.
   - `aqua` v2.66.1 (MIT según su `LICENSE`): `.tar.gz` con checksums y firma sigstore.
-- **Paquetes iniciales**: `fnm`, `pnpm`, `bob`, `buf`, `aqua`. Ninguno está en griffo
+- **Paquetes iniciales**: `fnm`, `bob`, `buf`, `aqua`. Ninguno está en griffo
   (verificado en bookworm, trixie, sid, noble y resolute). Descartados:
   - `tenv`: su autor publica un repositorio APT oficial (Cloudsmith); viola la constitución V.
   - `uv`: ya está empaquetado en griffo (y 0.9.17 en Debian testing/sid).
+  - `pnpm`: su binario oficial (v12.18.0) da el error de lintian `embedded-library` (libyaml),
+    que la constitución VII no permite silenciar.
 - **Repositorios comunitarios conocidos**: por ahora, griffo (`debian.griffo.io`), en la
   configuración compartida (constitución V, v1.3.0). La lista se
   amplía cuando se conozcan otros; la comprobación es manual en esta fase.

@@ -10,13 +10,15 @@ Un binario Go, `debfactory`, convierte un manifiesto YAML por herramienta
 (`packages/<name>.yaml`, validado con JSON Schema) en un `.deb` de nivel 1. El proceso es:
 descargar el asset oficial (plantillas `{{version}}`/`{{tag}}`/`{{arch}}`), verificarlo contra
 un lockfile y contra los checksums upstream, validar la licencia de la versión exacta sobre su
-texto, ensamblar el árbol con permisos y fechas fijados, empaquetar con nfpm como biblioteca y
+texto ya verificado (antes de ensamblar, como fija el Flujo de la constitución), ensamblar el árbol con permisos y fechas fijados, empaquetar con nfpm como biblioteca y
 pasar lintian en contenedor. Una segunda orden instala el `.deb` en contenedores limpios de las
 5 suites × 2 arquitecturas (arm64 por qemu/binfmt) y verifica versión y purga limpia. La
 investigación de los assets reales ([research.md](research.md)) dio forma al esquema: mapa de
-arquitecturas por paquete, rutas internas con plantilla, globs, árboles más enlaces (pnpm),
+arquitecturas por paquete, rutas internas con plantilla, globs,
 completions incluidas o generadas en contenedor, `Depends` calculado desde ELF (bob requiere
-glibc 2.39) y overrides de lintian justificados (Go estático).
+glibc 2.39) y overrides de lintian justificados (binarios
+estáticos: buf y aqua en ambas arquitecturas, fnm en arm64). pnpm se descartó: su binario da
+`embedded-library` (libyaml), que la constitución VII no permite silenciar.
 
 ## Technical Context
 
@@ -42,14 +44,14 @@ contenedores).
 **Project Type**: CLI de un solo binario más datos declarativos (manifiestos y config).
 
 **Performance Goals**: el build de un paquete con assets en caché tarda menos de 30 s, incluido
-lintian; `just check` completo (10 `.deb` × 5 suites) en menos de 30 min con emulación arm64.
+lintian; `just check` completo (8 `.deb` × 5 suites) en menos de 30 min con emulación arm64.
 Son objetivos orientativos para una sola persona, no un SLA.
 
 **Constraints**: sin código por paquete (I); falla cerrado ante hash, licencia o URL (III, IV);
 `.deb` idéntico byte a byte entre builds (VII); ningún binario upstream se ejecuta en el host;
 sin red en la orden de prueba.
 
-**Scale/Scope**: 5 paquetes iniciales, pensado para decenas; 2 arquitecturas; 5 suites. Fuera
+**Scale/Scope**: 4 paquetes iniciales (fnm, bob, buf, aqua), pensado para decenas; 2 arquitecturas; 5 suites. Fuera
 de alcance: publicar, CI, detección de versiones, nivel 2 y firmas upstream.
 
 ## Constitution Check
@@ -58,18 +60,18 @@ de alcance: publicar, CI, detección de versiones, nivel 2 y firmas upstream.
 
 | # | Principio | Cómo lo cumple el diseño | Estado |
 |---|---|---|---|
-| I | Declarativo primero | Un YAML por paquete; los 5 se expresan con el esquema genérico (validados en [examples/](contracts/examples/)); sin hooks de código. `Depends` desde ELF y completions generadas son reglas genéricas. | ✅ |
-| II | Dos niveles | Solo nivel 1 (binario oficial). Nivel 2 fuera de alcance; el sufijo de suite ya está en la config para cuando llegue. No se publican paquetes fuente. | ✅ |
-| III | Cadena de suministro | Lockfile con sha256 siempre, más checksums upstream cuando existen (buf, aqua). Las URLs se restringen a `github.com/<upstream>/releases/download/<tag>/`. El texto de licencia viene del artefacto o de `raw.githubusercontent.com/<upstream>/<tag>/…` con URL derivada y hash en el lock (metadatos de verificación, permitido por III desde v1.4.0). Sin firma del repositorio en esta fase (no se publica). | ✅ |
-| IV | Gate de licencias | Detección local sobre el texto exacto; allowlist en `config/licenses.yaml`; no identificable, no permitida o distinta de la declarada = fallo. `copyright` DEP-5 con texto completo. | ✅ |
-| V | No duplicar | `value` obligatorio en el manifiesto; `community_repos` en la config; los 5 verificados contra Debian, Ubuntu, repos del autor y griffo (research §1). | ✅ |
+| I | Declarativo primero | Un YAML por paquete; los 4 se expresan con el esquema genérico (validados en [examples/](contracts/examples/)); sin hooks de código. `Depends` desde ELF y completions generadas son reglas genéricas. | ✅ |
+| II | Dos niveles | Solo nivel 1 (binario oficial); cada manifiesto declara `level: 1` y el esquema v1 no admite otro valor. Nivel 2 fuera de alcance; el sufijo de suite ya está en la config para cuando llegue. No se publican paquetes fuente. | ✅ |
+| III | Cadena de suministro | Lockfile con sha256 de cada artefacto, del texto de licencia y del archivo de checksums upstream cuando existe (buf, aqua), y verificación adicional contra esos checksums. Las URLs se restringen a `github.com/<upstream>/releases/download/<tag>/`. El texto de licencia viene del artefacto o de `raw.githubusercontent.com/<upstream>/<tag>/…` con URL derivada y hash en el lock (metadatos de verificación, permitido por III desde v1.4.0). Sin firma del repositorio en esta fase (no se publica). | ✅ |
+| IV | Gate de licencias | Detección local sobre el texto exacto, tras verificar y antes de ensamblar (orden del Flujo desde v1.5.0); allowlist en `config/licenses.yaml`; no identificable, no permitida o distinta de la declarada = fallo. `copyright` DEP-5 con texto completo. | ✅ |
+| V | No duplicar | `value` obligatorio en el manifiesto; `community_repos` en la config; los 4 verificados contra Debian, Ubuntu, repos del autor y griffo (research §1). | ✅ |
 | VI | Versionado | `<upstream>-0~pav<N>` con `Release="0~pavN"` en nfpm; lintian **no** marca `0~pavN` como revisión cero (verificado); prueba con `dpkg --compare-versions` (FR-024). | ✅ |
-| VII | Reproducible y verificable | `SOURCE_DATE_EPOCH` desde el lock; mtime, permisos y orden fijados; `gzip -n`; `--check-reproducible`. lintian `--fail-on error` y pruebas de instalación en todas las suites × arch no excluidas; un fallo hace fallar el paquete. Overrides de lintian declarados con motivo para `statically-linked-binary` (permitido por VII desde v1.4.0); `config.lintian.never_override_patterns` bloquea seguridad, licencia y copyright. | ✅ |
+| VII | Reproducible y verificable | `SOURCE_DATE_EPOCH` desde el lock; mtime, permisos y orden fijados; `gzip -n`; `--check-reproducible`. lintian `--fail-on error` y pruebas de instalación en cada suite no excluida × amd64 y arm64 (no se excluyen arquitecturas); un fallo hace fallar el paquete. Overrides de lintian declarados con motivo para `statically-linked-binary` y `unstripped-binary-or-object` (permitido por VII desde v1.4.0); `config.lintian.never_override_patterns` bloquea seguridad, licencia y copyright. | ✅ |
 | VIII | Automatización | Fuera de alcance en la fase 1. El diseño la prepara: órdenes no interactivas, códigos de salida estables y `--json`. | ✅ (diferido) |
-| IX | Simplicidad operativa | Go de Debian backports, lintian, just y qemu-user-binfmt, empaquetados en Debian; Docker vale tanto `docker.io` de Debian como docker-ce de upstream (hoy 29.9 en la PC), porque solo se usan `run`, `exec` y `network`. Un binario y un `justfile`. Cada orden se explica en una línea ([cli.md](contracts/cli.md)). | ✅ |
+| IX | Simplicidad operativa | Go de Debian backports, lintian, just y qemu-user-binfmt, empaquetados en Debian; Docker vale tanto `docker.io` de Debian como docker-ce de upstream (hoy 29.9 en la PC), porque solo se usan `build`, `run`, `exec`, `network` y `rm`. Un binario y un `justfile`. Cada orden se explica en una línea ([cli.md](contracts/cli.md)). | ✅ |
 | X | La IA propone | Ningún componente usa IA. | ✅ |
 
-**Gate (pre-research)**: PASS. **Re-check (post-design)**: PASS contra la constitución v1.4.0;
+**Gate (pre-research)**: PASS. **Re-check (post-design)**: PASS contra la constitución v1.5.0;
 queda una sola desviación de espíritu, justificada abajo.
 
 ## Project Structure
@@ -86,7 +88,7 @@ specs/001-manifest-deb-builder/
 │   ├── manifest.v1.schema.json
 │   ├── config.md
 │   ├── cli.md
-│   └── examples/        # fnm, pnpm, bob, buf, aqua, minimal-static, fnm.lock
+│   └── examples/        # fnm, bob, buf, aqua, minimal-static, fnm.lock
 └── tasks.md             # /speckit-tasks
 ```
 
@@ -100,8 +102,9 @@ internal/
 ├── lock/                # lectura y escritura del lockfile
 ├── fetch/               # descarga, caché por hash, checksums upstream
 ├── license/             # licensecheck + SPDX + allowlist
-├── assemble/            # extracción, globs, árboles, enlaces, man, completions, ELF → Depends
-├── container/           # envoltorio mínimo de `docker run` (completions, lintian, tests)
+├── assemble/            # extracción, globs, man, completions, ELF → Depends
+├── build/               # orquestación: lock, pipeline de build, build --all
+├── container/           # envoltorio de docker: build, run, start, exec, disconnect, rm
 ├── pkg/                 # BuildPlan → nfpm → .deb atómico; copyright y changelog
 ├── lint/                # lintian en contenedor + overrides
 ├── installtest/         # pruebas por suite y arch, informe
@@ -116,8 +119,9 @@ packages/
 └── <name>.lock.yaml
 testdata/
 ├── manifests/           # válidos e inválidos para validate
-├── licenses/            # textos reales y de casos negativos
-└── negative/            # fixtures servidos por httptest
+├── licenses/            # textos reales de los 4 paquetes (al tag exacto)
+├── fixtures/ok/         # tar.gz con binario estático para tests positivos (httptest)
+└── negative/            # manifiestos, licencias y locks de casos negativos
 justfile
 go.mod / go.sum
 ```
@@ -130,7 +134,7 @@ etapa se prueba por separado y se mapea 1:1 a los `stage` de los errores). Datos
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| **III (espíritu)**: se ejecuta un binario upstream para generar completions | fnm, pnpm, bob y aqua solo ofrecen completions generadas | Se ejecuta en contenedor efímero, sin red y de solo lectura, nunca en el host; es opcional por manifiesto. |
+| **III (espíritu)**: se ejecuta un binario upstream para generar completions | fnm, bob y aqua solo ofrecen completions generadas | Se ejecuta en contenedor efímero, sin red y de solo lectura, nunca en el host; es opcional por manifiesto. |
 
 **Mejora futura** (no es una desviación: III pide checksums **o** firmas): verificar las firmas
 upstream (minisign de buf, sigstore de aqua).
@@ -138,6 +142,6 @@ upstream (minisign de buf, sigstore de aqua).
 ## Riesgos que se atacan primero
 
 Del [research §3](research.md#3-riesgos-abiertos-se-verifican-en-las-primeras-tareas):
-reproducibilidad byte a byte de nfpm, pnpm SEA a través del enlace simbólico, completions bajo
-qemu y cobertura de licensecheck con los 5 textos reales. Deben ser las primeras tareas de
-`tasks.md`, antes de construir el resto del pipeline.
+reproducibilidad byte a byte de nfpm, completions bajo qemu y cobertura de licensecheck con los
+4 textos reales. Son tareas de la fase 2 de `tasks.md`, antes de construir el resto del
+pipeline. (El riesgo de pnpm desapareció al descartarlo.)

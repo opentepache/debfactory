@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://debfactory.invalid/schema/manifest.v1.schema.json",
   "title": "debfactory package manifest v1",
-  "description": "Un manifiesto por paquete en packages/<name>.yaml. Plantillas permitidas en strings marcadas como 'templated': {{version}}, {{tag}}, {{arch}}.",
+  "description": "Un manifiesto por paquete en packages/<name>.yaml. Plantillas permitidas en strings marcadas como 'templated': {{version}}, {{tag}}, {{arch}}; además {{name}} solo en install[].src cuando artifact.format es 'binary'.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -116,7 +116,7 @@
       "minLength": 20
     },
     "arch_map": {
-      "description": "Arquitectura Debian -> token upstream usado como {{arch}}.",
+      "description": "Arquitectura Debian -> token upstream usado como {{arch}}. Ambas arquitecturas son obligatorias.",
       "type": "object",
       "additionalProperties": false,
       "minProperties": 1,
@@ -129,7 +129,11 @@
           "type": "string",
           "minLength": 1
         }
-      }
+      },
+      "required": [
+        "amd64",
+        "arm64"
+      ]
     },
     "artifact": {
       "type": "object",
@@ -180,25 +184,6 @@
         "$ref": "#/$defs/installItem"
       }
     },
-    "links": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "path",
-          "target"
-        ],
-        "properties": {
-          "path": {
-            "$ref": "#/$defs/absPath"
-          },
-          "target": {
-            "$ref": "#/$defs/absPath"
-          }
-        }
-      }
-    },
     "completions": {
       "type": "object",
       "additionalProperties": false,
@@ -242,11 +227,9 @@
       "properties": {
         "suites": {
           "$ref": "#/$defs/reasons"
-        },
-        "arches": {
-          "$ref": "#/$defs/reasons"
         }
-      }
+      },
+      "description": "Solo se pueden excluir suites (constitución, Alcance); toda arquitectura soportada se construye y se prueba."
     },
     "test": {
       "description": "Por defecto: '<primer ejecutable en /usr/bin> --version' y la salida debe contener {{version}}.",
@@ -310,16 +293,10 @@
           "description": "Ruta destino. Si termina en '/', es un directorio y se conserva el nombre de origen.",
           "$ref": "#/$defs/absPath"
         },
-        "type": {
-          "enum": [
-            "file",
-            "tree"
-          ],
-          "default": "file"
-        },
         "mode": {
           "type": "string",
-          "pattern": "^0[0-7]{3}$"
+          "pattern": "^0[0-7]{3}$",
+          "description": "Por defecto: 0755 si el archivo de origen tiene el bit ejecutable, si no 0644."
         }
       }
     },
