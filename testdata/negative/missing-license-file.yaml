@@ -1,0 +1,22 @@
+# Caso negativo de SC-005: manifiesto inválido.
+schema: 1
+name: missing-license-file
+version: 1.0.0
+pav: 1
+level: 1
+summary: negative test fixture
+description: |
+  Fixture for the negative cases of SC-005; never published.
+homepage: https://github.com/example/missing-license-file
+upstream: example/missing-license-file
+license:
+  spdx: MIT
+value: Test fixture; not a real package and never published.
+arch_map: {amd64: x86_64, arm64: aarch64}
+artifact:
+  url: https://github.com/example/missing-license-file/releases/download/{{tag}}/missing-license-file-{{arch}}.tar.gz
+  format: tar.gz
+install:
+  - {src: missing-license-file, dst: /usr/bin/}
+lintian_overrides:
+  - {tag: statically-linked-binary, path: /usr/bin/missing-license-file, reason: Test binary is static by design.}

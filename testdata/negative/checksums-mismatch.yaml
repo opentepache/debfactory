@@ -1,0 +1,26 @@
+# Caso negativo de SC-005: checksum upstream que no coincide (checksums-mismatch.sha256.txt).
+schema: 1
+name: checksums-mismatch
+version: 1.0.0
+pav: 1
+level: 1
+summary: negative test fixture
+description: |
+  Fixture for the negative cases of SC-005; never published.
+homepage: https://github.com/example/checksums-mismatch
+upstream: example/checksums-mismatch
+license:
+  spdx: MIT
+  file: {archive: LICENSE}
+value: Test fixture; not a real package and never published.
+arch_map: {amd64: x86_64, arm64: aarch64}
+artifact:
+  url: https://github.com/example/checksums-mismatch/releases/download/{{tag}}/checksums-mismatch-{{arch}}.tar.gz
+  format: tar.gz
+checksums:
+  url: https://github.com/example/checksums-mismatch/releases/download/{{tag}}/sha256.txt
+  format: sha256sum
+install:
+  - {src: checksums-mismatch, dst: /usr/bin/}
+lintian_overrides:
+  - {tag: statically-linked-binary, path: /usr/bin/checksums-mismatch, reason: Test binary is static by design.}

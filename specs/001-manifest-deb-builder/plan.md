@@ -74,6 +74,22 @@ de alcance: publicar, CI, detección de versiones, nivel 2 y firmas upstream.
 **Gate (pre-research)**: PASS. **Re-check (post-design)**: PASS contra la constitución v1.5.0;
 queda una sola desviación de espíritu, justificada abajo.
 
+**Re-check (post-implementación, 2026-11-12)**: PASS. Lo que cambió al implementar, sin tocar
+ningún principio:
+
+- I: los 4 paquetes y el quinto de prueba (actionlint) son solo datos. Los ajustes que salieron
+  de los binarios reales también lo son: `mode: "0755"` y `depends: [ca-certificates]` en bob, y
+  los cargadores `ld-linux-*` en `elf_dependencies` de la config.
+- III: nada entra en la caché sin verificar; las redirecciones solo van a hosts de GitHub; en
+  `lock` el orden es checksums upstream → gate de licencias → escribir (tests negativos).
+- IV y VII: lintian no admite el texto completo de la GPL ni de Apache-2.0 en `copyright`
+  (errores `copyright-*`, no silenciables). Por eso esas licencias remiten a
+  `/usr/share/common-licenses`, como pide la política de Debian, y la licencia sigue declarada en
+  `copyright`. Para el caso negativo de licencia no permitida se usa SSPL-1.0, porque
+  licensecheck no reconoce BUSL-1.1.
+- VII: los 8 `.deb` son reproducibles byte a byte y pasan lintian sin errores; la prueba de
+  instalación pasa en las suites no excluidas (research §3).
+
 ## Project Structure
 
 ### Documentation (this feature)

@@ -1,0 +1,25 @@
+# want: exclude.suites.bullseye: suite no soportada
+schema: 1
+name: exclude-unknown-suite
+version: 1.0.0
+pav: 1
+level: 1
+summary: example single static binary tool
+description: |
+  Placeholder showing the smallest valid manifest for a tool shipped as
+  one static binary per architecture inside a tar.gz.
+homepage: https://github.com/example/exclude-unknown-suite
+upstream: example/exclude-unknown-suite
+license:
+  spdx: MIT
+  file: {archive: LICENSE}
+value: Not in Debian or Ubuntu; author has no APT repository; not in griffo.
+arch_map: {amd64: x86_64, arm64: aarch64}
+artifact:
+  url: https://github.com/example/exclude-unknown-suite/releases/download/{{tag}}/exclude-unknown-suite-{{arch}}.tar.gz
+  format: tar.gz
+exclude:
+  suites:
+    bullseye: Too old for this tool, glibc 2.31.
+install:
+  - {src: exclude-unknown-suite, dst: /usr/bin/}

@@ -67,7 +67,7 @@ Los fixtures de `testdata/negative/` reproducen cada caso con un servidor HTTP l
 | Manifiesto inválido | quitar `license.file` de una copia del manifiesto | `validate: …: license: falta la propiedad "file"` |
 | Hash del lockfile alterado | cambiar un hash de `artifacts.amd64` en el lockfile | `verify: sha256 no coincide …` con esperado y obtenido |
 | Checksum upstream que no coincide | fixture con un `sha256.txt` falso | `verify: sha256 no coincide con sha256.txt de upstream …` |
-| Licencia no permitida | fixture con texto BUSL-1.1 declarado como `BUSL-1.1` | `license: licencia declarada "BUSL-1.1" no está en … (detectada "BUSL-1.1")` |
+| Licencia no permitida | fixture con texto SSPL-1.0 declarado como `SSPL-1.0` | `license: licencia declarada "SSPL-1.0" no está en … (detectada "SSPL-1.0")` |
 | Licencia distinta de la declarada | fixture con texto MIT declarado como `Apache-2.0` | `license: licencia detectada "MIT" no coincide con la declarada "Apache-2.0"` |
 | Licencia no identificable | fixture con texto inventado | `license: texto de licencia no identificable (…; declarada "…")` |
 | URL no oficial | `artifact.url` hacia otro repo | `validate: …: artifact.url: fuera de los releases de …` |

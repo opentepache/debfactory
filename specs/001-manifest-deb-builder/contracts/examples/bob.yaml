@@ -18,7 +18,8 @@ artifact:
   url: https://github.com/MordechaiHadad/bob/releases/download/{{tag}}/bob-linux-{{arch}}.zip
   format: zip
 install:
-  - {src: "bob-linux-{{arch}}/bob", dst: /usr/bin/}
+  - {src: "bob-linux-{{arch}}/bob", dst: /usr/bin/, mode: "0755"}  # el zip no trae el bit ejecutable
+depends: [ca-certificates]  # bob crea un cliente TLS al arrancar (research §3 riesgo 3)
 completions:
   bash: {generate: bob complete bash}
   zsh: {generate: bob complete zsh}

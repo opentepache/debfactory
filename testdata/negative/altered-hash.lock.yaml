@@ -1,0 +1,9 @@
+# Caso negativo de SC-005: los hashes de artifacts están alterados a propósito.
+schema: 1
+versions:
+  1.0.0:
+    source_date_epoch: 1767225600
+    license_sha256: abababababababababababababababababababababababababababababababab
+    artifacts:
+      amd64: 0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa
+      arm64: 0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa

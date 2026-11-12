@@ -1,0 +1,23 @@
+# Caso negativo de SC-005: licencia no permitida (texto licenses/SSPL-1.0.txt).
+schema: 1
+name: sspl
+version: 1.0.0
+pav: 1
+level: 1
+summary: negative test fixture
+description: |
+  Fixture for the negative cases of SC-005; never published.
+homepage: https://github.com/example/sspl
+upstream: example/sspl
+license:
+  spdx: SSPL-1.0
+  file: {archive: LICENSE}
+value: Test fixture; not a real package and never published.
+arch_map: {amd64: x86_64, arm64: aarch64}
+artifact:
+  url: https://github.com/example/sspl/releases/download/{{tag}}/sspl-{{arch}}.tar.gz
+  format: tar.gz
+install:
+  - {src: sspl, dst: /usr/bin/}
+lintian_overrides:
+  - {tag: statically-linked-binary, path: /usr/bin/sspl, reason: Test binary is static by design.}

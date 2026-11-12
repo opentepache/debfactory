@@ -1,0 +1,23 @@
+# Caso negativo de SC-005: variable desconocida.
+schema: 1
+name: unknown-var
+version: 1.0.0
+pav: 1
+level: 1
+summary: negative test fixture
+description: |
+  Fixture for the negative cases of SC-005; never published.
+homepage: https://github.com/example/unknown-var
+upstream: example/unknown-var
+license:
+  spdx: MIT
+  file: {archive: LICENSE}
+value: Test fixture; not a real package and never published.
+arch_map: {amd64: x86_64, arm64: aarch64}
+artifact:
+  url: https://github.com/example/unknown-var/releases/download/{{tag}}/unknown-var-{{arc}}.tar.gz
+  format: tar.gz
+install:
+  - {src: unknown-var, dst: /usr/bin/}
+lintian_overrides:
+  - {tag: statically-linked-binary, path: /usr/bin/unknown-var, reason: Test binary is static by design.}

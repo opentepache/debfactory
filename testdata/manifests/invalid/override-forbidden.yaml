@@ -1,0 +1,24 @@
+# want: lintian_overrides[0].tag: "embedded-library" no se puede silenciar
+schema: 1
+name: override-forbidden
+version: 1.0.0
+pav: 1
+level: 1
+summary: example single static binary tool
+description: |
+  Placeholder showing the smallest valid manifest for a tool shipped as
+  one static binary per architecture inside a tar.gz.
+homepage: https://github.com/example/override-forbidden
+upstream: example/override-forbidden
+license:
+  spdx: MIT
+  file: {archive: LICENSE}
+value: Not in Debian or Ubuntu; author has no APT repository; not in griffo.
+arch_map: {amd64: x86_64, arm64: aarch64}
+artifact:
+  url: https://github.com/example/override-forbidden/releases/download/{{tag}}/override-forbidden-{{arch}}.tar.gz
+  format: tar.gz
+lintian_overrides:
+  - {tag: embedded-library, reason: Upstream vendors libyaml on purpose.}
+install:
+  - {src: override-forbidden, dst: /usr/bin/}

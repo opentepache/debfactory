@@ -39,6 +39,8 @@ elf_dependencies:          # NEEDED -> paquete; {glibc} se reemplaza por la GLIB
   librt.so.1:      "libc6 (>= {glibc})"
   libpthread.so.0: "libc6 (>= {glibc})"
   libgcc_s.so.1:   "libgcc-s1"
+  ld-linux-x86-64.so.2:  "libc6 (>= {glibc})"   # el cargador, si un binario lo declara en NEEDED
+  ld-linux-aarch64.so.1: "libc6 (>= {glibc})"   # (bob arm64 lo hace)
 
 community_repos:           # constitución V; comprobación manual en la fase 1
   - name: griffo

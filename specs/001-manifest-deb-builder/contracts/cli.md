@@ -46,7 +46,7 @@ debfactory: fnm 1.39.0 amd64: verify: sha256 no coincide para fnm-linux.zip
   esperado (lock):  7807664f39d39fc5…
   obtenido:         0000aaaa…
 debfactory: buf 1.75.0 arm64: verify: sha256 no coincide con sha256.txt de upstream para buf-Linux-aarch64.tar.gz
-debfactory: foo 2.0.0 -: license: licencia declarada "BUSL-1.1" no está en config/licenses.yaml (detectada "BUSL-1.1")
+debfactory: foo 2.0.0 -: license: licencia declarada "SSPL-1.0" no está en config/licenses.yaml (detectada "SSPL-1.0")
 debfactory: qux 1.0.0 -: license: licencia detectada "MIT" no coincide con la declarada "Apache-2.0"
 debfactory: bar 0.3.0 -: license: texto de licencia no identificable (cobertura 41 % < 90 %; declarada "MIT")
 debfactory: baz 1.0.0 -: validate: packages/baz.yaml: artifact.url: fuera de los releases de owner/baz

@@ -1,0 +1,23 @@
+# want: tag: "release/1.0.0" no es un tag válido
+schema: 1
+name: bad-tag
+version: 1.0.0
+pav: 1
+level: 1
+tag: release/{{version}}
+summary: example single static binary tool
+description: |
+  Placeholder showing the smallest valid manifest for a tool shipped as
+  one static binary per architecture inside a tar.gz.
+homepage: https://github.com/example/bad-tag
+upstream: example/bad-tag
+license:
+  spdx: MIT
+  file: {archive: LICENSE}
+value: Not in Debian or Ubuntu; author has no APT repository; not in griffo.
+arch_map: {amd64: x86_64, arm64: aarch64}
+artifact:
+  url: https://github.com/example/bad-tag/releases/download/{{tag}}/bad-tag-{{arch}}.tar.gz
+  format: tar.gz
+install:
+  - {src: bad-tag, dst: /usr/bin/}

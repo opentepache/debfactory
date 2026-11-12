@@ -1,0 +1,23 @@
+# Caso negativo de SC-005: licencia detectada distinta de la declarada (texto licenses/MIT-declared-Apache.txt).
+schema: 1
+name: mit-as-apache
+version: 1.0.0
+pav: 1
+level: 1
+summary: negative test fixture
+description: |
+  Fixture for the negative cases of SC-005; never published.
+homepage: https://github.com/example/mit-as-apache
+upstream: example/mit-as-apache
+license:
+  spdx: Apache-2.0
+  file: {archive: LICENSE}
+value: Test fixture; not a real package and never published.
+arch_map: {amd64: x86_64, arm64: aarch64}
+artifact:
+  url: https://github.com/example/mit-as-apache/releases/download/{{tag}}/mit-as-apache-{{arch}}.tar.gz
+  format: tar.gz
+install:
+  - {src: mit-as-apache, dst: /usr/bin/}
+lintian_overrides:
+  - {tag: statically-linked-binary, path: /usr/bin/mit-as-apache, reason: Test binary is static by design.}

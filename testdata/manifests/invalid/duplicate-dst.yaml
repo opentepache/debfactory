@@ -1,0 +1,23 @@
+# want: install[1].dst: /usr/bin/tool duplicado
+schema: 1
+name: duplicate-dst
+version: 1.0.0
+pav: 1
+level: 1
+summary: example single static binary tool
+description: |
+  Placeholder showing the smallest valid manifest for a tool shipped as
+  one static binary per architecture inside a tar.gz.
+homepage: https://github.com/example/duplicate-dst
+upstream: example/duplicate-dst
+license:
+  spdx: MIT
+  file: {archive: LICENSE}
+value: Not in Debian or Ubuntu; author has no APT repository; not in griffo.
+arch_map: {amd64: x86_64, arm64: aarch64}
+artifact:
+  url: https://github.com/example/duplicate-dst/releases/download/{{tag}}/duplicate-dst-{{arch}}.tar.gz
+  format: tar.gz
+install:
+  - {src: duplicate-dst, dst: /usr/bin/tool}
+  - {src: other, dst: /usr/bin/tool}

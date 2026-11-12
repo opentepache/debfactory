@@ -215,7 +215,8 @@ necesitaba.
   | `no-changelog`, `no-copyright-file` | **E** | si faltan (el builder los genera) |
   | `uncompressed-manual-page` | **E** | buf si no se comprimen (el builder las comprime) |
   | `no-manual-page` | W | fnm, pnpm, bob, aqua |
-  | `copyright-without-copyright-notice` | W | si `copyright` no tiene una línea "Copyright" |
+  | `copyright-without-copyright-notice` | W | si `copyright` no tiene una línea "Copyright" con año (fnm: su LICENSE es la GPL sin aviso propio) |
+  | `copyright-file-contains-full-gpl-license`, `copyright-not-using-common-license-for-gpl` | **E** | si se copia el texto de la GPL; **no silenciables** → GPL, LGPL, Apache-2.0 y MPL-2.0 remiten a `/usr/share/common-licenses` (política de Debian §12.5; verificado 2026-11-12 con fnm) |
   | `shared-library-lacks-prerequisites` | W | fnm (static-pie) |
 
 - **Rationale**: `statically-linked-binary` es un error que no se puede corregir sin recompilar
@@ -283,9 +284,35 @@ necesitaba.
 1. **Reproducibilidad byte a byte de nfpm** (D2): si `control.tar.gz` u otro miembro no es
    determinista, se fija con opciones de nfpm o se post-procesa. Se bloquea SC-006 hasta
    verificarlo.
+   **Resuelto (2026-11-12, T018, `internal/pkg/spike_test.go`)**: nfpm v2.48.0 da el mismo
+   sha256 construyendo desde directorios distintos y con mtimes y permisos de origen
+   distintos, siempre que cada contenido lleve `FileInfo{Owner, Group, Mode, MTime}` y se use
+   `DisableGlobbing: true`. Los directorios implícitos salen `root:root`, 0755 y con `MTime`.
+   `dpkg-deb -f` da `Version: 1.0.0-0~pav1`. No hace falta post-procesar.
 2. ~~**pnpm SEA con enlace simbólico**~~: ya no aplica; pnpm se descartó (§1.2b).
 3. **Completions bajo qemu**: algunos binarios pueden fallar bajo emulación; en ese caso se
    generan solo con el binario amd64. Son texto independiente de la arquitectura, pero la
    misma salida debe usarse en los dos `.deb`.
+   **Resuelto (2026-11-12, T020)**: con `debian:trixie`, `--network none`, `--read-only` y el
+   binario en `/stage/usr/bin`, las 9 completions (fnm, bob, aqua × bash, zsh, fish) salen
+   **idénticas** en amd64 y arm64 (qemu) y entre ejecuciones, así que se generan con la
+   arquitectura objetivo. Dos ajustes genéricos: (a) bob escribe su configuración en `$HOME`
+   al arrancar, por lo que el contenedor lleva `--tmpfs /tmp` y `HOME=/tmp` (la raíz sigue en
+   solo lectura); (b) bob crea un cliente TLS al arrancar y sin `ca-certificates` termina con
+   `Error: Other` (incluso `bob --help`), así que la imagen de completions es
+   `config.completions_image` + `ca-certificates`, y `packages/bob.yaml` declara
+   `depends: [ca-certificates]` (sin eso `bob --version` también falla en la prueba de
+   instalación). Además, el zip de bob guarda el binario **sin bit ejecutable**, así que su
+   manifiesto declara `mode: "0755"`.
 4. **`licensecheck` con textos MIT y BSD que tienen variaciones de copyright**: confirmar la
    cobertura con los 4 textos reales (fnm, bob, buf, aqua) en las pruebas unitarias.
+   **Resuelto (2026-11-12, T019, `internal/license/detect_test.go`)**: licensecheck v0.3.1
+   identifica fnm como `GPL-3.0` (100 %), bob como `MIT` (98,8 %), buf como `Apache-2.0`
+   (100 %) y aqua como `MIT` (98,8 %); los textos de buf y aqua son idénticos en amd64 y arm64.
+   licensecheck **no** tiene patrón para BUSL-1.1 (solo BSL-1.0, la de Boost): el caso negativo
+   "licencia no permitida" usa SSPL-1.0, que sí detecta y no está en la allowlist.
+5. **Tiempo de las pruebas de instalación** (T048, 2026-11-12): `just test fnm` (5 suites × 2
+   arquitecturas) pasa en las 10 combinaciones. En frío, creando las 10 imágenes, tarda 6 min
+   27 s; en caliente, 2 min 57 s (amd64: 3–5 s por suite; arm64 por qemu: 18–40 s por suite).
+   Otro hallazgo de US5: el ELF de bob arm64 declara el cargador `ld-linux-aarch64.so.1` como
+   `NEEDED`, así que `elf_dependencies` mapea también los cargadores a `libc6 (>= {glibc})`.
