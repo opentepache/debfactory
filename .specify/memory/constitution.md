@@ -63,10 +63,15 @@ cada eslabón previo es verificable.
 
 - MUST NOT empaquetarse software que ya tenga un repositorio APT oficial mantenido por su autor.
 - MUST NOT empaquetarse software cuya versión en Debian estable esté al día con upstream.
+- MUST NOT empaquetarse software que ya se distribuya en un repositorio APT comunitario conocido
+  y mantenido (por ejemplo, griffo, `debian.griffo.io`). La lista de repositorios comunitarios
+  conocidos se mantiene versionada en el repositorio de debfactory; ampliarla no requiere
+  enmienda.
 - Cada manifiesto MUST documentar por qué el paquete aporta valor frente a las alternativas
-  existentes.
+  existentes, confirmando las tres comprobaciones anteriores.
 
-*Rationale*: cada paquete es mantenimiento perpetuo; solo se asume cuando nadie más lo cubre.
+*Rationale*: cada paquete es mantenimiento perpetuo; solo se asume cuando nadie más lo cubre,
+sea Debian, el propio autor u otra comunidad.
 
 ### VI. Versionado compatible con Debian
 
@@ -150,7 +155,7 @@ reside solo en el pipeline determinista y en el mantenedor.
   "falla en una, no se publica en ninguna" del principio VII.
 - **Hosting público**: almacenamiento estático S3-compatible (Cloudflare R2), con diseño
   agnóstico del proveedor (ver IX).
-- **Paquetes iniciales**: `fnm`, `pnpm`, `bob`, `tenv`, `aqua`. Cada uno MUST cumplir todos los
+- **Paquetes iniciales**: `fnm`, `pnpm`, `bob`, `buf`, `aqua`. Cada uno MUST cumplir todos los
   principios (en particular V) antes de publicarse.
 - Ampliar arquitecturas o suites es una enmienda a esta sección.
 
@@ -181,4 +186,4 @@ se notifica según el principio VIII:
   de los principios I–X en su sección "Constitution Check". Toda desviación MUST justificarse en
   la tabla de seguimiento de complejidad del plan o el plan no se aprueba.
 
-**Version**: 1.2.1 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-11
+**Version**: 1.3.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-11
