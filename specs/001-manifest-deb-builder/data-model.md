@@ -13,7 +13,7 @@ Lo escribe una persona. Campos y reglas en el JSON Schema; aquí solo se resumen
 
 | Regla | Mensaje de error (ejemplo) |
 |---|---|
-| `name` coincide con el nombre del archivo | `packages/fnm.yaml: name: "fnmx" no coincide con el archivo "fnm"` |
+| `name` coincide con el nombre del archivo (el campo `pav` guarda N de `-0~pav<N>`) | `packages/fnm.yaml: name: "fnmx" no coincide con el archivo "fnm"` |
 | Solo variables `{{version}}`, `{{tag}}`, `{{arch}}` | `…: artifact.url: variable desconocida {{arc}}` |
 | `artifact.url` y `checksums.url` empiezan por `https://github.com/<upstream>/releases/download/<tag renderizado>/` | `…: artifact.url: fuera de los releases de Schniz/fnm` |
 | `summary` sin artículo inicial (a/an/the) | `…: summary: no debe empezar con artículo` |

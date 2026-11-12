@@ -36,10 +36,15 @@ aporta algo que el binario upstream no puede dar.
 
 - Todo artefacto descargado MUST verificarse contra los checksums o firmas publicados por
   upstream cuando existan.
-- Si upstream no publica checksum, el hash SHA-256 MUST registrarse en el manifiesto; cualquier
-  discrepancia posterior MUST hacer fallar el build.
-- Solo se descargan artefactos desde las URLs de release oficiales declaradas en el manifiesto;
-  cualquier otro origen MUST hacer fallar el build.
+- Si upstream no publica checksum, el hash SHA-256 MUST registrarse en el lockfile del paquete
+  (archivo de datos versionado junto al manifiesto, generado por una orden explícita y nunca por
+  el build); cualquier discrepancia posterior MUST hacer fallar el build.
+- Solo se descargan artefactos (los archivos que se instalan) desde las URLs de release
+  oficiales declaradas en el manifiesto; cualquier otro origen MUST hacer fallar el build.
+- Los metadatos de verificación (archivos de checksums, firmas y el texto de licencia) MAY
+  descargarse del mismo release o del repositorio upstream fijado al tag exacto de la versión.
+  Su URL MUST derivarse del repositorio y del tag declarados en el manifiesto (nunca ser libre)
+  y su hash MUST registrarse en el lockfile del paquete.
 - El repositorio APT y sus índices MUST ir siempre firmados con GPG.
 - La llave privada de firma MUST NOT residir en el repositorio de código ni aparecer en logs, y
   MUST tener un respaldo documentado fuera de la máquina de build.
@@ -99,7 +104,11 @@ la confianza de APT.
 
 - El mismo manifiesto con la misma versión upstream MUST producir el mismo `.deb`: mismos
   contenidos y metadatos, con fechas fijadas (p. ej. `SOURCE_DATE_EPOCH`).
-- Todo paquete MUST pasar `lintian` sin errores.
+- Todo paquete MUST pasar `lintian` sin errores. Un error solo MAY silenciarse con un override
+  declarado en el manifiesto, por etiqueta y con motivo, cuando no pueda corregirse en nivel 1
+  (p. ej. `statically-linked-binary` en binarios upstream estáticos). Las etiquetas de
+  seguridad, licencia o copyright MUST NOT silenciarse; su lista se mantiene versionada en la
+  configuración compartida.
 - Todo paquete MUST pasar una prueba de instalación real en un contenedor limpio de cada suite
   soportada (no excluida) y de cada arquitectura soportada antes de publicarse.
 - Si la prueba falla en cualquier suite no excluida, el paquete MUST NOT publicarse en ninguna.
@@ -186,4 +195,4 @@ se notifica según el principio VIII:
   de los principios I–X en su sección "Constitution Check". Toda desviación MUST justificarse en
   la tabla de seguimiento de complejidad del plan o el plan no se aprueba.
 
-**Version**: 1.3.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-11
+**Version**: 1.4.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-12

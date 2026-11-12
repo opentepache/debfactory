@@ -1,7 +1,7 @@
 schema: 1
 name: pnpm
 version: 12.18.0
-revision: 1
+pav: 1
 summary: fast, disk space efficient package manager for Node.js
 description: |
   pnpm installs Node.js dependencies into a content-addressable store and

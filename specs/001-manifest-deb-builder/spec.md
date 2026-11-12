@@ -169,7 +169,7 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
   de licencia declarada en el manifiesto para esa versión exacta.
 - **La versión upstream reporta un formato distinto** (por ejemplo `v1.39.0`, `fnm 1.39.0`): la
   verificación de versión acepta el patrón declarado en el manifiesto.
-- **La orden de comprobación necesita red, HOME o un TTY**: la prueba corre sin red y con un
+- **La orden de comprobación necesita red o HOME**: la prueba corre sin red y con un
   HOME temporal; si la herramienta no puede reportar su versión así, el manifiesto declara otra
   orden de comprobación.
 - **Mismo nombre que un paquete oficial más viejo** (si Debian o Ubuntu llegan a empaquetar una
@@ -204,14 +204,14 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
   varios archivos (por ejemplo, todas las man pages de un directorio); un patrón que no
   seleccione ningún archivo MUST hacer fallar el build.
 - **FR-004**: El esquema MUST permitir declarar, de forma opcional, completions de shell (bash,
-  zsh, fish) y man pages, ya sea como archivos incluidos en el artefacto o generados por el
-  propio binario.
+  zsh, fish), incluidas en el artefacto o generadas por el propio binario, y man pages
+  incluidas en el artefacto.
 - **FR-005**: El esquema MUST permitir declarar relaciones con otros paquetes: dependencias,
   recomendaciones, conflictos, reemplazos y paquetes provistos.
 - **FR-006**: El esquema MUST permitir excluir suites concretas y, opcionalmente, arquitecturas
   concretas; cada exclusión MUST incluir un motivo no vacío.
 - **FR-007**: El esquema MUST permitir declarar la orden de comprobación de la prueba de
-  instalación y el patrón de salida esperado en función de la versión upstream.
+  instalación y una subcadena que la salida debe contener, en función de la versión upstream.
 - **FR-008**: El esquema MUST permitir declarar la fuente del texto de licencia de la versión
   exacta: un archivo dentro del artefacto o una URL del repositorio upstream fijada a esa
   versión.
@@ -246,7 +246,8 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
 - **FR-017**: Construir dos veces el mismo manifiesto con la misma versión MUST producir `.deb`
   idénticos byte a byte (fechas, propietarios, permisos y orden de archivos fijados).
 - **FR-018**: Cada `.deb` construido MUST pasar `lintian` sin errores; un error de `lintian`
-  MUST hacer fallar el build.
+  MUST hacer fallar el build, salvo que esté cubierto por un override declarado en el manifiesto
+  y permitido por la constitución VII.
 - **FR-019**: Un fallo MUST detener el proceso para ese paquete y arquitectura sin dejar `.deb`
   parciales en la salida, y el mensaje MUST nombrar paquete, versión, arquitectura, etapa y
   causa exacta.
@@ -273,6 +274,9 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
   descripciones, homepage, upstream), licencia esperada y su fuente, versión upstream y `N`,
   justificación de valor, artefactos por arquitectura, archivos a instalar, extras opcionales
   (completions, man pages), relaciones con otros paquetes, exclusiones y orden de comprobación.
+- **Lockfile**: hashes verificados por versión y arquitectura (artefactos y texto de licencia)
+  y la fecha del release upstream; lo genera una orden explícita, nunca el build, y se revisa en
+  el control de versiones.
 - **Artefacto**: archivo oficial publicado por upstream para una versión y arquitectura; tiene
   URL, formato e integridad (checksum upstream, firma upstream o hash registrado).
 - **Configuración compartida**: mantenedor, suites y arquitecturas soportadas, allowlist de
@@ -330,8 +334,9 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
 - **Completions generadas**: si una completion se genera ejecutando el binario, se acepta
   ejecutar el binario de la arquitectura nativa o por emulación durante el build; si no es
   posible, el build falla con mensaje claro.
+- **Man pages generadas**: fuera de esta fase; ningún paquete inicial las necesita.
 - **Overrides de lintian**: se permiten solo declarados en el manifiesto, por etiqueta y con
-  justificación; nunca para errores relacionados con seguridad o licencia.
+  justificación; nunca para etiquetas de seguridad, licencia o copyright (constitución VII).
 - **Firma del repositorio**: no aplica en esta fase (no se publica); los `.deb` no se firman
   individualmente.
 - **Fuera de alcance**: publicar el repositorio, CI, detección automática de versiones, sitio

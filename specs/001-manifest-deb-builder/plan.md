@@ -24,7 +24,7 @@ glibc 2.39) y overrides de lintian justificados (Go estático).
 
 **Primary Dependencies**: `github.com/goreleaser/nfpm/v2` v2.48.x (deb),
 `github.com/santhosh-tekuri/jsonschema/v6` v6.0.3, `github.com/google/licensecheck`,
-`gopkg.in/yaml.v3` (o `go.yaml.in/yaml/v3`), biblioteca estándar (`debug/elf`, `archive/zip`,
+`go.yaml.in/yaml/v3` (el fork mantenido; `gopkg.in/yaml.v3` está archivado), biblioteca estándar (`debug/elf`, `archive/zip`,
 `archive/tar`, `compress/gzip`, `crypto/sha256`, `net/http`). Fuera de Go: Docker, lintian (en
 contenedor) y `qemu-user-binfmt`.
 
@@ -60,17 +60,17 @@ de alcance: publicar, CI, detección de versiones, nivel 2 y firmas upstream.
 |---|---|---|---|
 | I | Declarativo primero | Un YAML por paquete; los 5 se expresan con el esquema genérico (validados en [examples/](contracts/examples/)); sin hooks de código. `Depends` desde ELF y completions generadas son reglas genéricas. | ✅ |
 | II | Dos niveles | Solo nivel 1 (binario oficial). Nivel 2 fuera de alcance; el sufijo de suite ya está en la config para cuando llegue. No se publican paquetes fuente. | ✅ |
-| III | Cadena de suministro | Lockfile con sha256 siempre, más checksums upstream cuando existen (buf, aqua). Las URLs se restringen a `github.com/<upstream>/releases/download/<tag>/`. El texto de licencia viene del artefacto o de `raw.githubusercontent.com/<upstream>/<tag>/…`, con hash en el lock (ver Complexity). Sin firma del repositorio en esta fase (no se publica). | ✅ con justificación |
+| III | Cadena de suministro | Lockfile con sha256 siempre, más checksums upstream cuando existen (buf, aqua). Las URLs se restringen a `github.com/<upstream>/releases/download/<tag>/`. El texto de licencia viene del artefacto o de `raw.githubusercontent.com/<upstream>/<tag>/…` con URL derivada y hash en el lock (metadatos de verificación, permitido por III desde v1.4.0). Sin firma del repositorio en esta fase (no se publica). | ✅ |
 | IV | Gate de licencias | Detección local sobre el texto exacto; allowlist en `config/licenses.yaml`; no identificable, no permitida o distinta de la declarada = fallo. `copyright` DEP-5 con texto completo. | ✅ |
 | V | No duplicar | `value` obligatorio en el manifiesto; `community_repos` en la config; los 5 verificados contra Debian, Ubuntu, repos del autor y griffo (research §1). | ✅ |
 | VI | Versionado | `<upstream>-0~pav<N>` con `Release="0~pavN"` en nfpm; lintian **no** marca `0~pavN` como revisión cero (verificado); prueba con `dpkg --compare-versions` (FR-024). | ✅ |
-| VII | Reproducible y verificable | `SOURCE_DATE_EPOCH` desde el lock; mtime, permisos y orden fijados; `gzip -n`; `--check-reproducible`. lintian `--fail-on error` y pruebas de instalación en todas las suites × arch no excluidas; un fallo hace fallar el paquete. Hay overrides de lintian declarados (ver Complexity). | ✅ con justificación |
+| VII | Reproducible y verificable | `SOURCE_DATE_EPOCH` desde el lock; mtime, permisos y orden fijados; `gzip -n`; `--check-reproducible`. lintian `--fail-on error` y pruebas de instalación en todas las suites × arch no excluidas; un fallo hace fallar el paquete. Overrides de lintian declarados con motivo para `statically-linked-binary` (permitido por VII desde v1.4.0); `config.lintian.never_override` bloquea seguridad, licencia y copyright. | ✅ |
 | VIII | Automatización | Fuera de alcance en la fase 1. El diseño la prepara: órdenes no interactivas, códigos de salida estables y `--json`. | ✅ (diferido) |
 | IX | Simplicidad operativa | Go de Debian backports, Docker, lintian, just y qemu-user-binfmt, todos empaquetados en Debian. Un binario y un `justfile`. Cada orden se explica en una línea ([cli.md](contracts/cli.md)). | ✅ |
 | X | La IA propone | Ningún componente usa IA. | ✅ |
 
-**Gate (pre-research)**: PASS. **Re-check (post-design)**: PASS; las tres desviaciones están
-justificadas abajo.
+**Gate (pre-research)**: PASS. **Re-check (post-design)**: PASS contra la constitución v1.4.0;
+queda una sola desviación de espíritu, justificada abajo.
 
 ## Project Structure
 
@@ -130,10 +130,10 @@ etapa se prueba por separado y se mapea 1:1 a los `stage` de los errores). Datos
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| **III**: el texto de licencia se descarga de `raw.githubusercontent.com`, no de una URL de release | pnpm, fnm y bob no incluyen la licencia en el artefacto, y IV exige la licencia de la versión exacta | Usar el texto de la API de GitHub depende de un servicio que falla (aqua 404) y no fija la versión. Mitigación: la URL se deriva de `upstream` + `tag` (no es libre), y su sha256 queda en el lockfile. |
-| **VII**: overrides de lintian (`statically-linked-binary` en buf y aqua) | Es un error inevitable para binarios Go estáticos de nivel 1 | Recompilar (nivel 2) contradice II, que lo reserva para cuando no hay binario utilizable. Mitigación: cada override se declara con motivo en el manifiesto y `config.lintian.never_override` impide silenciar etiquetas de seguridad o licencia. |
 | **III (espíritu)**: se ejecuta un binario upstream para generar completions | fnm, pnpm, bob y aqua solo ofrecen completions generadas | Se ejecuta en contenedor efímero, sin red y de solo lectura, nunca en el host; es opcional por manifiesto. |
-| **III**: firmas upstream (minisign, sigstore) no verificadas | La constitución exige checksums *o* firmas; verificar firmas añade dos herramientas | Se pospone; el lockfile más los checksums upstream cubren la integridad. Queda anotado como mejora. |
+
+**Mejora futura** (no es una desviación: III pide checksums **o** firmas): verificar las firmas
+upstream (minisign de buf, sigstore de aqua).
 
 ## Riesgos que se atacan primero
 

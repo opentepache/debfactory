@@ -1,7 +1,7 @@
 schema: 1
 name: bob
 version: 4.3.0
-revision: 1
+pav: 1
 summary: version manager for Neovim
 description: |
   bob installs, switches and removes Neovim versions (stable, nightly or a

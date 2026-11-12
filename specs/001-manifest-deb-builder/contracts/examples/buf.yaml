@@ -1,7 +1,7 @@
 schema: 1
 name: buf
 version: 1.75.0
-revision: 1
+pav: 1
 summary: tooling for Protocol Buffers linting, breaking checks and codegen
 description: |
   buf lints and formats Protocol Buffers, detects breaking changes and

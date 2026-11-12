@@ -82,6 +82,6 @@ su lockfile).
 
 ## Escenario 7: actualizar una versión (SC-004)
 
-Cambiar `version:` en el manifiesto y volver `revision` a `1` (N se reinicia con cada versión
+Cambiar `version:` en el manifiesto y volver `pav` a `1` (N se reinicia con cada versión
 upstream nueva, constitución VI); luego `just lock <pkg>` y `just build <pkg>`.
-**Esperado**: el diff toca solo el manifiesto (versión y revision) y el lockfile.
+**Esperado**: el diff toca solo el manifiesto (`version` y `pav`) y el lockfile.

@@ -5,7 +5,7 @@
   "description": "Un manifiesto por paquete en packages/<name>.yaml. Plantillas permitidas en strings marcadas como 'templated': {{version}}, {{tag}}, {{arch}}.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "name", "version", "revision", "summary", "description", "homepage", "upstream", "license", "value", "arch_map", "artifact", "install"],
+  "required": ["schema", "name", "version", "pav", "summary", "description", "homepage", "upstream", "license", "value", "arch_map", "artifact", "install"],
   "properties": {
     "schema": { "const": 1 },
     "name": {
@@ -18,8 +18,8 @@
       "type": "string",
       "pattern": "^[0-9][A-Za-z0-9.+]*$"
     },
-    "revision": {
-      "description": "N en <upstream>-0~pav<N>. Empieza en 1 y se reinicia con cada versión upstream.",
+    "pav": {
+      "description": "N en <upstream>-0~pav<N> (no es la revisión Debian, que siempre es 0). Empieza en 1 y se reinicia con cada versión upstream.",
       "type": "integer",
       "minimum": 1
     },
