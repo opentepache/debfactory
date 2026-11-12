@@ -3,6 +3,7 @@ schema: 1
 name: example
 version: 1.0.0
 pav: 1
+level: 1
 summary: example single static binary tool
 description: |
   Placeholder showing the smallest valid manifest for a tool shipped as

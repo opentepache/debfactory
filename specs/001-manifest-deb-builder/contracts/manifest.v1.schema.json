@@ -5,9 +5,26 @@
   "description": "Un manifiesto por paquete en packages/<name>.yaml. Plantillas permitidas en strings marcadas como 'templated': {{version}}, {{tag}}, {{arch}}.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "name", "version", "pav", "summary", "description", "homepage", "upstream", "license", "value", "arch_map", "artifact", "install"],
+  "required": [
+    "schema",
+    "name",
+    "version",
+    "pav",
+    "level",
+    "summary",
+    "description",
+    "homepage",
+    "upstream",
+    "license",
+    "value",
+    "arch_map",
+    "artifact",
+    "install"
+  ],
   "properties": {
-    "schema": { "const": 1 },
+    "schema": {
+      "const": 1
+    },
     "name": {
       "description": "Nombre del paquete Debian; también el nombre del archivo del manifiesto.",
       "type": "string",
@@ -23,6 +40,10 @@
       "type": "integer",
       "minimum": 1
     },
+    "level": {
+      "description": "Nivel de construcción (constitución II). El esquema v1 solo admite 1 (reempaquetado del binario oficial); el nivel 2 llegará con su campo de justificación.",
+      "const": 1
+    },
     "summary": {
       "description": "Sinopsis de una línea (Description de Debian). Sin punto final. El artículo inicial se valida en Go (el motor de regex de Go no tiene lookahead).",
       "type": "string",
@@ -30,9 +51,19 @@
       "maxLength": 80,
       "pattern": "^[^\\n]*[^.\\n]$"
     },
-    "description": { "type": "string", "minLength": 20 },
-    "homepage": { "type": "string", "format": "uri", "pattern": "^https://" },
-    "section": { "type": "string", "default": "devel" },
+    "description": {
+      "type": "string",
+      "minLength": 20
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "section": {
+      "type": "string",
+      "default": "devel"
+    },
     "upstream": {
       "description": "Repositorio de GitHub 'owner/repo'. Fase 1: solo GitHub.",
       "type": "string",
@@ -46,7 +77,10 @@
     "license": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["spdx", "file"],
+      "required": [
+        "spdx",
+        "file"
+      ],
       "properties": {
         "spdx": {
           "description": "Expresión SPDX esperada, p. ej. 'MIT' o 'MIT OR Apache-2.0'.",
@@ -60,8 +94,14 @@
           "minProperties": 1,
           "maxProperties": 1,
           "properties": {
-            "archive": { "description": "Ruta dentro del artefacto (templated).", "type": "string" },
-            "repo": { "description": "Ruta en el repo upstream al tag exacto.", "type": "string" }
+            "archive": {
+              "description": "Ruta dentro del artefacto (templated).",
+              "type": "string"
+            },
+            "repo": {
+              "description": "Ruta en el repo upstream al tag exacto.",
+              "type": "string"
+            }
           }
         },
         "copyright": {
@@ -81,47 +121,81 @@
       "additionalProperties": false,
       "minProperties": 1,
       "properties": {
-        "amd64": { "type": "string", "minLength": 1 },
-        "arm64": { "type": "string", "minLength": 1 }
+        "amd64": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arm64": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "artifact": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["url", "format"],
+      "required": [
+        "url",
+        "format"
+      ],
       "properties": {
         "url": {
           "description": "URL del asset (templated). Debe empezar por https://github.com/<upstream>/releases/download/{{tag}}/.",
           "type": "string",
           "pattern": "^https://github\\.com/"
         },
-        "format": { "enum": ["binary", "zip", "tar.gz"] }
+        "format": {
+          "enum": [
+            "binary",
+            "zip",
+            "tar.gz"
+          ]
+        }
       }
     },
     "checksums": {
       "description": "Archivo de checksums publicado por upstream. Si se omite, solo se verifica contra el lockfile.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["url", "format"],
+      "required": [
+        "url",
+        "format"
+      ],
       "properties": {
-        "url": { "type": "string", "pattern": "^https://github\\.com/" },
-        "format": { "enum": ["sha256sum"] }
+        "url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/"
+        },
+        "format": {
+          "enum": [
+            "sha256sum"
+          ]
+        }
       }
     },
     "install": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/installItem" }
+      "items": {
+        "$ref": "#/$defs/installItem"
+      }
     },
     "links": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["path", "target"],
+        "required": [
+          "path",
+          "target"
+        ],
         "properties": {
-          "path": { "$ref": "#/$defs/absPath" },
-          "target": { "$ref": "#/$defs/absPath" }
+          "path": {
+            "$ref": "#/$defs/absPath"
+          },
+          "target": {
+            "$ref": "#/$defs/absPath"
+          }
         }
       }
     },
@@ -129,27 +203,49 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "bash": { "$ref": "#/$defs/completion" },
-        "zsh": { "$ref": "#/$defs/completion" },
-        "fish": { "$ref": "#/$defs/completion" }
+        "bash": {
+          "$ref": "#/$defs/completion"
+        },
+        "zsh": {
+          "$ref": "#/$defs/completion"
+        },
+        "fish": {
+          "$ref": "#/$defs/completion"
+        }
       }
     },
     "man": {
       "description": "Globs (templated) de man pages dentro del artefacto; la sección se toma de la extensión.",
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
-    "depends": { "$ref": "#/$defs/relations" },
-    "recommends": { "$ref": "#/$defs/relations" },
-    "conflicts": { "$ref": "#/$defs/relations" },
-    "replaces": { "$ref": "#/$defs/relations" },
-    "provides": { "$ref": "#/$defs/relations" },
+    "depends": {
+      "$ref": "#/$defs/relations"
+    },
+    "recommends": {
+      "$ref": "#/$defs/relations"
+    },
+    "conflicts": {
+      "$ref": "#/$defs/relations"
+    },
+    "replaces": {
+      "$ref": "#/$defs/relations"
+    },
+    "provides": {
+      "$ref": "#/$defs/relations"
+    },
     "exclude": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "suites": { "$ref": "#/$defs/reasons" },
-        "arches": { "$ref": "#/$defs/reasons" }
+        "suites": {
+          "$ref": "#/$defs/reasons"
+        },
+        "arches": {
+          "$ref": "#/$defs/reasons"
+        }
       }
     },
     "test": {
@@ -157,8 +253,15 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "command": { "type": "string", "minLength": 1 },
-        "expect": { "description": "Subcadena esperada (templated).", "type": "string", "minLength": 1 }
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expect": {
+          "description": "Subcadena esperada (templated).",
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "lintian_overrides": {
@@ -166,26 +269,58 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["tag", "reason"],
+        "required": [
+          "tag",
+          "reason"
+        ],
         "properties": {
-          "tag": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-          "path": { "$ref": "#/$defs/absPath" },
-          "reason": { "type": "string", "minLength": 10 }
+          "tag": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "path": {
+            "$ref": "#/$defs/absPath"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10
+          }
         }
       }
     }
   },
   "$defs": {
-    "absPath": { "type": "string", "pattern": "^/(usr|etc|opt)/" },
+    "absPath": {
+      "type": "string",
+      "pattern": "^/(usr|etc|opt)/"
+    },
     "installItem": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["src", "dst"],
+      "required": [
+        "src",
+        "dst"
+      ],
       "properties": {
-        "src": { "description": "Ruta o glob dentro del artefacto (templated). Con format=binary, el archivo descargado se llama '{{name}}'.", "type": "string" },
-        "dst": { "description": "Ruta destino. Si termina en '/', es un directorio y se conserva el nombre de origen.", "$ref": "#/$defs/absPath" },
-        "type": { "enum": ["file", "tree"], "default": "file" },
-        "mode": { "type": "string", "pattern": "^0[0-7]{3}$" }
+        "src": {
+          "description": "Ruta o glob dentro del artefacto (templated). Con format=binary, el archivo descargado se llama '{{name}}'.",
+          "type": "string"
+        },
+        "dst": {
+          "description": "Ruta destino. Si termina en '/', es un directorio y se conserva el nombre de origen.",
+          "$ref": "#/$defs/absPath"
+        },
+        "type": {
+          "enum": [
+            "file",
+            "tree"
+          ],
+          "default": "file"
+        },
+        "mode": {
+          "type": "string",
+          "pattern": "^0[0-7]{3}$"
+        }
       }
     },
     "completion": {
@@ -194,18 +329,30 @@
       "minProperties": 1,
       "maxProperties": 1,
       "properties": {
-        "file": { "description": "Ruta dentro del artefacto (templated).", "type": "string" },
-        "generate": { "description": "Orden que imprime la completion; se ejecuta en contenedor sin red.", "type": "string" }
+        "file": {
+          "description": "Ruta dentro del artefacto (templated).",
+          "type": "string"
+        },
+        "generate": {
+          "description": "Orden que imprime la completion; se ejecuta en contenedor sin red.",
+          "type": "string"
+        }
       }
     },
     "relations": {
       "type": "array",
-      "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9+.-]+( \\((<<|<=|=|>=|>>) [^)]+\\))?( \\| [a-z0-9][a-z0-9+.-]+( \\((<<|<=|=|>=|>>) [^)]+\\))?)*$" }
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9+.-]+( \\((<<|<=|=|>=|>>) [^)]+\\))?( \\| [a-z0-9][a-z0-9+.-]+( \\((<<|<=|=|>=|>>) [^)]+\\))?)*$"
+      }
     },
     "reasons": {
       "description": "Nombre -> motivo no vacío.",
       "type": "object",
-      "additionalProperties": { "type": "string", "minLength": 10 }
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 10
+      }
     }
   }
 }

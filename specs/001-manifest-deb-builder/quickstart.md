@@ -74,7 +74,7 @@ En todos los casos: código de salida 1 y ningún `.deb` nuevo en `dist/`.
 
 1. Copiar [examples/minimal-static.yaml](contracts/examples/minimal-static.yaml) a
    `packages/<nuevo>.yaml` y ajustarlo a una herramienta real con un binario estático
-   (21 líneas).
+   (22 líneas).
 2. `just lock <nuevo> && just build <nuevo> && just test <nuevo>`.
 
 **Esperado**: funciona sin tocar ningún otro archivo (`git status` muestra solo el manifiesto y

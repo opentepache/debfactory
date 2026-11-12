@@ -20,13 +20,16 @@ suites:            # orden = orden del informe
 lintian:
   image: "debian:trixie"
   fail_on: error
-  never_override:          # etiquetas que ningún manifiesto puede silenciar
-    - embedded-library
-    - no-copyright-file
-    - copyright-file-contains-full-gpl-license
-    - setuid-binary
-    - setgid-binary
-    - non-standard-executable-perm
+  never_override_patterns:  # regex; constitución VII: seguridad, licencia y copyright
+    - "^copyright-"
+    - "^license-problem-"
+    - "^dep5-"
+    - "^missing-license"
+    - "^no-copyright-file$"
+    - "^embedded-library$"
+    - "^setuid-binary$"
+    - "^setgid-binary$"
+    - "^non-standard-executable-perm$"
 
 elf_dependencies:          # NEEDED -> paquete; {glibc} se reemplaza por la GLIBC_x.y máxima
   libc.so.6:       "libc6 (>= {glibc})"

@@ -207,7 +207,7 @@ detector de texto no puede distinguirlos.
 
 - **Rationale**: `statically-linked-binary` es un error que no se puede corregir sin recompilar
   (nivel 2). Un override declarado y justificado es el mecanismo estándar de Debian, y la spec
-  lo permite salvo para etiquetas de seguridad o licencia. La lista de etiquetas que **nunca**
+  lo permite salvo para etiquetas de seguridad, licencia o copyright. La lista de etiquetas que **nunca**
   se pueden silenciar vive en `config/debfactory.yaml` y se valida.
 - **Alternatives considered**: lintian del host (la versión cambia con el host; el contenedor
   la fija).

@@ -2,6 +2,7 @@ schema: 1
 name: aqua
 version: 2.66.1
 pav: 1
+level: 1
 summary: declarative CLI version manager
 description: |
   aqua installs command line tools at the versions declared in a project

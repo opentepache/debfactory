@@ -20,7 +20,7 @@ Lo escribe una persona. Campos y reglas en el JSON Schema; aquí solo se resumen
 | Claves de `exclude.suites` y `exclude.arches` existen en la config | `…: exclude.suites.bullseye: suite no soportada` |
 | Arquitecturas de `arch_map` ∖ `exclude.arches` = arquitecturas a construir | `…: arch_map: falta arm64 y no está excluida` |
 | `license.spdx` es una expresión SPDX válida | `…: license.spdx: "MIT/Apache" no es SPDX` |
-| `lintian_overrides[].tag` no está en `lintian.never_override` | `…: lintian_overrides[0].tag: "embedded-library" no se puede silenciar` |
+| `lintian_overrides[].tag` no coincide con ningún patrón de `lintian.never_override_patterns` | `…: lintian_overrides[0].tag: "embedded-library" no se puede silenciar` |
 | Destinos únicos (incluidos enlaces y archivos generados) | `…: install[1].dst: /usr/bin/fnm duplicado` |
 | Con `format: binary`, `install` tiene exactamente un elemento | — |
 
