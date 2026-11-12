@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://debfactory.invalid/schema/manifest.v1.schema.json",
+  "title": "debfactory package manifest v1",
+  "description": "Un manifiesto por paquete en packages/<name>.yaml. Plantillas permitidas en strings marcadas como 'templated': {{version}}, {{tag}}, {{arch}}.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "name", "version", "revision", "summary", "description", "homepage", "upstream", "license", "value", "arch_map", "artifact", "install"],
+  "properties": {
+    "schema": { "const": 1 },
+    "name": {
+      "description": "Nombre del paquete Debian; también el nombre del archivo del manifiesto.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9+.-]+$"
+    },
+    "version": {
+      "description": "Versión upstream sin prefijo 'v'.",
+      "type": "string",
+      "pattern": "^[0-9][A-Za-z0-9.+]*$"
+    },
+    "revision": {
+      "description": "N en <upstream>-0~pav<N>. Empieza en 1 y se reinicia con cada versión upstream.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "summary": {
+      "description": "Sinopsis de una línea (Description de Debian). Sin punto final. El artículo inicial se valida en Go (el motor de regex de Go no tiene lookahead).",
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 80,
+      "pattern": "^[^\\n]*[^.\\n]$"
+    },
+    "description": { "type": "string", "minLength": 20 },
+    "homepage": { "type": "string", "format": "uri", "pattern": "^https://" },
+    "section": { "type": "string", "default": "devel" },
+    "upstream": {
+      "description": "Repositorio de GitHub 'owner/repo'. Fase 1: solo GitHub.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "tag": {
+      "description": "Plantilla del tag upstream (templated: {{version}}).",
+      "type": "string",
+      "default": "v{{version}}"
+    },
+    "license": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spdx", "file"],
+      "properties": {
+        "spdx": {
+          "description": "Expresión SPDX esperada, p. ej. 'MIT' o 'MIT OR Apache-2.0'.",
+          "type": "string",
+          "minLength": 2
+        },
+        "file": {
+          "description": "Fuente del texto de licencia de la versión exacta: exactamente una de 'archive' o 'repo'.",
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "maxProperties": 1,
+          "properties": {
+            "archive": { "description": "Ruta dentro del artefacto (templated).", "type": "string" },
+            "repo": { "description": "Ruta en el repo upstream al tag exacto.", "type": "string" }
+          }
+        },
+        "copyright": {
+          "description": "Línea de copyright si no puede extraerse del texto de licencia.",
+          "type": "string"
+        }
+      }
+    },
+    "value": {
+      "description": "Justificación de valor (constitución V): no al día en Debian estable, sin repo APT del autor, no en repos comunitarios conocidos.",
+      "type": "string",
+      "minLength": 20
+    },
+    "arch_map": {
+      "description": "Arquitectura Debian -> token upstream usado como {{arch}}.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "amd64": { "type": "string", "minLength": 1 },
+        "arm64": { "type": "string", "minLength": 1 }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "format"],
+      "properties": {
+        "url": {
+          "description": "URL del asset (templated). Debe empezar por https://github.com/<upstream>/releases/download/{{tag}}/.",
+          "type": "string",
+          "pattern": "^https://github\\.com/"
+        },
+        "format": { "enum": ["binary", "zip", "tar.gz"] }
+      }
+    },
+    "checksums": {
+      "description": "Archivo de checksums publicado por upstream. Si se omite, solo se verifica contra el lockfile.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "format"],
+      "properties": {
+        "url": { "type": "string", "pattern": "^https://github\\.com/" },
+        "format": { "enum": ["sha256sum"] }
+      }
+    },
+    "install": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/installItem" }
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "target"],
+        "properties": {
+          "path": { "$ref": "#/$defs/absPath" },
+          "target": { "$ref": "#/$defs/absPath" }
+        }
+      }
+    },
+    "completions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bash": { "$ref": "#/$defs/completion" },
+        "zsh": { "$ref": "#/$defs/completion" },
+        "fish": { "$ref": "#/$defs/completion" }
+      }
+    },
+    "man": {
+      "description": "Globs (templated) de man pages dentro del artefacto; la sección se toma de la extensión.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "depends": { "$ref": "#/$defs/relations" },
+    "recommends": { "$ref": "#/$defs/relations" },
+    "conflicts": { "$ref": "#/$defs/relations" },
+    "replaces": { "$ref": "#/$defs/relations" },
+    "provides": { "$ref": "#/$defs/relations" },
+    "exclude": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "suites": { "$ref": "#/$defs/reasons" },
+        "arches": { "$ref": "#/$defs/reasons" }
+      }
+    },
+    "test": {
+      "description": "Por defecto: '<primer ejecutable en /usr/bin> --version' y la salida debe contener {{version}}.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "expect": { "description": "Subcadena esperada (templated).", "type": "string", "minLength": 1 }
+      }
+    },
+    "lintian_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tag", "reason"],
+        "properties": {
+          "tag": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "path": { "$ref": "#/$defs/absPath" },
+          "reason": { "type": "string", "minLength": 10 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "absPath": { "type": "string", "pattern": "^/(usr|etc|opt)/" },
+    "installItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["src", "dst"],
+      "properties": {
+        "src": { "description": "Ruta o glob dentro del artefacto (templated). Con format=binary, el archivo descargado se llama '{{name}}'.", "type": "string" },
+        "dst": { "description": "Ruta destino. Si termina en '/', es un directorio y se conserva el nombre de origen.", "$ref": "#/$defs/absPath" },
+        "type": { "enum": ["file", "tree"], "default": "file" },
+        "mode": { "type": "string", "pattern": "^0[0-7]{3}$" }
+      }
+    },
+    "completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "file": { "description": "Ruta dentro del artefacto (templated).", "type": "string" },
+        "generate": { "description": "Orden que imprime la completion; se ejecuta en contenedor sin red.", "type": "string" }
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9+.-]+( \\((<<|<=|=|>=|>>) [^)]+\\))?( \\| [a-z0-9][a-z0-9+.-]+( \\((<<|<=|=|>=|>>) [^)]+\\))?)*$" }
+    },
+    "reasons": {
+      "description": "Nombre -> motivo no vacío.",
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 10 }
+    }
+  }
+}

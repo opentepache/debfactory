@@ -157,7 +157,7 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
   2.36). La prueba falla en esa suite; el mantenedor la excluye en el manifiesto con motivo, y
   la exclusión no bloquea las demás suites.
 - **Upstream sin checksums publicados** (hoy `fnm`, `bob` y `pnpm`): el hash queda registrado en
-  el manifiesto; si el artefacto cambia en upstream para la misma versión, el build falla.
+  el lockfile del paquete; si el artefacto cambia en upstream para la misma versión, el build falla.
 - **Upstream con checksums publicados** (hoy `aqua`, con firma sigstore, y `buf`, con
   `sha256.txt` firmado con minisign): se verifica contra el checksum publicado y, si existe, su
   firma.
@@ -232,7 +232,7 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
   upstream declarado.
 - **FR-013**: El sistema MUST verificar la integridad de cada artefacto contra el checksum o la
   firma publicados por upstream cuando existan, y si no, contra el hash registrado en el
-  manifiesto; cualquier discrepancia MUST hacer fallar el build indicando hash esperado y
+  lockfile del paquete (que el build nunca escribe); cualquier discrepancia MUST hacer fallar el build indicando hash esperado y
   obtenido.
 - **FR-014**: Antes de construir, el sistema MUST obtener el texto de licencia de la versión
   exacta desde la fuente declarada, identificarlo y fallar si: no es identificable, no está en
@@ -294,7 +294,7 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
 - **SC-003**: Agregar un paquete de un solo binario estático requiere crear un único archivo de
   menos de ~25 líneas y ningún otro cambio.
 - **SC-004**: Actualizar un paquete a una nueva versión upstream requiere cambiar como máximo la
-  versión, `N` y los hashes registrados en su manifiesto.
+  versión y `N` en su manifiesto, más regenerar su lockfile con una orden.
 - **SC-005**: El 100 % de los casos de prueba negativos (manifiesto inválido, checksum alterado,
   licencia no permitida, licencia no identificable, URL no oficial) falla antes de producir un
   `.deb`, con un mensaje que nombra paquete, etapa y causa.

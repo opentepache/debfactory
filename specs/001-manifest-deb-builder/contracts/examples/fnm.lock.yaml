@@ -1,0 +1,9 @@
+# Generado por `debfactory lock fnm`; no se edita a mano. Se revisa en el diff de git.
+schema: 1
+versions:
+  1.39.0:
+    source_date_epoch: 1772810627   # 2026-03-06T15:23:47Z, published_at del release
+    license_sha256: <sha256 de LICENSE en v1.39.0>
+    artifacts:
+      amd64: 7807664f39d39fc5…   # sha256 completo de fnm-linux.zip
+      arm64: 4eaff58b2c5bf30d…   # sha256 completo de fnm-arm64.zip
