@@ -22,7 +22,8 @@ Lo escribe una persona. Campos y reglas en el JSON Schema; aquí solo se resumen
 | Si `version` no está en el lockfile y este tiene otras versiones, `pav` es `1` | `…: pav: debe ser 1 para una versión upstream nueva` |
 | `license.spdx` es una expresión SPDX válida | `…: license.spdx: "MIT/Apache" no es SPDX` |
 | `lintian_overrides[].tag` no coincide con ningún patrón de `lintian.never_override_patterns` | `…: lintian_overrides[0].tag: "embedded-library" no se puede silenciar` |
-| Destinos únicos (incluidos los archivos generados) | `…: install[1].dst: /usr/bin/fnm duplicado` |
+| Destinos literales únicos (los que salen de globs se comprueban al ensamblar, etapa `assemble`) | `…: install[1].dst: /usr/bin/fnm duplicado` |
+| `test.command` y `completions.*.generate` son una orden y sus argumentos separados por espacios, sin metacaracteres de shell (`;`, `\|`, `&`, `$`, `` ` ``, `<`, `>`, `(`, `)`, comillas); se ejecutan sin shell (constitución I) | `…: test.command: no se admiten metacaracteres de shell` |
 | Con `format: binary`, `install` tiene exactamente un elemento | — |
 
 **Defaults** que aplica el builder: `tag: v{{version}}`, `section: devel`, `mode` 0755 si el
@@ -62,7 +63,7 @@ válido por definición.
 ### BuildPlan (en tiempo de ejecución)
 
 Resultado de resolver Manifest + Lock + Config para una `(versión, arch)`:
-lista ordenada de entradas `{dst, origen, mode, tipo: file|dir|symlink}`, metadatos de control
+lista ordenada de entradas `{dst, origen, mode, tipo: file|dir}`, metadatos de control
 (Package, Version `<v>-0~pav<N>`, Architecture, Maintainer, Section, Priority, Homepage,
 Depends calculado ∪ declarado, Recommends, Conflicts, Replaces, Provides, Description),
 `copyright`, `changelog.Debian.gz`, overrides de lintian y `SOURCE_DATE_EPOCH`. Es la entrada
@@ -72,7 +73,9 @@ de nfpm.
 
 Salida. Un solo `.deb` por `(versión, arch)` sirve para todas las suites (nivel 1). Va
 acompañado de `dist/<name>_<version>_<arch>.build.json`:
-`{sha256, manifest_sha256, lock_sha256, lintian: "pass", overrides: [...]}`.
+`{sha256, manifest_sha256, lock_sha256, lintian: "pass", overrides: [...], test_command}`, donde
+`test_command` es la orden de prueba ya resuelta (la del manifiesto o la de por defecto).
+`<version>` en estos nombres es siempre la versión completa `<upstream>-0~pav<N>`.
 
 ### TestReport (`dist/<name>_<version>_<arch>.test.json`)
 
@@ -80,9 +83,10 @@ acompañado de `dist/<name>_<version>_<arch>.build.json`:
 |---|---|
 | `results[].suite` | bookworm … resolute |
 | `results[].status` | `pass` · `fail` · `excluded` |
-| `results[].stage` | `versions` · `install` · `run` · `version` · `purge` · `leftovers` (si `fail`) |
+| `versions` | `pass` · `fail`: comprobación de orden con `dpkg --compare-versions` (FR-024), una vez por `.deb`, antes de las suites |
+| `results[].stage` | `install` · `run` · `version` · `purge` · `leftovers` (si `fail`) |
 | `results[].reason` | motivo de la exclusión o salida relevante del fallo (recortada) |
-| `overall` | `pass` si ningún resultado es `fail` |
+| `overall` | `pass` si `versions` es `pass` y ningún resultado es `fail` |
 
 ## Ciclo de vida de una versión
 

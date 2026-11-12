@@ -67,8 +67,8 @@ de alcance: publicar, CI, detección de versiones, nivel 2 y firmas upstream.
 | V | No duplicar | `value` obligatorio en el manifiesto; `community_repos` en la config; los 4 verificados contra Debian, Ubuntu, repos del autor y griffo (research §1). | ✅ |
 | VI | Versionado | `<upstream>-0~pav<N>` con `Release="0~pavN"` en nfpm; lintian **no** marca `0~pavN` como revisión cero (verificado); prueba con `dpkg --compare-versions` (FR-024). | ✅ |
 | VII | Reproducible y verificable | `SOURCE_DATE_EPOCH` desde el lock; mtime, permisos y orden fijados; `gzip -n`; `--check-reproducible`. lintian `--fail-on error` y pruebas de instalación en cada suite no excluida × amd64 y arm64 (no se excluyen arquitecturas); un fallo hace fallar el paquete. Overrides de lintian declarados con motivo para `statically-linked-binary` y `unstripped-binary-or-object` (permitido por VII desde v1.4.0); `config.lintian.never_override_patterns` bloquea seguridad, licencia y copyright. | ✅ |
-| VIII | Automatización | Fuera de alcance en la fase 1. El diseño la prepara: órdenes no interactivas, códigos de salida estables y `--json`. | ✅ (diferido) |
-| IX | Simplicidad operativa | Go de Debian backports, lintian, just y qemu-user-binfmt, empaquetados en Debian; Docker vale tanto `docker.io` de Debian como docker-ce de upstream (hoy 29.9 en la PC), porque solo se usan `build`, `run`, `exec`, `network` y `rm`. Un binario y un `justfile`. Cada orden se explica en una línea ([cli.md](contracts/cli.md)). | ✅ |
+| VIII | Automatización | No aplica en la fase 1: todavía no existe el camino automático (detectar → construir → probar → publicar), así que no hay desviación que justificar. El diseño lo prepara: órdenes no interactivas, códigos de salida estables y `--json`. | ✅ (no aplica aún) |
+| IX | Simplicidad operativa | Go de Debian backports, lintian, just y qemu-user-binfmt, empaquetados en Debian; Docker vale tanto `docker.io` de Debian como docker-ce de upstream (hoy 29.9 en la PC), porque solo se usan `info`, `build`, `image inspect`, `run`, `exec`, `network disconnect` y `rm`. Un binario y un `justfile`. Cada orden se explica en una línea ([cli.md](contracts/cli.md)). | ✅ |
 | X | La IA propone | Ningún componente usa IA. | ✅ |
 
 **Gate (pre-research)**: PASS. **Re-check (post-design)**: PASS contra la constitución v1.5.0;
@@ -88,7 +88,7 @@ specs/001-manifest-deb-builder/
 │   ├── manifest.v1.schema.json
 │   ├── config.md
 │   ├── cli.md
-│   └── examples/        # fnm, bob, buf, aqua, minimal-static, fnm.lock
+│   └── examples/        # fnm, bob, buf, aqua, example (mínimo), fnm.lock
 └── tasks.md             # /speckit-tasks
 ```
 

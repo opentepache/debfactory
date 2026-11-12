@@ -20,7 +20,8 @@ que nunca produzca un paquete inseguro, sin licencia válida o roto.
 ### User Story 1 - Construir un paquete a partir de su manifiesto (Priority: P1)
 
 El mantenedor tiene un manifiesto para una herramienta (por ejemplo `fnm`) y ejecuta un único
-comando indicando paquete, versión y arquitectura. Obtiene un `.deb` instalable con versión
+comando indicando el paquete y, opcionalmente, la arquitectura (la versión es la declarada en
+el manifiesto). Obtiene un `.deb` instalable con versión
 `<upstream>-0~pav<N>`, metadatos completos y licencia en `copyright`, sin haber escrito código
 para ese paquete.
 
@@ -36,7 +37,7 @@ descripción, homepage, arquitectura) son los esperados y que pasa `lintian` sin
    construye para `amd64`, **Then** obtiene `fnm_1.39.0-0~pav1_amd64.deb` con el binario
    instalado en la ruta declarada y la licencia upstream en `copyright`.
 2. **Given** el mismo manifiesto, **When** el mantenedor construye "todas" las arquitecturas,
-   **Then** obtiene un `.deb` por cada arquitectura soportada no excluida (`amd64`, `arm64`).
+   **Then** obtiene un `.deb` por cada arquitectura soportada (`amd64`, `arm64`).
 3. **Given** el mismo manifiesto y la misma versión, **When** se construye dos veces, **Then**
    ambos `.deb` son idénticos byte a byte.
 4. **Given** cualquier `.deb` construido, **When** se analiza con `lintian`, **Then** no reporta
@@ -91,7 +92,7 @@ suite y arquitectura (aprobado / fallido / excluido con motivo).
    suite no excluida se instala, la orden de comprobación reporta la versión upstream esperada,
    se desinstala con purga y no quedan archivos del paquete en el sistema.
 2. **Given** un manifiesto que excluye `bookworm` con motivo documentado, **When** se ejecuta la
-   prueba, **Then** el informe muestra `bookworm` como "excluida: <motivo>" y no la cuenta como
+   prueba, **Then** el informe muestra `bookworm` como `excluded: <motivo>` y no la cuenta como
    fallo.
 3. **Given** que la prueba falla en una sola suite no excluida, **When** termina, **Then** el
    resultado global del paquete es fallido y el informe indica la suite, la etapa
@@ -108,14 +109,14 @@ escribe un manifiesto nuevo de menos de ~25 líneas. En ningún caso escribe ni 
 **Why this priority**: es la razón de ser declarativa del proyecto (constitución I), pero se
 apoya en P1–P3.
 
-**Independent Test**: agregar un sexto paquete simple (un binario estático con licencia
+**Independent Test**: agregar un quinto paquete simple (un binario estático con licencia
 permitida) solo con un manifiesto nuevo y comprobar que construye y pasa las pruebas.
 
 **Acceptance Scenarios**:
 
 1. **Given** el sistema con los 4 manifiestos iniciales, **When** se agrega un manifiesto de un
    binario estático de menos de ~25 líneas, **Then** el nuevo paquete se construye y pasa las
-   pruebas sin cambios en ningún otro archivo.
+   pruebas sin cambios en ningún otro archivo salvo su lockfile generado.
 2. **Given** un manifiesto en versión `X` con `N=2`, **When** se sube a versión upstream `Y`
    sin volver `N` a 1, **Then** la validación falla pidiendo `N=1`; con `N=1`, el paquete
    resultante tiene versión `Y-0~pav1`.
@@ -231,8 +232,8 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
 
 **Construcción**
 
-- **FR-011**: Un comando MUST construir un paquete para una versión y una arquitectura dadas, o
-  para todas las arquitecturas soportadas; y MUST poder construir todos los paquetes.
+- **FR-011**: Un comando MUST construir un paquete, en la versión declarada en su manifiesto,
+  para una arquitectura dada o para todas las soportadas; y MUST poder construir todos los paquetes.
 - **FR-012**: El sistema MUST descargar artefactos solo desde las URLs declaradas en el
   manifiesto y MUST rechazar URLs que no pertenezcan a los releases oficiales del repositorio
   upstream declarado.
@@ -301,11 +302,11 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
   desinstala limpiamente en cada una de las 5 suites soportadas, salvo exclusiones documentadas
   en su manifiesto.
 - **SC-003**: Agregar un paquete de un solo binario estático requiere crear un único archivo de
-  menos de ~25 líneas y ningún otro cambio.
+  menos de ~25 líneas, más su lockfile generado, y ningún otro cambio.
 - **SC-004**: Actualizar un paquete a una nueva versión upstream requiere cambiar como máximo la
   versión y `N` en su manifiesto, más regenerar su lockfile con una orden.
-- **SC-005**: El 100 % de los casos de prueba negativos (manifiesto inválido, checksum alterado,
-  licencia no permitida, licencia no identificable, licencia distinta de la declarada, URL no
+- **SC-005**: El 100 % de los casos de prueba negativos (manifiesto inválido, hash del lockfile alterado,
+  checksum upstream que no coincide, licencia no permitida, licencia no identificable, licencia distinta de la declarada, URL no
   oficial) falla antes de producir un
   `.deb`, con un mensaje que nombra paquete, etapa y causa.
 - **SC-006**: Dos construcciones consecutivas de la misma versión producen `.deb` con hash

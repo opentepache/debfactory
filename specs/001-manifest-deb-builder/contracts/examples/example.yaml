@@ -1,4 +1,4 @@
-# SC-003: un binario estático simple, sin completions ni man pages.
+# SC-003: un binario estático simple, sin completions ni man pages (el archivo se llama como `name`).
 schema: 1
 name: example
 version: 1.0.0
@@ -20,3 +20,5 @@ artifact:
   format: tar.gz
 install:
   - {src: example, dst: /usr/bin/}
+lintian_overrides:
+  - {tag: statically-linked-binary, path: /usr/bin/example, reason: Upstream binary is static by design; level 1 cannot relink it.}

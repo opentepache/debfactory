@@ -65,20 +65,24 @@ Los fixtures de `testdata/negative/` reproducen cada caso con un servidor HTTP l
 | Caso | Cómo provocarlo | Esperado |
 |---|---|---|
 | Manifiesto inválido | quitar `license.file` de una copia del manifiesto | `validate: …: license: falta la propiedad "file"` |
-| Checksum alterado | cambiar un hash de `artifacts.amd64` en el lockfile | `verify: sha256 no coincide …` con esperado y obtenido |
-| Licencia no permitida | fixture con texto BUSL-1.1 declarado como `BUSL-1.1` | `license: licencia declarada "BUSL-1.1" no está en …` |
+| Hash del lockfile alterado | cambiar un hash de `artifacts.amd64` en el lockfile | `verify: sha256 no coincide …` con esperado y obtenido |
+| Checksum upstream que no coincide | fixture con un `sha256.txt` falso | `verify: sha256 no coincide con sha256.txt de upstream …` |
+| Licencia no permitida | fixture con texto BUSL-1.1 declarado como `BUSL-1.1` | `license: licencia declarada "BUSL-1.1" no está en … (detectada "BUSL-1.1")` |
 | Licencia distinta de la declarada | fixture con texto MIT declarado como `Apache-2.0` | `license: licencia detectada "MIT" no coincide con la declarada "Apache-2.0"` |
-| Licencia no identificable | fixture con texto inventado | `license: texto de licencia no identificable …` |
+| Licencia no identificable | fixture con texto inventado | `license: texto de licencia no identificable (…; declarada "…")` |
 | URL no oficial | `artifact.url` hacia otro repo | `validate: …: artifact.url: fuera de los releases de …` |
 
 En todos los casos: código de salida 1 y ningún `.deb` nuevo en `dist/`.
 
-## Escenario 6: un sexto paquete simple (US4, SC-003)
+## Escenario 6: un quinto paquete simple (US4, SC-003)
 
-1. Copiar [examples/minimal-static.yaml](contracts/examples/minimal-static.yaml) a
+1. Copiar [examples/example.yaml](contracts/examples/example.yaml) a
    `packages/<nuevo>.yaml` y ajustarlo a una herramienta real con un binario estático
-   (22 líneas).
+   (24 líneas) que cumpla la constitución V (sin repositorio APT del autor, no en Debian estable
+   al día ni en griffo).
 2. `just lock <nuevo> && just build <nuevo> && just test <nuevo>`.
+3. Es un paquete de prueba: al terminar, borrar `packages/<nuevo>.yaml` y su lockfile (no forma
+   parte de los paquetes iniciales).
 
 **Esperado**: funciona sin tocar ningún otro archivo (`git status` muestra solo el manifiesto y
 su lockfile).
