@@ -187,7 +187,7 @@ Convenciones que usan varias tareas:
 
   El árbol no contiene la URL del repositorio: el `.sources` lo escribe la guía (research D9).
 
-  Un fallo de aptly se clasifica como `sign` si su salida menciona gpg o la firma, y como `generate` en otro caso, con el mensaje filtrado por `redact`. Ante cualquier fallo se borra `gen-<N>/`.
+  Antes del paso 2, comprobar la firma: `gpg --batch --pinentry-mode loopback --passphrase-file <data>/gnupg/passphrase -u <subkey>! --clearsign` sobre un texto fijo. Si falla, el error es de etapa `sign`, y cualquier fallo posterior de aptly es `generate`. Los mensajes se filtran con `redact`. Ante cualquier fallo se borra `gen-<N>/`.
 - [ ] T019 [US1] Crear `internal/repo/verify.go` con `VerifyTree(cfg, st, genDir) error`:
   - cada `dists/<suite>/InRelease` verifica con `gpgv --keyring <genDir>/debfactory.gpg` y su firmante es `signing.subkey`;
   - cada índice listado en `Release` existe con su sha256;
@@ -221,7 +221,7 @@ Convenciones que usan varias tareas:
 
   Validar el nombre del paquete como en `build`: sin `<pkg>` ni `--all` da uso incorrecto (2). Comprobar con `exec.LookPath` que existan `aptly` y `gpg`; si falta alguno, código 3. Ampliar `cmd/debfactory/main_test.go` con los códigos de salida de `publish`.
 - [ ] T023 [US1] Añadir `repo verify` (sin `--dest`) a `cmd/debfactory/main.go`. Ejecuta `Validate`, `CheckConsistent` y `VerifyTree` sobre `current`. Por ahora sin la comprobación de la guía (T030) ni la de caducidad (T051).
-- [ ] T024 [US1] Crear `internal/repo/publish_test.go` (tag `integration`, con aptly y gpg reales y `testutil.TestKey`). Fixtures: dos paquetes falsos construidos con `dpkg-deb -b` en `t.TempDir()`, más sus `build.json` y `test.json`; uno excluye bookworm. Comprobar:
+- [ ] T024 [US1] Crear `internal/repo/publish_test.go` (tag `integration`, con aptly y gpg reales y `testutil.TestKey`). Fixtures: dos paquetes falsos construidos con `dpkg-deb -b` en `t.TempDir()`, cada uno con `.deb` para amd64 y arm64 y sus `build.json` y `test.json` completos (las 5 suites, `deb_sha256`); uno excluye bookworm. Registrar el tiempo de `publish` con 4 paquetes × 3 versiones (objetivo menor de 60 s, plan.md) y anotarlo en research.md §3. Comprobar:
   - US1-1: 5 suites × 2 arquitecturas, un solo archivo en `pool/` por `.deb` y `VerifyTree` correcto;
   - US1-2: el paquete con bookworm excluida no aparece ahí;
   - US1-3: un `test.json` con `overall: fail` deja `state.yaml` y `current` sin cambios;
@@ -259,7 +259,7 @@ Convenciones que usan varias tareas:
   `dir` es `<data>/public/current` resuelto, montado en el destino del enlace para que los enlaces duros funcionen.
 - [ ] T028 [US2] Crear `internal/repotest/client.go` con `RunGuide(ctx, suite, arch, steps []string, st *repo.State) (*ClientResult, error)`:
   1. arranca `debfactory-test/<suite>:<arch>` (fase 001) en la red `debfactory-repotest` y en la red por defecto, porque `curl` y las dependencias vienen de los mirrors;
-  2. ejecuta cada comando del paso con `sh -c`; es el único uso de shell, aceptable porque el texto sale de la guía del repositorio;
+  2. ejecuta cada bloque entero con `sh -e` (no línea a línea, para respetar el heredoc del `.sources`); es el único uso de shell, aceptable porque el texto sale de la guía del repositorio;
   3. guarda la salida de `apt-get update` y la del paso;
   4. tras `install`, comprueba con `dpkg-query -W` que cada paquete de `state.yaml` disponible en esa suite está en su versión más alta;
   5. tras `remove`, comprueba que no existen ni `.sources` ni keyring y que `apt-get update` no pide nada a `http://repo`.
@@ -331,7 +331,7 @@ Convenciones que usan varias tareas:
   - republicar una retirada falla con el mensaje de T017.
 - [ ] T038 [US4] Implementar `retire <pkg> <version> --reason TEXTO [--last] [--dry-run]` en `internal/repo/publish.go` (`Retire`) y `cmd/debfactory/main.go`. Usa el mismo flujo atómico de T021: `Apply(Retire)`, `Generate`, `VerifyTree` y `Commit`. Sin `--reason`, uso incorrecto (2).
 - [ ] T039 [US4] Proteger `lock --prune` en `internal/build/lockcmd.go` (`Prune`, FR-038): leer `repo/state.yaml` y, si una versión que se va a borrar del lockfile sigue publicada, fallar con el mensaje exacto de contracts/cli.md. Si `state.yaml` no existe, se comporta como en la fase 001. Añadir el caso a `internal/build/lockcmd_test.go`.
-- [ ] T040 [US4] Añadir a `internal/repotest/e2e_test.go` `TestE2ELifecycle`. Prepara dos versiones de un paquete de prueba: el `.deb` de `fnm` reempaquetado con `dpkg-deb -R`/`-b` y `Version: 1.39.0-0~pav2`, con sus informes escritos por el test (técnica del spike, research §1). Con la llave de prueba, en cada suite (amd64):
+- [ ] T040 [US4] Añadir a `internal/repotest/e2e_test.go` `TestE2ELifecycle`. Prepara dos versiones de un paquete de prueba: los `.deb` de `fnm` de amd64 **y** arm64 reempaquetados con `dpkg-deb -R`/`-b` como v1 (`1.39.0-0~pav1`) y v2 (`1.39.0-0~pav2`). Por cada versión y arquitectura, el test escribe `build.json` y un `test.json` completo (las 5 suites en `pass` y `deb_sha256`), porque `publish` exige todas las arquitecturas (T015). Técnica del spike, research §1. Con la llave de prueba, en cada suite (amd64):
   1. publicar v1, `add`, `install` y comprobar v1;
   2. publicar v2, ejecutar `upgrade` y comprobar v2;
   3. retirar v2, ejecutar `apt-get update` y el bloque `downgrade` con v1, y comprobar v1;

@@ -457,7 +457,8 @@ En cada paso, comprobar que un cliente que solo siguió la documentación sigue 
   - cómo quitar el repositorio (fuente y llave) y, opcionalmente, los paquetes;
   - qué paquetes no están disponibles en qué suites y por qué.
 - **FR-031**: La guía MUST permitir agregar el repositorio con 4 comandos como máximo (sin
-  contar `apt install`), copiables tal cual.
+  contar `apt install`), copiables tal cual salvo `<suite>`, cuyo valor da la tabla de suites de
+  la guía.
 - **FR-032**: Las pruebas de aceptación de esta fase MUST ejecutar literalmente los comandos de
   la guía, extraídos del propio documento, para que la guía no pueda quedar desactualizada sin
   que falle una prueba.
