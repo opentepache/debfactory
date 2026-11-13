@@ -55,6 +55,30 @@ func (f dirFetcher) get(_ context.Context, rel string) ([]byte, http.Header, err
 	return b, nil, err
 }
 
+// staleWait es cuánto espera VerifyDest a que un destino HTTP deje de servir
+// la generación anterior (dos veces el max-age=60 de los índices), y
+// staleRetry cada cuánto vuelve a pedir el archivo.
+var staleWait, staleRetry = 2 * time.Minute, 10 * time.Second
+
+// getFresh pide rel hasta que su sha256 sea want o pase deadline: justo
+// después de sync, la CDN o el almacenamiento pueden servir todavía la
+// generación anterior durante el max-age de los índices. Devuelve la última
+// respuesta; la comparación final la hace quien llama.
+func getFresh(ctx context.Context, f fetcher, rel, want string, deadline time.Time, onStale func()) ([]byte, http.Header, error) {
+	for {
+		data, h, err := f.get(ctx, rel)
+		if err != nil || fetch.SHA256(data) == want || !time.Now().Before(deadline) {
+			return data, h, err
+		}
+		onStale()
+		select {
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		case <-time.After(staleRetry):
+		}
+	}
+}
+
 // VerifyDest comprueba un destino ya sincronizado (repo verify --dest):
 // cada InRelease verifica con el debfactory.gpg remoto, cuyo fingerprint es
 // una maestra configurada; los índices de cada suite y una muestra
@@ -112,8 +136,23 @@ func VerifyDest(ctx context.Context, e *repo.Env, destName string) error {
 	sort.Strings(pool)
 	check = append(check, pool[:min(5, len(pool))]...)
 	headers := map[string]http.Header{}
+	_, viaHTTP := f.(httpFetcher)
+	deadline := time.Now().Add(staleWait)
+	warned := false
 	for _, p := range check {
-		data, h, err := f.get(ctx, p)
+		var data []byte
+		var h http.Header
+		var err error
+		if viaHTTP {
+			data, h, err = getFresh(ctx, f, p, cur.Files[p], deadline, func() {
+				if !warned {
+					e.Out.Line("%s: el destino aún sirve otra versión de %s; reintentando hasta %s", destName, p, staleWait)
+					warned = true
+				}
+			})
+		} else {
+			data, h, err = f.get(ctx, p)
+		}
 		if err != nil {
 			fail(suiteOf(p), "%s: %v", p, err)
 			continue

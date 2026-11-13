@@ -35,7 +35,7 @@ just e2e             # 5 suites × 2 arquitecturas con los bloques de docs/usuar
 ```
 
 El E2E publica en un `<data>` temporal y sirve su `current` directamente, así que no depende de
-US5. Para probar a mano hacen falta `just sync local` y `just serve`, que llegan con US5.
+US5. Para probar a mano: `just sync local` y `just serve`.
 
 **Esperado:** 10/10 combinaciones. `apt-get update` no da `W:`, `E:` ni `N:` del repositorio.
 Se instalan las versiones de `state.yaml`, y `remove` no deja rastro. Para probar a mano,
@@ -96,8 +96,13 @@ just sync r2                             # sync + verify --dest r2
 **Esperado:**
 
 - Un segundo `sync` no sube nada.
-- `verify --dest r2` comprueba la firma remota y los encabezados `Cache-Control`.
-- `git grep -i -E 'secret_access_key|PRIVATE KEY'` no devuelve nada.
+- `verify --dest r2` comprueba la firma remota y los encabezados `Cache-Control`. Justo después
+  de `sync`, el destino puede servir la generación anterior durante el `max-age` de los índices;
+  `verify` reintenta hasta 2 min antes de fallar.
+- `go test -tags e2e -run TestE2ESecrets ./internal/repotest/` pasa: ni el árbol ni el historial
+  de git tienen bloques de llave privada ni credenciales. Un `git grep` simple de
+  `secret_access_key` encuentra el filtro de `internal/redact` y el ejemplo de
+  [config.md](contracts/config.md), que no son secretos.
 
 ## 6. Llave: respaldo, restauración y rotación (US6, SC-006)
 
@@ -118,10 +123,14 @@ cambia y no hay errores.
 
 ```bash
 git clone <repo> /tmp/df && cd /tmp/df   # sin dist/ ni caché
-bin/debfactory --data /tmp/dfdata repo rebuild   # con la subllave restaurada en /tmp/dfdata/gnupg
+go build -o bin/debfactory ./cmd/debfactory
+# las opciones globales van después de la orden; la subllave, restaurada en /tmp/dfdata/gnupg
+bin/debfactory repo rebuild --data /tmp/dfdata --cache /tmp/dfcache
 diff <(cd /tmp/dfdata/public/current && find pool -type f -exec sha256sum {} +) \
      <(cd ~/.local/share/debfactory/public/current && find pool -type f -exec sha256sum {} +)
 ```
 
 **Esperado:** sin diferencias en `pool/` ni en los `Packages`. Solo cambian `Release` e
-`InRelease`, por la fecha y la firma.
+`InRelease`, por la fecha y la firma, y el enlace `by-hash/*/Contents-<arch>.gz` que aptly deja
+apuntando al archivo por hash, con el nombre de la última arquitectura procesada. Ese enlace no
+se sube.

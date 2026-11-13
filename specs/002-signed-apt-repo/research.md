@@ -149,6 +149,9 @@ contenedores, con los `.deb` reales de la fase 001 y una llave de prueba desecha
 - **Atomicidad remota:** cada suite es atómica para sus clientes, porque `InRelease` es un único
   objeto. Entre suites no lo es, pero un cliente solo consulta una suite. Si la sincronización
   se interrumpe, se repite (FR-027); rclone solo sube lo que difiere.
+- **Verificar justo después de sincronizar:** el destino puede servir la generación anterior
+  durante el `max-age` de los índices (60 s). `repo verify --dest` reintenta cada 10 s, hasta
+  2 min, cuando un archivo de un destino HTTP no coincide (T061, 2026-11-13).
 - **Alternativas:**
   - aws-cli 2.23 (Debian): solo S3, y habría que programar aparte el destino local y el VPS.
   - Publicar directamente a S3 con aptly: ata el diseño al soporte S3 de aptly y no permite

@@ -125,6 +125,25 @@ ningún principio:
 - El registro de sincronización guarda los borrados pendientes, para que repetir `repo sync`
   con la misma generación nunca borre antes de tiempo.
 
+**Re-check (recorrido del quickstart con los paquetes reales, 2026-11-13, T061)**: PASS contra la
+constitución v1.6.0:
+
+- VI: versiones `<upstream>-0~tepache<N>` (campo `revision` del manifiesto). Origin y Label son
+  OpenTepache, y `repo verify` lo comprueba en cada Release.
+- III: primera publicación firmada con la subllave real. `repo verify --dest r2` pasa, y la guía
+  funciona en un contenedor limpio de cada suite contra `apt.opentepache.org`.
+- VII: SC-009 a mano. Un clon nuevo, sin `dist/` ni caché, regenera el mismo `pool/` y los
+  mismos `Packages` (121 s). Solo cambian Release e InRelease, más el enlace
+  `by-hash/*/Contents-<arch>.gz` que aptly deja apuntando al mismo archivo y que no se sube.
+- §4 no se pudo recorrer con una versión nueva real (los 4 paquetes están en la última versión
+  upstream); lo cubre `TestE2ELifecycle`.
+- Corregido al recorrerlo:
+  - la guía hace `apt-get update` antes de instalar curl, porque en una máquina sin índices de
+    APT fallaba;
+  - `repo verify --dest` espera hasta 2 min a que un destino HTTP deje de servir la generación
+    anterior, porque justo después de `sync` fallaba sin motivo;
+  - en el quickstart: el orden de las opciones globales (§7) y la búsqueda de secretos (§5).
+
 Notas del re-check:
 
 - **III, frase de paso en archivo:** equivale a una subllave sin protección. Se acepta porque

@@ -468,7 +468,7 @@ Convenciones que usan varias tareas:
   - `bin/debfactory repo verify` si existe `<data>/public/current`.
 
   Los E2E siguen fuera de `check`, que se queda en unos 25 min, y se ejecutan con `just e2e`.
-- [ ] T061 Recorrer quickstart.md §1–§7 a mano con los paquetes reales, salvo §5 con R2 si T048 aún no se hizo. Corregir lo que no coincida y marcar en plan.md un "Re-check (post-implementación)" del Constitution Check, como en la fase 001.
+- [X] T061 Recorrer quickstart.md §1–§7 a mano con los paquetes reales, salvo §5 con R2 si T048 aún no se hizo. Corregir lo que no coincida y marcar en plan.md un "Re-check (post-implementación)" del Constitution Check, como en la fase 001.
 - [ ] T062 Primera publicación real:
   1. `publish --all`;
   2. revisar el diff de `repo/state.yaml` y hacer commit;
