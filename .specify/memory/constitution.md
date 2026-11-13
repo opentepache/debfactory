@@ -1,7 +1,9 @@
 # debfactory Constitution
 
 debfactory es una fábrica declarativa que reempaqueta herramientas de desarrollo modernas como
-paquetes `.deb` y las publica en un repositorio APT firmado para Debian y Ubuntu. La mantiene una
+paquetes `.deb` y las publica en un repositorio APT firmado para Debian y Ubuntu. El repositorio
+se publica bajo el proyecto **OpenTepache** (opentepache.org); debfactory es la herramienta que
+lo construye. La mantiene una
 sola persona en su tiempo libre: **la mantenibilidad manda sobre todo lo demás**. Ante cualquier
 conflicto entre principios, gana la opción que menos carga operativa añade al mantenedor sin
 violar los principios III (seguridad), IV (licencias) y X (límites de la IA), que nunca se
@@ -80,20 +82,21 @@ sea Debian, el propio autor u otra comunidad.
 
 ### VI. Versionado compatible con Debian
 
-- **Nivel 1 (reempaquetado)**: formato `<upstream>-0~pav<N>`, por ejemplo `1.40.0-0~pav1`.
+- **Nivel 1 (reempaquetado)**: formato `<upstream>-0~tepache<N>`, por ejemplo
+  `1.40.0-0~tepache1`.
   - La revisión Debian MUST fijarse en `0`.
   - `N` cuenta los reempaquetados de la misma versión upstream: empieza en `1`, sube con cada
-    corrección del empaquetado sin cambio upstream (`1.40.0-0~pav2`) y se reinicia en `1` con
+    corrección del empaquetado sin cambio upstream (`1.40.0-0~tepache2`) y se reinicia en `1` con
     cada versión upstream nueva.
   - Un mismo `.deb` de nivel 1 MUST publicarse en todas las suites soportadas (no excluidas).
 - **Nivel 2 (compilación desde fuente)**: como cada suite produce un binario distinto, MUST
   agregarse un sufijo por suite para que nunca existan dos archivos distintos con el mismo nombre
-  en el pool: `<upstream>-0~pav<N>+<suite>`, por ejemplo `1.2.3-0~pav1+deb13`.
+  en el pool: `<upstream>-0~tepache<N>+<suite>`, por ejemplo `1.2.3-0~tepache1+deb13`.
   - Sufijos de suite: `deb12` (bookworm), `deb13` (trixie), `debsid` (sid), `u2404` (noble),
     `u2604` (resolute). `N` sigue las mismas reglas que en nivel 1.
 - Con la revisión en `0` y el sufijo `~`, cualquier versión oficial de Debian u Ubuntu del mismo
   upstream (por ejemplo `1.40.0-1`) siempre es mayor y gana, y una versión upstream más nueva de
-  debfactory siempre supera a una oficial más vieja.
+  OpenTepache siempre supera a una oficial más vieja.
 - Las versiones publicadas MUST NOT reescribirse ni reutilizarse.
 - Las pruebas MUST validar el orden esperado con `dpkg --compare-versions`.
 
@@ -155,6 +158,9 @@ reside solo en el pipeline determinista y en el mantenedor.
 
 ## Alcance y restricciones
 
+- **Proyecto y repositorio**: el repositorio APT se publica como OpenTepache en
+  `opentepache.org`. Sus campos `Origin` y `Label` MUST valer `OpenTepache`. debfactory es el
+  nombre de la herramienta, no del repositorio.
 - **Arquitecturas**: `amd64` y `arm64`.
 - **Suites soportadas**: Debian `bookworm`, `trixie` y `sid`; Ubuntu `noble` (24.04 LTS) y
   `resolute` (26.04 LTS).
@@ -197,4 +203,4 @@ se notifica según el principio VIII:
   de los principios I–X en su sección "Constitution Check". Toda desviación MUST justificarse en
   la tabla de seguimiento de complejidad del plan o el plan no se aprueba.
 
-**Version**: 1.5.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-12
+**Version**: 1.6.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-12
