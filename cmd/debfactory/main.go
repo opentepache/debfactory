@@ -12,7 +12,9 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 
 	"debfactory/internal/build"
@@ -32,10 +34,10 @@ const usage = `uso: debfactory <orden> [opciones]
   lock <pkg> [--force]                         genera o actualiza packages/<pkg>.lock.yaml
   lock <pkg> --prune                           borra del lockfile las versiones viejas
   build <pkg> [--arch A] [--check-reproducible]
-  build --all [--check-reproducible]           construye en dist/
+  build --all [--check-reproducible] [--jobs N] construye en dist/
   lint <deb…>                                  pasa lintian a .deb existentes
-  test <pkg> [--arch A] [--suite S]
-  test --all                                   prueba la instalación en cada suite
+  test <pkg> [--arch A] [--suite S] [--force] [--jobs N]
+  test --all [--force] [--jobs N]              prueba la instalación en cada suite
   publish <pkg> [<version>] [--dry-run]
   publish --all [--dry-run]                    publica en el repositorio APT firmado
   retire <pkg> <version> --reason TEXTO [--last] [--dry-run]
@@ -73,7 +75,7 @@ type options struct {
 	reproducible               bool
 	dryRun, last               bool
 	reason, dest               string
-	port                       int
+	port, jobs                 int
 }
 
 type app struct {
@@ -109,10 +111,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fs.StringVar(&o.arch, "arch", "", "")
 		fs.BoolVar(&o.all, "all", false, "")
 		fs.BoolVar(&o.reproducible, "check-reproducible", false, "")
+		fs.IntVar(&o.jobs, "jobs", defaultJobs(), "")
 	case "test":
 		fs.StringVar(&o.arch, "arch", "", "")
 		fs.StringVar(&o.suite, "suite", "", "")
 		fs.BoolVar(&o.all, "all", false, "")
+		fs.BoolVar(&o.force, "force", false, "")
+		fs.IntVar(&o.jobs, "jobs", defaultJobs(), "")
 	case "publish":
 		fs.BoolVar(&o.all, "all", false, "")
 		fs.BoolVar(&o.dryRun, "dry-run", false, "")
@@ -231,7 +236,7 @@ func (a *app) env() *build.Env {
 
 // build: `build <pkg> [--arch A] [--check-reproducible]` o `build --all`.
 func (a *app) build(ctx context.Context, pos []string) error {
-	o := build.Options{Arch: a.opts.arch, Reproducible: a.opts.reproducible}
+	o := build.Options{Arch: a.opts.arch, Reproducible: a.opts.reproducible, Jobs: a.opts.jobs}
 	switch {
 	case a.opts.all && (len(pos) > 0 || a.opts.arch != ""):
 		return usageError{"build --all no admite paquetes ni --arch"}
@@ -310,23 +315,49 @@ func (a *app) test(ctx context.Context, pos []string) error {
 	if a.opts.suite != "" {
 		only = []string{a.opts.suite}
 	}
-	var summary []string
+	// Cada paquete y arquitectura corre en su goroutine; el Limiter reparte
+	// las suites entre todos y cada informe se imprime entero al terminar.
+	type job struct {
+		name, arch, status string
+	}
+	var jobs []*job
+	var wg sync.WaitGroup
+	var mu sync.Mutex
 	failed := false
+	lim := installtest.NewLimiter(a.opts.jobs)
 	for _, name := range names {
 		m, err := manifest.Validate(a.opts.root, a.cfg, name)
 		if err != nil {
 			a.p.Fail(err)
 			failed = true
-			summary = append(summary, fmt.Sprintf("%-12s fail (validate)", name))
+			jobs = append(jobs, &job{name: name, status: "fail (validate)"})
 			continue
 		}
 		for _, arch := range arches {
-			status := "pass"
-			if _, err := installtest.TestPackage(ctx, a.opts.root, a.cfg, m, arch, only, a.p); err != nil {
-				a.p.Fail(err)
-				failed, status = true, "fail"
-			}
-			summary = append(summary, fmt.Sprintf("%-12s %-6s %s", name, arch, status))
+			j := &job{name: name, arch: arch, status: "pass"}
+			jobs = append(jobs, j)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				out, flush := a.p.Buffered()
+				defer flush()
+				o := installtest.Options{Only: only, Limiter: lim, Force: a.opts.force}
+				if _, err := installtest.TestPackage(ctx, a.opts.root, a.cfg, m, arch, o, out); err != nil {
+					out.Fail(err)
+					mu.Lock()
+					failed, j.status = true, "fail"
+					mu.Unlock()
+				}
+			}()
+		}
+	}
+	wg.Wait()
+	var summary []string
+	for _, j := range jobs {
+		if j.arch == "" {
+			summary = append(summary, fmt.Sprintf("%-12s %s", j.name, j.status))
+		} else {
+			summary = append(summary, fmt.Sprintf("%-12s %-6s %s", j.name, j.arch, j.status))
 		}
 	}
 	if a.opts.all {
@@ -413,3 +444,8 @@ func defaultCache() string {
 	}
 	return filepath.Join(os.TempDir(), "debfactory-cache")
 }
+
+// defaultJobs: tareas simultáneas de build --all y test. Cada una es un
+// contenedor que casi siempre usa un solo hilo (arm64 va por qemu), así que
+// se usa una por núcleo.
+func defaultJobs() int { return runtime.NumCPU() }

@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"debfactory/internal/report"
@@ -88,9 +89,12 @@ func dockerfileHash(dockerfile string) string {
 }
 
 // Build construye una imagen desde un Dockerfile sin contexto (por stdin),
-// actualizando la imagen base (--pull).
+// actualizando la imagen base (--pull) y sin la caché de capas (--no-cache):
+// con caché, "RUN apt-get update" no se repetiría y la imagen conservaría la
+// fecha de creación vieja, así que EnsureImage la reconstruiría en cada
+// llamada sin refrescar nunca los índices.
 func Build(ctx context.Context, tag, dockerfile, platform string) error {
-	args := []string{"build", "--pull", "--label", dockerfileLabel + "=" + dockerfileHash(dockerfile), "-t", tag}
+	args := []string{"build", "--pull", "--no-cache", "--label", dockerfileLabel + "=" + dockerfileHash(dockerfile), "-t", tag}
 	if platform != "" {
 		args = append(args, "--platform", platform)
 	}
@@ -101,7 +105,12 @@ func Build(ctx context.Context, tag, dockerfile, platform string) error {
 
 // EnsureImage construye la imagen si no existe, si tiene más de maxAge o si
 // se creó con otro Dockerfile.
+// Con tareas en paralelo, un candado por etiqueta evita construir la misma
+// imagen dos veces a la vez.
 func EnsureImage(ctx context.Context, tag, dockerfile, platform string, maxAge time.Duration) error {
+	mu, _ := imageLocks.LoadOrStore(tag, new(sync.Mutex))
+	mu.(*sync.Mutex).Lock()
+	defer mu.(*sync.Mutex).Unlock()
 	res, err := docker(ctx, nil, "image", "inspect", "--format",
 		`{{.Created}} {{index .Config.Labels "`+dockerfileLabel+`"}}`, tag)
 	if err != nil {
@@ -115,6 +124,17 @@ func EnsureImage(ctx context.Context, tag, dockerfile, platform string, maxAge t
 		}
 	}
 	return Build(ctx, tag, dockerfile, platform)
+}
+
+var imageLocks sync.Map // etiqueta → *sync.Mutex
+
+// ImageID devuelve el id (sha256:…) de una imagen local.
+func ImageID(ctx context.Context, tag string) (string, error) {
+	res, err := docker(ctx, nil, "image", "inspect", "--format", "{{.Id}}", tag)
+	if err := check(res, err, "docker image inspect "+tag); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(res.Stdout)), nil
 }
 
 func runArgs(o Opts) ([]string, error) {

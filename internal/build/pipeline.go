@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"debfactory/internal/assemble"
@@ -25,6 +26,7 @@ import (
 type Options struct {
 	Arch         string // vacío = todas las de la config
 	Reproducible bool   // construir dos veces y comparar sha256
+	Jobs         int    // build --all: paquetes simultáneos (mínimo 1)
 }
 
 // Build construye un paquete: validate → lock → fetch → verify → license →
@@ -51,32 +53,55 @@ func (e *Env) Build(ctx context.Context, name string, o Options) error {
 	return nil
 }
 
-// BuildAll construye todos los paquetes de packages/ en orden alfabético;
-// sigue si uno falla y al final imprime un resumen.
+// BuildAll construye todos los paquetes de packages/ en paralelo (hasta
+// o.Jobs a la vez); sigue si uno falla y al final imprime, en orden
+// alfabético, la salida de cada paquete y un resumen.
 func (e *Env) BuildAll(ctx context.Context, names []string, o Options) error {
-	type result struct{ name, status string }
-	var results []result
+	type result struct {
+		name, status string
+		flush        func()
+	}
+	results := make([]result, len(names))
+	sem := make(chan struct{}, max(o.Jobs, 1))
+	var wg sync.WaitGroup
+	for i, name := range names {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			out, flush := e.Out.Buffered()
+			results[i] = result{name: name, status: "ok", flush: flush}
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				results[i].status = "fail (cancelado)"
+				return
+			}
+			pe := *e
+			pe.Out = out
+			err := pe.Build(ctx, name, o)
+			if err == nil {
+				return
+			}
+			out.Fail(err)
+			stage := "?"
+			var re *report.Error
+			var list report.Errors
+			switch {
+			case errors.As(err, &list) && len(list) > 0:
+				stage = string(list[0].Stage)
+			case errors.As(err, &re):
+				stage = string(re.Stage)
+			}
+			results[i].status = "fail (" + stage + ")"
+		}()
+	}
+	wg.Wait()
 	failed := 0
-	for _, name := range names {
-		err := e.Build(ctx, name, o)
-		if err == nil {
-			results = append(results, result{name, "ok"})
-			continue
-		}
-		failed++
-		e.Out.Fail(err)
-		stage := "?"
-		var re *report.Error
-		var list report.Errors
-		switch {
-		case errors.As(err, &list) && len(list) > 0:
-			stage = string(list[0].Stage)
-		case errors.As(err, &re):
-			stage = string(re.Stage)
-		}
-		results = append(results, result{name, "fail (" + stage + ")"})
-		if ctx.Err() != nil {
-			break
+	for _, r := range results {
+		r.flush()
+		if r.status != "ok" {
+			failed++
 		}
 	}
 	e.Out.Line("\nresumen de build --all:")

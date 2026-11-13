@@ -59,14 +59,29 @@ func TestForcedFailure(t *testing.T) {
 	out := &report.Printer{Out: os.Stdout, Err: os.Stderr}
 	ctx := context.Background()
 
+	trixie := Options{Only: []string{"trixie"}}
+
 	m.Test.Expect = "{{version}}"
-	rep, err := TestPackage(ctx, root, cfg, m, "amd64", []string{"trixie"}, out)
+	rep, err := TestPackage(ctx, root, cfg, m, "amd64", trixie, out)
 	if err != nil || rep.Overall != "pass" {
 		t.Fatalf("caso correcto: %v %+v", err, rep)
 	}
+	first := rep.Results[0].Seconds
 
+	// Mismo .deb, comprobación e imagen: se reutiliza el informe aprobado.
+	rep, err = TestPackage(ctx, root, cfg, m, "amd64", trixie, out)
+	if err != nil || rep.Results[0].Seconds != first {
+		t.Fatalf("se esperaba el informe en caché: %v %+v", err, rep)
+	}
+	// --force lo repite.
+	rep, err = TestPackage(ctx, root, cfg, m, "amd64", Options{Only: []string{"trixie"}, Force: true}, out)
+	if err != nil || rep.Results[0].Seconds == first {
+		t.Fatalf("--force debía repetir la prueba: %v %+v", err, rep)
+	}
+
+	// Otro test.expect invalida la caché aunque el .deb sea el mismo.
 	m.Test.Expect = "9.9.9"
-	rep, err = TestPackage(ctx, root, cfg, m, "amd64", []string{"trixie"}, out)
+	rep, err = TestPackage(ctx, root, cfg, m, "amd64", trixie, out)
 	var re *report.Error
 	if !errors.As(err, &re) || re.Stage != report.Test {
 		t.Fatalf("error = %v", err)

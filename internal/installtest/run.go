@@ -52,8 +52,12 @@ func RunSuite(ctx context.Context, s config.Suite, d Deb) Result {
 	}
 	ctx, cancel := context.WithTimeout(ctx, suiteTimeout)
 	defer cancel()
+	var err error
 
 	if err := EnsureImage(ctx, s, d.Arch); err != nil {
+		return fail(StageInstall, "imagen de prueba: "+err.Error())
+	}
+	if r.Image, err = container.ImageID(ctx, ImageTag(s.Name, d.Arch)); err != nil {
 		return fail(StageInstall, "imagen de prueba: "+err.Error())
 	}
 	abs, err := filepath.Abs(d.Path)
