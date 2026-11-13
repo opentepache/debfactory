@@ -190,7 +190,8 @@ contenedores, con los `.deb` reales de la fase 001 y una llave de prueba desecha
   no podría servirlo desde otra URL. Así, la URL solo vive en la guía y en la configuración, y
   el árbol es el mismo para todos los destinos.
 - **Agregar el repositorio** son 4 comandos, sin deducir la suite:
-  1. `apt-get install -y curl ca-certificates`
+  1. `apt-get update && apt-get install -y curl ca-certificates` (el `update` previo hace falta en
+     una máquina sin índices de APT, como un contenedor o una imagen de nube recién creados)
   2. `curl -fsSLo /etc/apt/keyrings/debfactory.gpg <url>/debfactory.gpg`
   3. `tee /etc/apt/sources.list.d/debfactory.sources` con un heredoc del deb822 (`<suite>` se
      escribe a mano según la tabla de suites)

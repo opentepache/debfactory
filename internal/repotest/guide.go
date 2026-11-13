@@ -53,13 +53,13 @@ func Blocks(path string) (map[string]string, error) {
 }
 
 // Render prepara un bloque para ejecutarlo como root en un contenedor:
-// quita "sudo " al principio de las líneas y sustituye la URL pública por
+// quita "sudo " al principio de las líneas y tras "&& ", y sustituye la URL pública por
 // testURL y los marcadores <suite>, <version>, etc. por vars. Si vars tiene
 // "packages", sustituye la lista de paquetes de "apt-get install -y".
 func Render(block, publicURL, testURL string, vars map[string]string) string {
 	var out []string
 	for _, l := range strings.Split(block, "\n") {
-		out = append(out, strings.TrimPrefix(l, "sudo "))
+		out = append(out, strings.ReplaceAll(strings.TrimPrefix(l, "sudo "), "&& sudo ", "&& "))
 	}
 	s := strings.Join(out, "\n")
 	if publicURL == "" {

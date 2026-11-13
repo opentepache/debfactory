@@ -432,7 +432,7 @@ Convenciones que usan varias tareas:
   - buscar la frase de paso de prueba y `PRIVATE KEY`; además, pasar cada archivo versionado y cada salida capturada que parezca OpenPGP binario por `gpg --list-packets` y fallar si aparece `secret key packet` o `secret sub key packet`. Los fingerprints son públicos y no se buscan (SC-005);
   - hacer `git grep -I -E 'PRIVATE KEY|secret_access_key|passphrase:'` sobre el árbol y `git log -p` del historial;
   - en todos los casos, 0 coincidencias.
-- [ ] T055 [US6] Generar la llave **real** siguiendo `docs/operacion-llave.md` (paso manual del mantenedor):
+- [X] T055 [US6] Generar la llave **real** siguiendo `docs/operacion-llave.md` (paso manual del mantenedor):
   - poner sus fingerprints en `repo.signing` (`config/debfactory.yaml`) y en `docs/usuario.md`, sustituyendo `Fingerprint: <pendiente>`;
   - ejecutar `repo verify`, que debe pasar con la comprobación de la guía (T030).
 
@@ -477,6 +477,11 @@ Convenciones que usan varias tareas:
   5. con una versión nueva de un paquete ya construido y probado, medir `publish` más `just sync r2`, que debe ser menor de 5 min (SC-007), y anotarlo en research.md §3.
 
   Requiere el dominio (research D11) y la llave real (T055).
+
+  Estado (2026-11-13): pasos 1–4 hechos. Serial 1 (commit 9306cdd), `repo verify --dest r2` pasa (60
+  archivos), y un contenedor limpio de cada suite (arm64 en resolute) con los índices de APT ya
+  descargados agrega el repositorio con la guía sin avisos, verifica el fingerprint e instala las
+  versiones publicadas. Falta el paso 5 (SC-007), con la próxima versión nueva de un paquete.
 
 ---
 

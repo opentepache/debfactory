@@ -28,7 +28,7 @@ explicativo puede cambiar.
 3. **Agregar el repositorio**:
 
    ```sh debfactory:add
-   sudo apt-get install -y curl ca-certificates
+   sudo apt-get update && sudo apt-get install -y curl ca-certificates
    sudo curl -fsSLo /etc/apt/keyrings/debfactory.gpg https://apt.example.org/debfactory.gpg
    sudo tee /etc/apt/sources.list.d/debfactory.sources >/dev/null <<'EOF'
    Types: deb
