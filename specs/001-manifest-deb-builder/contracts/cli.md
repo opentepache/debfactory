@@ -9,16 +9,19 @@ Binario único (`cmd/debfactory`). Todas las órdenes leen `config/` y `packages
 |---|---|---|---|
 | `validate [pkg…]` | Valida manifiestos (schema + reglas semánticas). Sin `pkg`, todos. | no | nada |
 | `lock <pkg> [--force]` | Para la versión del manifiesto: valida el manifiesto (incluida la regla de `pav`); descarga los assets de amd64 y arm64, el archivo de checksums upstream si existe y el texto de licencia; verifica contra los checksums upstream; **después** pasa el gate de licencias; consulta `published_at`; escribe el lockfile. Si ya hay una entrada para esa versión con hashes distintos, falla salvo con `--force`. | sí | `packages/<pkg>.lock.yaml` |
-| `lock <pkg> --prune` | Borra del lockfile todas las versiones salvo la del manifiesto. | no | `packages/<pkg>.lock.yaml` |
+| `lock <pkg> --prune` | Borra del lockfile todas las versiones salvo la del manifiesto. Falla si alguna de ellas sigue publicada en `repo/state.yaml` (fase 002, FR-038). | no | `packages/<pkg>.lock.yaml` |
 | `build <pkg> [--arch A] [--check-reproducible]` | validate → lock → fetch → verify → license → assemble → package → lintian (el gate de licencias va tras verificar y antes de ensamblar; constitución, Flujo). Sin `--arch`, amd64 y arm64. Imprime `lintian: pass` por `.deb`. Con `--check-reproducible` imprime además `reproducible: <sha256>`. | solo si el asset, el archivo de checksums o la licencia no están en caché | `dist/*.deb`, `dist/*.build.json` |
 | `build --all [--check-reproducible]` | `build` de cada paquete; sigue con el siguiente si uno falla y resume al final. | ídem | ídem |
 | `lint <deb…>` | Solo lintian sobre `.deb` existentes. | no | nada |
-| `test <pkg> [--arch A] [--suite S]` | Prueba de instalación del `.deb` ya construido en `dist/`. | sí, solo en `apt-get` | `dist/*.test.json` |
+| `test <pkg> [--arch A] [--suite S]` | Prueba de instalación del `.deb` ya construido en `dist/`. `test.json` registra el sha256 del `.deb` probado (`deb_sha256`), que exige `publish`; con `--suite` el informe es parcial y no sirve para publicar. | sí, solo en `apt-get` | `dist/*.test.json` |
 | `test --all` | `test` de cada paquete; sigue con el siguiente si uno falla y resume al final. | ídem | ídem |
 
 Opciones globales: `--root DIR`, `--workdir DIR` (por defecto `$XDG_RUNTIME_DIR/debfactory`),
 `--cache DIR` (por defecto `~/.cache/debfactory`), `--json` (resultado en una línea JSON por
 evento, para la automatización futura).
+
+Las órdenes del repositorio APT (`publish`, `retire`, `repo …`) están en
+[002 cli.md](../../002-signed-apt-repo/contracts/cli.md).
 
 ## Códigos de salida
 

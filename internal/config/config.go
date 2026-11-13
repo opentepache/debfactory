@@ -33,6 +33,7 @@ type Config struct {
 	ELFDependencies  map[string]string `yaml:"elf_dependencies"`
 	CommunityRepos   []Repo            `yaml:"community_repos"`
 	CompletionsImage string            `yaml:"completions_image"`
+	Repo             RepoConfig        `yaml:"repo"`
 
 	// Licenses es la allowlist de config/licenses.yaml (constitución IV).
 	Licenses []string `yaml:"-"`
@@ -61,6 +62,82 @@ type Lintian struct {
 type Repo struct {
 	Name string `yaml:"name"`
 	URL  string `yaml:"url"`
+}
+
+// RepoConfig es la sección repo: el repositorio APT publicado
+// (specs/002-signed-apt-repo/contracts/config.md).
+type RepoConfig struct {
+	URL          string                 `yaml:"url"`
+	Origin       string                 `yaml:"origin"`
+	Label        string                 `yaml:"label"`
+	Component    string                 `yaml:"component"`
+	Keep         int                    `yaml:"keep"`
+	Signing      Signing                `yaml:"signing"`
+	Destinations map[string]Destination `yaml:"destinations"`
+	CacheControl CacheControl           `yaml:"cache_control"`
+}
+
+// Signing identifica la llave del repositorio. Los fingerprints son públicos;
+// la parte secreta vive fuera del repositorio git.
+type Signing struct {
+	Masters  []string `yaml:"masters"`
+	Subkey   string   `yaml:"subkey"`
+	WarnDays int      `yaml:"warn_days"`
+}
+
+// Destination es un destino de sincronización: un remote de rclone, sin
+// credenciales.
+type Destination struct {
+	Remote       string `yaml:"remote"`
+	PublicURL    string `yaml:"public_url"`
+	CacheControl bool   `yaml:"cache_control"`
+}
+
+// CacheControl son los encabezados que se suben con cada archivo.
+type CacheControl struct {
+	Immutable string `yaml:"immutable"`
+	Mutable   string `yaml:"mutable"`
+}
+
+var (
+	fingerprintRe = regexp.MustCompile(`^[0-9A-F]{40}$`)
+	destNameRe    = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+	credentialRe  = regexp.MustCompile(`(?i)@|password|key=|secret`)
+)
+
+func (r *RepoConfig) validate() error {
+	if r.Keep < 1 {
+		return errors.New("repo.keep: mínimo 1")
+	}
+	if r.Origin == "" || r.Label == "" || r.Component == "" {
+		return errors.New("repo: origin, label y component no pueden estar vacíos")
+	}
+	for i, f := range r.Signing.Masters {
+		if !fingerprintRe.MatchString(f) {
+			return fmt.Errorf("repo.signing.masters[%d]: fingerprint inválido", i)
+		}
+	}
+	if r.Signing.Subkey != "" && !fingerprintRe.MatchString(r.Signing.Subkey) {
+		return errors.New("repo.signing.subkey: fingerprint inválido")
+	}
+	if r.Signing.WarnDays < 0 {
+		return errors.New("repo.signing.warn_days: no puede ser negativo")
+	}
+	for name, d := range r.Destinations {
+		if !destNameRe.MatchString(name) {
+			return fmt.Errorf("repo.destinations: nombre %q inválido", name)
+		}
+		if d.Remote == "" {
+			return fmt.Errorf("repo.destinations.%s.remote: no puede estar vacío", name)
+		}
+		if credentialRe.MatchString(d.Remote) {
+			return fmt.Errorf("repo.destinations.%s.remote: no puede contener credenciales", name)
+		}
+	}
+	if r.CacheControl.Immutable == "" || r.CacheControl.Mutable == "" {
+		return errors.New("repo.cache_control: immutable y mutable no pueden estar vacíos")
+	}
+	return nil
 }
 
 type licensesFile struct {
@@ -167,7 +244,7 @@ func (c *Config) validate() error {
 	if c.CompletionsImage == "" {
 		return errors.New("completions_image: no puede estar vacío")
 	}
-	return nil
+	return c.Repo.validate()
 }
 
 // UnmarshalYAML lee el mapa de suites conservando su orden y rechazando

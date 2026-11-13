@@ -25,7 +25,8 @@ type Report struct {
 	Package        string   `json:"package"`
 	Version        string   `json:"version"`
 	Arch           string   `json:"arch"`
-	Versions       string   `json:"versions"` // pass | fail (FR-024)
+	DebSHA256      string   `json:"deb_sha256"` // .deb que se probó (fase 002, research D8)
+	Versions       string   `json:"versions"`   // pass | fail (FR-024)
 	VersionsReason string   `json:"versions_reason,omitempty"`
 	Results        []Result `json:"results"`
 	Overall        string   `json:"overall"` // pass si versions es pass y ningún resultado es fail

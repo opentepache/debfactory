@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"debfactory/internal/lock"
+	aptrepo "debfactory/internal/repo"
 	"debfactory/internal/testutil"
 )
 
@@ -82,6 +83,18 @@ func TestPrune(t *testing.T) {
 	if err := lk.Write(h.root, "example"); err != nil {
 		t.Fatal(err)
 	}
+	// FR-038: si 0.9.0 sigue publicada, --prune falla.
+	st := aptrepo.Empty()
+	st.Serial = 1
+	st.Packages["example"] = []aptrepo.Published{{Version: "0.9.0-0~pav1", Suites: []string{"trixie"}}}
+	if err := st.Write(h.root); err != nil {
+		t.Fatal(err)
+	}
+	err := h.env.Prune("example")
+	if err == nil || !strings.Contains(err.Error(), "example 1.0.0 -: lock: 0.9.0 sigue publicada; retírala o déjala caer por retención antes de --prune") {
+		t.Fatalf("prune con versión publicada: %v", err)
+	}
+	os.Remove(filepath.Join(h.root, aptrepo.StateFile))
 	if err := h.env.Prune("example"); err != nil {
 		t.Fatal(err)
 	}

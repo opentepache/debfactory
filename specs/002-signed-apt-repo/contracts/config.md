@@ -58,6 +58,8 @@ endpoint = https://<account-id>.r2.cloudflarestorage.com
 access_key_id = …
 secret_access_key = …
 no_check_bucket = true
+# rclone 1.60: R2 responde 501 al HEAD ?versionId= que sigue a cada subida
+no_head = true
 ```
 
 Para usar otro S3 o un VPS, solo cambia ese remote (`type = sftp` para un VPS).

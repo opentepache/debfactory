@@ -1,6 +1,6 @@
 // Package container envuelve la orden docker. Solo usa info, build, image
-// inspect, run, exec, network disconnect y rm (plan.md, constitución IX), así
-// que vale tanto docker.io de Debian como docker-ce.
+// inspect, run, exec, network create/inspect/disconnect y rm (plan.md,
+// constitución IX), así que vale tanto docker.io de Debian como docker-ce.
 package container
 
 import (
@@ -30,7 +30,10 @@ type Mount struct {
 type Opts struct {
 	Image    string
 	Platform string   // p. ej. "linux/arm64"; vacío = la del host
-	Network  string   // "none", "bridge" o vacío (la de docker)
+	Network  string   // "none", "bridge", una red creada o vacío (la de docker)
+	Alias    string   // --network-alias (nombre en la red)
+	Name     string   // --name
+	Ports    []string // --publish, p. ej. "127.0.0.1:8080:80"
 	ReadOnly bool     // --read-only
 	Tmpfs    []string // --tmpfs, p. ej. "/tmp"
 	Mounts   []Mount
@@ -122,6 +125,15 @@ func runArgs(o Opts) ([]string, error) {
 	if o.Network != "" {
 		a = append(a, "--network", o.Network)
 	}
+	if o.Alias != "" {
+		a = append(a, "--network-alias", o.Alias)
+	}
+	if o.Name != "" {
+		a = append(a, "--name", o.Name)
+	}
+	for _, p := range o.Ports {
+		a = append(a, "--publish", p)
+	}
 	if o.ReadOnly {
 		a = append(a, "--read-only")
 	}
@@ -163,15 +175,20 @@ func Run(ctx context.Context, o Opts) (Result, error) {
 	return res, err
 }
 
-// Start arranca un contenedor desacoplado que espera (sleep infinity) y
-// devuelve su id. Hay que llamar a Remove al terminar.
+// Start arranca un contenedor desacoplado que ejecuta Cmd, o que espera
+// (sleep infinity) si Cmd está vacío, y devuelve su id. Hay que llamar a
+// Remove al terminar.
 func Start(ctx context.Context, o Opts) (string, error) {
 	extra, err := runArgs(o)
 	if err != nil {
 		return "", err
 	}
 	args := append([]string{"run", "-d", "--pull", "never"}, extra...)
-	args = append(args, o.Image, "sleep", "infinity")
+	cmd := o.Cmd
+	if len(cmd) == 0 {
+		cmd = []string{"sleep", "infinity"}
+	}
+	args = append(append(args, o.Image), cmd...)
 	res, err := docker(ctx, nil, args...)
 	if err := check(res, err, "docker run "+o.Image); err != nil {
 		return "", err
@@ -193,6 +210,15 @@ func Exec(ctx context.Context, id string, env, cmd []string) (Result, error) {
 func DisconnectNetwork(ctx context.Context, id string) error {
 	res, err := docker(ctx, nil, "network", "disconnect", "bridge", id)
 	return check(res, err, "docker network disconnect")
+}
+
+// EnsureNetwork crea una red bridge con ese nombre si no existe.
+func EnsureNetwork(ctx context.Context, name string) error {
+	if res, err := docker(ctx, nil, "network", "inspect", name); err == nil && res.ExitCode == 0 {
+		return nil
+	}
+	res, err := docker(ctx, nil, "network", "create", name)
+	return check(res, err, "docker network create "+name)
 }
 
 // Remove elimina el contenedor. Usa su propio contexto para limpiar aunque el

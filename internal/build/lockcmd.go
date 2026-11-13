@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"debfactory/internal/assemble"
 	"debfactory/internal/fetch"
 	"debfactory/internal/license"
 	"debfactory/internal/lock"
 	"debfactory/internal/manifest"
+	aptrepo "debfactory/internal/repo"
 	"debfactory/internal/report"
 )
 
@@ -213,6 +215,28 @@ func (e *Env) Prune(name string) error {
 	lk, err := lock.Read(e.Root, m.Name)
 	if err != nil {
 		return report.Wrap(err, report.Lock, m.Name, m.Version, "")
+	}
+	st, err := aptrepo.ReadState(e.Root)
+	if err != nil {
+		return report.Wrap(err, report.Lock, m.Name, m.Version, "")
+	}
+	var published []string
+	for v := range lk.Versions {
+		if v == m.Version {
+			continue
+		}
+		for _, p := range st.Packages[m.Name] {
+			if strings.HasPrefix(p.Version, v+"-0~pav") {
+				published = append(published, v)
+				break
+			}
+		}
+	}
+	if len(published) > 0 {
+		sort.Strings(published)
+		return &report.Error{Package: m.Name, Version: m.Version, Stage: report.Lock,
+			Cause: fmt.Sprintf("%s sigue publicada; retírala o déjala caer por retención antes de --prune",
+				strings.Join(published, ", "))}
 	}
 	removed := 0
 	for v := range lk.Versions {

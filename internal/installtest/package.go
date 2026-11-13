@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"debfactory/internal/config"
+	"debfactory/internal/fetch"
 	"debfactory/internal/manifest"
 	"debfactory/internal/pkg"
 	"debfactory/internal/report"
@@ -48,8 +49,13 @@ func TestPackage(ctx context.Context, root string, cfg *config.Config, m *manife
 			suites = append(suites, s)
 		}
 	}
+	sha, err := fetch.SHA256File(base + ".deb")
+	if err != nil {
+		return nil, fail("%v", err)
+	}
 	d := Deb{Path: base + ".deb", Package: m.Name, Arch: arch, TestCommand: info.TestCommand, Expect: expect}
 	rep := Run(ctx, d, m.Version, m.Pav, suites, m.Exclude.Suites)
+	rep.DebSHA256 = sha
 	if err := rep.Write(base + ".test.json"); err != nil {
 		return rep, fail("%v", err)
 	}

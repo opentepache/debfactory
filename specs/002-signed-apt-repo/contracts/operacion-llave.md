@@ -5,6 +5,12 @@ garantías; los comandos de GnuPG 2.4 están verificados en el spike (research D
 la llave maestra se hacen en un llavero temporal en tmpfs (`GNUPGHOME=$(mktemp -d -p
 /dev/shm)`), preferiblemente con la red desconectada, y ese llavero se borra al terminar.
 
+## 0. Medios de respaldo (una vez)
+
+Dos USB con una partición LUKS2 y ext4 (`cryptsetup-bin`), montados en `/media/RESPALDO` y
+`/media/RESPALDO2`. La frase de paso de LUKS es distinta de la de la maestra y vive en el
+gestor de contraseñas. Se montan antes de desconectar la red.
+
 ## 1. Creación (una vez)
 
 1. Crear la llave maestra: `gpg --quick-gen-key 'debfactory <…>' ed25519 cert never`, con una
@@ -13,8 +19,8 @@ la llave maestra se hacen en un llavero temporal en tmpfs (`GNUPGHOME=$(mktemp -
 3. Exportar el respaldo:
    - `--export-secret-keys --armor` (maestra y subllave, con la frase de paso de la maestra);
    - el certificado de revocación (`openpgp-revocs.d/<MAESTRA>.rev`).
-4. Guardar el respaldo en dos medios fuera de la máquina (p. ej. dos USB cifrados con LUKS, uno
-   fuera de casa). Opcional: copia en papel con `paperkey`.
+4. Guardar el respaldo en los dos USB de §0, comprobar que las copias son idénticas y llevar
+   uno fuera de casa. Opcional: copia en papel con `paperkey`.
 5. Preparar la subllave para la PC de build. En una **copia** del llavero temporal:
    1. `gpg --passwd <MAESTRA>` para ponerle una frase de paso aleatoria de build.
    2. `gpg --export-secret-subkeys <SUB>!`.
@@ -74,9 +80,11 @@ La prueba SC-006 recorre este orden.
 1. Crear una llave maestra nueva con su subllave, siguiendo §1.
 2. Añadirla a `repo.signing.masters`. El keyring publicado contiene ambas y la guía muestra los
    dos fingerprints.
-3. Firmar con la subllave nueva:
-   - si aptly admite `-gpg-key` repetido, firmar con las dos subllaves durante la transición;
-   - si no, publicar el keyring doble durante 30 días y después cambiar `subkey`.
+3. Firmar con la subllave nueva. aptly 1.6.1 acepta `-gpg-key` repetido, pero solo firma con
+   una (comprobado en T049), así que no se puede firmar con las dos a la vez:
+   1. publicar el keyring con las dos maestras, todavía firmando con la subllave vieja;
+   2. esperar 30 días, o 0 si la vieja está comprometida;
+   3. cambiar `repo.signing.subkey` a la subllave nueva y publicar.
 4. Al terminar, revocar la maestra vieja, si se tiene, y quitarla de `masters`.
 
 ## Garantías que se prueban

@@ -81,6 +81,7 @@ acompañado de `dist/<name>_<version>_<arch>.build.json`:
 
 | Campo | Valores |
 |---|---|
+| `deb_sha256` | sha256 del `.deb` probado; `publish` (fase 002) exige que coincida con `build.json` |
 | `results[].suite` | bookworm … resolute |
 | `results[].status` | `pass` · `fail` · `excluded` |
 | `versions` | `pass` · `fail`: comprobación de orden con `dpkg --compare-versions` (FR-024), una vez por `.deb`, antes de las suites |

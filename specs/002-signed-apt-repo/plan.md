@@ -108,6 +108,23 @@ sitio web, nivel 2 y espejos.
 **Gate (pre-research)**: PASS. **Re-check (post-design)**: PASS contra la constitución v1.5.0,
 sin desviaciones (la tabla de complejidad está vacía).
 
+**Re-check (post-implementación, 2026-11-12)**: PASS. Lo que cambió al implementar, sin tocar
+ningún principio:
+
+- III: aptly 1.6.1 acepta `-gpg-key` repetido pero firma con una sola subllave (T049). Por eso
+  la rotación de la maestra se hace por ventana (keyring doble y cambio de subllave al final;
+  docs/operacion-llave.md §5) y `repo.signing.subkey` sigue siendo un único valor.
+- III y VII: el gate de entradas exige además que `test.json` cubra las 5 suites; un informe
+  parcial de `test --suite` no permite publicar.
+- VII: E2E en verde. Guía en 5 suites × 2 arquitecturas (10/10, 4 min 21 s); fallos
+  provocados sin cambios en el repositorio; ciclo publicar → upgrade → retirar → downgrade en
+  las 5 suites; sincronización interrumpida; procedimiento de la llave; búsqueda de secretos.
+- IX: además de las órdenes de docker de la fase 001, las pruebas usan `network create`,
+  `network inspect` y `--publish` (red de pruebas y `repo serve`). Siguen valiendo docker.io de
+  Debian y docker-ce.
+- El registro de sincronización guarda los borrados pendientes, para que repetir `repo sync`
+  con la misma generación nunca borre antes de tiempo.
+
 Notas del re-check:
 
 - **III, frase de paso en archivo:** equivale a una subllave sin protección. Se acepta porque

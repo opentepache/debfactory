@@ -1,0 +1,30 @@
+# want: repo/state.yaml: fnm 1.40.1-0~pav1 está publicada y retirada
+# Generado por debfactory publish/retire. No editar a mano.
+schema: 1
+serial: 7
+packages:
+  bob:
+    - version: 4.3.0-0~pav1
+      published: 2026-11-20T10:02:11Z
+      suites: [trixie, sid, noble, resolute]
+      debs:
+        amd64: 3f11f9ac1491942250b382f211a446bda8d20ec59dd27a9899671e41cce81805
+        arm64: 9a0c11f9ac1491942250b382f211a446bda8d20ec59dd27a9899671e41cce818
+  fnm:
+    - version: 1.40.1-0~pav1
+      published: 2026-12-01T09:00:00Z
+      suites: [bookworm, trixie, sid, noble, resolute]
+      debs:
+        amd64: 1111111111111111111111111111111111111111111111111111111111111111
+        arm64: 2222222222222222222222222222222222222222222222222222222222222222
+    - version: 1.39.0-0~pav1
+      published: 2026-11-20T10:02:11Z
+      suites: [bookworm, trixie, sid, noble, resolute]
+      debs:
+        amd64: 83ed64394a86c56f1bba4618a5cf21c3aa11f9ac1491942250b382f211a446bd
+        arm64: 8c96c7a3a86c56f1bba4618a5cf21c3aa11f9ac1491942250b382f211a446bd0
+retired:
+  - package: fnm
+    version: 1.40.1-0~pav1
+    date: 2026-12-03T18:30:00Z
+    reason: "segfault al iniciar en arm64 (issue #12)"

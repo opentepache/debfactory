@@ -47,7 +47,24 @@ community_repos:           # constitución V; comprobación manual en la fase 1
     url: https://debian.griffo.io
 
 completions_image: "debian:trixie"
+
+repo:                      # fase 002: ver specs/002-signed-apt-repo/contracts/config.md
+  url: ""
+  origin: debfactory
+  label: debfactory
+  component: main
+  keep: 3
+  signing: {masters: [], subkey: "", warn_days: 60}
+  destinations:
+    local: {remote: /var/tmp/debfactory-repo, cache_control: false}
+    r2: {remote: "r2:debfactory-apt", public_url: "", cache_control: true}
+  cache_control:
+    immutable: "public, max-age=31536000, immutable"
+    mutable: "public, max-age=60"
 ```
+
+La sección `repo` la usa la publicación (fase 002); su contrato está en
+[002 config.md](../../002-signed-apt-repo/contracts/config.md).
 
 ## `config/licenses.yaml`
 

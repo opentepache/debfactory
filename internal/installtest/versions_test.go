@@ -25,7 +25,7 @@ func TestCheckVersions(t *testing.T) {
 			t.Errorf("%s pav%d: %v", c.upstream, c.pav, err)
 		}
 	}
-	if ok, _ := compare("1.0.0-0~pav1", "lt", "1.0.0-0"); !ok {
+	if ok, _ := CompareVersions("1.0.0-0~pav1", "lt", "1.0.0-0"); !ok {
 		t.Error("0~pav1 debe ser menor que la revisión 0 de Debian")
 	}
 }

@@ -23,6 +23,16 @@ const (
 	Package  Stage = "package"
 	Lintian  Stage = "lintian"
 	Test     Stage = "test"
+
+	// Etapas de la publicación (specs/002-signed-apt-repo/contracts/cli.md).
+	State      Stage = "state"
+	Inputs     Stage = "inputs"
+	Generate   Stage = "generate"
+	Sign       Stage = "sign"
+	VerifyRepo Stage = "verify-repo"
+	Swap       Stage = "swap"
+	Sync       Stage = "sync"
+	LockRepo   Stage = "lock-repo"
 )
 
 // Stages lista las etapas en orden.
@@ -30,14 +40,16 @@ var Stages = []Stage{Validate, Lock, Fetch, Verify, License, Assemble, Package, 
 
 // Error es un fallo de una etapa. Se imprime como
 //
-//	debfactory: <pkg> <version> <arch>: <stage>: <causa>
+//	debfactory: <pkg> <version> <arch>[ <suite>]: <stage>: <causa>
 //	  <detalle>
 //
-// con "-" en los campos vacíos (contracts/cli.md).
+// con "-" en los campos vacíos (contracts/cli.md). La suite solo aparece si
+// el fallo es de una suite concreta (FR-033 de la fase 002).
 type Error struct {
 	Package string
 	Version string
 	Arch    string
+	Suite   string
 	Stage   Stage
 	Cause   string
 	Detail  []string
@@ -55,8 +67,11 @@ func Newf(stage Stage, format string, args ...any) *Error {
 
 func (e *Error) Error() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "debfactory: %s %s %s: %s: %s",
-		dash(e.Package), dash(e.Version), dash(e.Arch), e.Stage, e.Cause)
+	fmt.Fprintf(&b, "debfactory: %s %s %s", dash(e.Package), dash(e.Version), dash(e.Arch))
+	if e.Suite != "" {
+		b.WriteString(" " + e.Suite)
+	}
+	fmt.Fprintf(&b, ": %s: %s", e.Stage, e.Cause)
 	for _, d := range e.Detail {
 		b.WriteString("\n  ")
 		b.WriteString(d)
@@ -71,10 +86,11 @@ func (e *Error) MarshalJSON() ([]byte, error) {
 		Package string   `json:"package,omitempty"`
 		Version string   `json:"version,omitempty"`
 		Arch    string   `json:"arch,omitempty"`
+		Suite   string   `json:"suite,omitempty"`
 		Stage   Stage    `json:"stage"`
 		Cause   string   `json:"cause"`
 		Detail  []string `json:"detail,omitempty"`
-	}{"error", e.Package, e.Version, e.Arch, e.Stage, e.Cause, e.Detail})
+	}{"error", e.Package, e.Version, e.Arch, e.Suite, e.Stage, e.Cause, e.Detail})
 }
 
 // Wrap convierte err en *Error de la etapa dada y completa el contexto que
@@ -119,8 +135,9 @@ func (es Errors) Err() error {
 	return es
 }
 
-// EnvError indica un entorno incompleto (falta Docker, binfmt, etc.).
-// main lo traduce al código de salida 3.
+// EnvError indica un entorno incompleto (falta Docker, binfmt, aptly, gpg,
+// rclone, el llavero de firma o sus permisos). main lo traduce al código de
+// salida 3.
 type EnvError struct {
 	Cause string
 }

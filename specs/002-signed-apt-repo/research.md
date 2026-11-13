@@ -123,7 +123,7 @@ contenedores, con los `.deb` reales de la fase 001 y una llave de prueba desecha
 
 - **Decisión:** rclone 1.60.1 (Debian) para todos los destinos. Cada destino declara un
   *remote* de rclone; cambiar de proveedor es cambiar configuración (constitución IX):
-  - Cloudflare R2 por el backend S3 (provider `Cloudflare`, con `no_check_bucket = true`);
+  - Cloudflare R2 por el backend S3 (provider `Cloudflare`, con `no_check_bucket = true` y `no_head = true`: rclone 1.60.1 comprueba cada subida con `HEAD ?versionId=`, que R2 responde con 501 aunque el objeto ya se subió; la integridad la cubre `Content-MD5` en el PUT y `repo verify --dest`);
   - otro S3, como MinIO o AWS;
   - un directorio local;
   - un VPS por `sftp`.
@@ -227,12 +227,30 @@ contenedores, con los `.deb` reales de la fase 001 y una llave de prueba desecha
 
 ## 3. Riesgos que se atacan primero
 
-1. **Firma con varias subllaves** durante una rotación de la maestra: hay que comprobar si
-   aptly 1.6.1 admite `-gpg-key` repetido. Si no, el procedimiento usa una ventana en la que el
-   keyring publicado ya contiene la llave nueva y se cambia de llave al final. Es la primera
-   tarea de la fase de llave.
+1. **Firma con varias subllaves** durante una rotación de la maestra. **Resultado (T049,
+   `internal/repo/multikey_test.go`):** aptly 1.6.1 acepta `-gpg-key` repetido sin error, pero
+   el `InRelease` lleva **una sola** firma. La rotación de la maestra usa, por tanto, la
+   ventana: se publica primero el keyring con las dos maestras, se espera la transición y se
+   cambia `repo.signing.subkey` al final. `repo.signing.subkey` sigue siendo un único valor.
 2. **R2 con rclone 1.60.1:** subida multiparte de los `.deb` grandes (buf pesa unos 30 MB) y
    `--header-upload` por pasada. Se prueba contra un bucket de prueba antes del primer
-   sincronizado público.
+   sincronizado público. **Resultado (T048, `just e2e-r2`, `internal/repotest/r2_test.go`,
+   bucket `debfactory-apt-test` detrás de `apt-test.opentepache.org`):**
+   - Pasa `repo sync`, luego `repo verify --dest` (60 archivos, firmas y encabezados), un
+     segundo sync sin cambios (0 s) y un cliente trixie que agrega el repo por HTTPS con la
+     guía e instala `fnm`. El primer sync de los 8 `.deb` tardó 1 min 1 s.
+   - `buf` (33 MB) cabe por debajo del `upload_cutoff` de 200 MiB de rclone, así que se sube con
+     un solo PUT y llega íntegro. No hace falta `--s3-upload-cutoff` ni otras opciones.
+   - Con rclone 1.60.1 el remote necesita `no_head = true` (ver D6).
+   - Cloudflare: `Packages.gz` y `.bz2` salían de la caché con `max-age=14400`, porque el
+     *Browser Cache TTL* de la zona eleva el `max-age` del origen, y `InRelease` y los `.deb` no
+     se cacheaban. Se resuelve con una Cache Rule para los hostnames del repo: *Eligible for
+     cache*, *Edge TTL: use cache-control header*, *Browser TTL: respect origin*. Con ella
+     todos los archivos se sirven desde la caché con los encabezados de debfactory. La regla
+     está en quickstart.md §5.
 3. **Tiempo de SC-001 con arm64 por qemu:** el objetivo es menos de 20 min para la matriz
-   completa. La fase 001 tardó unos 15 min en `test --all`.
+   completa. **Resultado (T029):** 4 min 21 s con 4 clientes en paralelo; amd64 tarda de 10 a
+   16 s por combinación y arm64 de 2 a 2,5 min, sobre todo por el `apt-get install curl` bajo
+   qemu.
+4. **Tiempo de `publish` (T024):** 3,6 s con 4 paquetes × 3 versiones ya publicados (objetivo
+   orientativo: menos de 60 s).

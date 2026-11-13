@@ -7,7 +7,8 @@ el diseño de esta fase en [specs/001-manifest-deb-builder/](specs/001-manifest-
 
 ## Requisitos
 
-Debian trixie con `trixie-backports`, `golang-1.26`, `just`, `qemu-user-binfmt` y Docker. La guía
+Debian trixie con `trixie-backports`, `golang-1.26`, `just`, `qemu-user-binfmt` y Docker; para
+publicar, además `aptly` y `rclone` (`sudo apt install aptly rclone`). La guía
 paso a paso está en el [quickstart](specs/001-manifest-deb-builder/quickstart.md). `debfactory`
 comprueba Docker y binfmt al empezar y sale con código 3 si falta algo.
 
@@ -52,6 +53,19 @@ qemu): instala con apt, corta la red, ejecuta la orden de comprobación sin shel
 versión, purga y comprueba que no quedan archivos. Escribe `dist/<…>.test.json`.
 Orden: `debfactory test <pkg> [--arch A] [--suite S]` o `debfactory test --all`.
 
+**Repositorio APT**. Publica los `.deb` ya construidos y probados en un repositorio firmado
+(suites bookworm, trixie, sid, noble y resolute; componente `main`; amd64 y arm64). La fuente de
+verdad es `repo/state.yaml`, en git: cada publicación o retiro genera con aptly un árbol completo
+y firmado, lo verifica y lo expone de golpe, así que nunca queda a medias. Conserva las últimas 3
+versiones de cada paquete para que apt pueda volver atrás. `repo sync` lo sube con rclone a un
+directorio local, a R2 o a cualquier S3 o VPS, en un orden que nunca deja índices apuntando a
+archivos que faltan. La llave maestra vive fuera de línea; la PC solo tiene una subllave de firma
+([operación de la llave](docs/operacion-llave.md)). Para el usuario final:
+[guía de usuario](docs/usuario.md).
+Órdenes: `debfactory publish <pkg> [version]`, `debfactory retire <pkg> <version> --reason …`,
+`debfactory repo sync <destino>`, `debfactory repo verify [--dest D]`, `debfactory repo rebuild`,
+`debfactory repo status` ([cli.md](specs/002-signed-apt-repo/contracts/cli.md)).
+
 ## Atajos
 
 ```bash
@@ -60,6 +74,8 @@ just build fnm       # construye amd64 y arm64
 just test fnm        # prueba en las 5 suites × 2 arquitecturas
 just build-all       # todos los paquetes
 just check           # gofmt, vet, tests, validate, build reproducible y pruebas de todo
+just publish fnm     # publica en el repositorio APT local
+just sync r2         # sube el repositorio al hosting y lo verifica
 ```
 
 Las órdenes y sus códigos de salida están en

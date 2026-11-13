@@ -36,8 +36,16 @@ const usage = `uso: debfactory <orden> [opciones]
   lint <deb…>                                  pasa lintian a .deb existentes
   test <pkg> [--arch A] [--suite S]
   test --all                                   prueba la instalación en cada suite
+  publish <pkg> [<version>] [--dry-run]
+  publish --all [--dry-run]                    publica en el repositorio APT firmado
+  retire <pkg> <version> --reason TEXTO [--last] [--dry-run]
+  repo verify [--dest D]                       comprueba el árbol local o un destino
+  repo sync <destino> [--dry-run]              sube el repositorio a un destino
+  repo rebuild                                 regenera el árbol desde repo/state.yaml
+  repo status                                  muestra lo publicado y lo sincronizado
+  repo serve [--port 8080]                     sirve el destino local por HTTP
 
-Opciones globales: --root DIR, --workdir DIR, --cache DIR, --json
+Opciones globales: --root DIR, --workdir DIR, --cache DIR, --data DIR, --json
 Códigos de salida: 0 éxito, 1 fallo de una etapa, 2 uso incorrecto, 3 entorno incompleto.
 `
 
@@ -58,11 +66,14 @@ var errReported = errors.New("fallo ya informado")
 
 // options son las opciones de todas las órdenes; cada orden registra las suyas.
 type options struct {
-	root, workdir, cache string
-	json                 bool
-	arch, suite          string
-	all, force, prune    bool
-	reproducible         bool
+	root, workdir, cache, data string
+	json                       bool
+	arch, suite                string
+	all, force, prune          bool
+	reproducible               bool
+	dryRun, last               bool
+	reason, dest               string
+	port                       int
 }
 
 type app struct {
@@ -88,6 +99,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fs.StringVar(&o.workdir, "workdir", defaultWorkdir(), "")
 	fs.StringVar(&o.cache, "cache", defaultCache(), "")
 	fs.BoolVar(&o.json, "json", false, "")
+	fs.StringVar(&o.data, "data", defaultData(), "")
 	switch cmd {
 	case "validate", "lint":
 	case "lock":
@@ -101,6 +113,17 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fs.StringVar(&o.arch, "arch", "", "")
 		fs.StringVar(&o.suite, "suite", "", "")
 		fs.BoolVar(&o.all, "all", false, "")
+	case "publish":
+		fs.BoolVar(&o.all, "all", false, "")
+		fs.BoolVar(&o.dryRun, "dry-run", false, "")
+	case "retire":
+		fs.StringVar(&o.reason, "reason", "", "")
+		fs.BoolVar(&o.last, "last", false, "")
+		fs.BoolVar(&o.dryRun, "dry-run", false, "")
+	case "repo":
+		fs.StringVar(&o.dest, "dest", "", "")
+		fs.BoolVar(&o.dryRun, "dry-run", false, "")
+		fs.IntVar(&o.port, "port", 8080, "")
 	default:
 		fmt.Fprintf(stderr, "debfactory: orden desconocida %q\n\n%s", cmd, usage)
 		return 2
@@ -141,8 +164,17 @@ func (a *app) dispatch(ctx context.Context, cmd string, pos []string) error {
 	if a.opts.arch != "" && a.opts.arch != "amd64" && a.opts.arch != "arm64" {
 		return usageError{fmt.Sprintf("--arch %q: se admite amd64 o arm64", a.opts.arch)}
 	}
-	if cmd != "lint" {
-		for _, p := range pos {
+	names := pos
+	switch cmd {
+	case "lint", "repo":
+		names = nil
+	case "publish", "retire":
+		if len(pos) > 0 {
+			names = pos[:1] // el segundo argumento es una versión
+		}
+	}
+	{
+		for _, p := range names {
 			if !pkgName.MatchString(p) {
 				return usageError{fmt.Sprintf("nombre de paquete inválido %q", p)}
 			}
@@ -174,6 +206,12 @@ func (a *app) dispatch(ctx context.Context, cmd string, pos []string) error {
 		return a.lint(ctx, pos)
 	case "test":
 		return a.test(ctx, pos)
+	case "publish":
+		return a.publish(ctx, pos)
+	case "retire":
+		return a.retire(ctx, pos)
+	case "repo":
+		return a.repo(ctx, pos)
 	}
 	return usageError{"orden no implementada: " + cmd}
 }
@@ -360,6 +398,13 @@ func defaultWorkdir() string {
 		return filepath.Join(d, "debfactory")
 	}
 	return filepath.Join(os.TempDir(), "debfactory")
+}
+
+func defaultData() string {
+	if d, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(d, ".local", "share", "debfactory")
+	}
+	return filepath.Join(os.TempDir(), "debfactory-data")
 }
 
 func defaultCache() string {

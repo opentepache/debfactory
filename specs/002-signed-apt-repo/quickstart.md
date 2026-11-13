@@ -73,9 +73,20 @@ bin/debfactory publish fnm 1.40.0-0~pav1  # → state: versión retirada…
 
 ## 5. Sincronizar al hosting público (US5)
 
-1. Configura el remote `r2` en `~/.config/rclone/rclone.conf`, fuera del repositorio.
-2. Pon `repo.url` y `destinations.r2.public_url`.
-3. Ejecuta:
+1. Configura el remote `r2` en `~/.config/rclone/rclone.conf` (`600`), fuera del repositorio,
+   como en [config.md](contracts/config.md), con `no_check_bucket = true` y `no_head = true`.
+2. En Cloudflare, en la zona del dominio, crea una Cache Rule (*Caching → Cache Rules*):
+   - condición: `Hostname` *is in* los hostnames del repositorio;
+   - *Eligible for cache*;
+   - *Edge TTL:* usar el encabezado `Cache-Control` si existe;
+   - *Browser TTL:* respetar el del origen.
+
+   Sin esa regla, el *Browser Cache TTL* de la zona sube a 4 h el `max-age=60` de
+   `Packages.gz` y `Packages.bz2`.
+3. Pon `repo.url` y `destinations.r2.public_url`.
+4. Prueba antes contra el bucket de prueba: `just e2e-r2` (destino `r2test`, llave
+   desechable).
+5. Ejecuta:
 
 ```bash
 bin/debfactory repo sync r2 --dry-run   # lista de fases y archivos

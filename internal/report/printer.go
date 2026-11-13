@@ -67,3 +67,17 @@ func (p *Printer) json(w io.Writer, v any) {
 	}
 	fmt.Fprintln(w, string(b))
 }
+
+// Event imprime text en modo texto o el objeto ev (con "event": name) en
+// modo JSON.
+func (p *Printer) Event(name string, ev map[string]any, text string) {
+	if p.JSON {
+		out := map[string]any{"event": name}
+		for k, v := range ev {
+			out[k] = v
+		}
+		p.json(p.Out, out)
+		return
+	}
+	fmt.Fprintln(p.Out, text)
+}
