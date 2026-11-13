@@ -86,7 +86,7 @@ func TestPrune(t *testing.T) {
 	// FR-038: si 0.9.0 sigue publicada, --prune falla.
 	st := aptrepo.Empty()
 	st.Serial = 1
-	st.Packages["example"] = []aptrepo.Published{{Version: "0.9.0-0~pav1", Suites: []string{"trixie"}}}
+	st.Packages["example"] = []aptrepo.Published{{Version: "0.9.0-0~tepache1", Suites: []string{"trixie"}}}
 	if err := st.Write(h.root); err != nil {
 		t.Fatal(err)
 	}

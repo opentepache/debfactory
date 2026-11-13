@@ -75,10 +75,10 @@ func TestCheckValidFixtures(t *testing.T) {
 	}
 }
 
-func TestCheckPav(t *testing.T) {
+func TestCheckRevision(t *testing.T) {
 	cfg := repoConfig(t)
 	m, _ := parseFixture(t, "../../testdata/manifests/valid/tool.yaml")
-	m.Pav = 2
+	m.Revision = 2
 	h := strings.Repeat("a", 64)
 	entry := &lock.Entry{SourceDateEpoch: 1, LicenseSHA256: h, Artifacts: map[string]string{"amd64": h, "arm64": h}}
 
@@ -88,11 +88,11 @@ func TestCheckPav(t *testing.T) {
 	}
 	same := &lock.File{Schema: 1, Versions: map[string]*lock.Entry{"1.0.0": entry}}
 	if err := Check(m, cfg, same); err != nil {
-		t.Errorf("misma versión con pav 2 es una corrección válida: %v", err)
+		t.Errorf("misma versión con revision 2 es una corrección válida: %v", err)
 	}
 	other := &lock.File{Schema: 1, Versions: map[string]*lock.Entry{"0.9.0": entry}}
 	err := Check(m, cfg, other)
-	if err == nil || !strings.Contains(err.Error(), "pav: debe ser 1 para una versión upstream nueva") {
+	if err == nil || !strings.Contains(err.Error(), "revision: debe ser 1 para una versión upstream nueva") {
 		t.Errorf("error = %v", err)
 	}
 }

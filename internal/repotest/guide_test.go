@@ -41,8 +41,8 @@ func TestGuideBlocks(t *testing.T) {
 	if strings.TrimSpace(inst) != "apt-get install -y fnm buf aqua" {
 		t.Errorf("install = %q", inst)
 	}
-	down := Render(blocks["downgrade"], url, "http://repo", map[string]string{"version": "1.0-0~pav1"})
-	if !strings.Contains(down, "fnm=1.0-0~pav1") {
+	down := Render(blocks["downgrade"], url, "http://repo", map[string]string{"version": "1.0-0~tepache1"})
+	if !strings.Contains(down, "fnm=1.0-0~tepache1") {
 		t.Errorf("downgrade = %q", down)
 	}
 }

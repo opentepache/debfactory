@@ -33,13 +33,13 @@ func (s snapshot) equal(o snapshot) bool {
 func TestAtomicity(t *testing.T) {
 	ctx := context.Background()
 	e, out := testEnv(t)
-	v1 := map[string]string{"foo": "1.0.0-0~pav1"}
-	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "foo", "1.0.0-0~pav1"))
+	v1 := map[string]string{"foo": "1.0.0-0~tepache1"}
+	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "foo", "1.0.0-0~tepache1"))
 	if err := e.Publish(ctx, []string{"foo"}, v1, false); err != nil {
 		t.Fatalf("publish inicial: %v\n%s", err, out)
 	}
-	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "foo", "1.1.0-0~pav1"))
-	v2 := map[string]string{"foo": "1.1.0-0~pav1"}
+	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "foo", "1.1.0-0~tepache1"))
+	v2 := map[string]string{"foo": "1.1.0-0~tepache1"}
 	base := takeSnapshot(t, e)
 
 	expectUnchanged := func(t *testing.T, err error, want string) {
@@ -111,11 +111,11 @@ func TestAtomicity(t *testing.T) {
 		if err := e.Rebuild(ctx); err != nil {
 			t.Fatalf("rebuild desde dist/: %v", err)
 		}
-		os.Remove(filepath.Join(e.Root, "dist/foo_1.0.0-0~pav1_amd64.deb"))
+		os.Remove(filepath.Join(e.Root, "dist/foo_1.0.0-0~tepache1_amd64.deb"))
 		os.RemoveAll(StoreFor(e.DataDir).Dir)
 		err := e.Rebuild(ctx)
 		var list interface{ Error() string }
-		if err == nil || !errors.As(err, &list) || !strings.Contains(err.Error(), "falta foo_1.0.0-0~pav1_amd64.deb") {
+		if err == nil || !errors.As(err, &list) || !strings.Contains(err.Error(), "falta foo_1.0.0-0~tepache1_amd64.deb") {
 			t.Fatalf("rebuild sin .deb: %v", err)
 		}
 	})

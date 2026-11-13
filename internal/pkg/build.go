@@ -19,7 +19,7 @@ import (
 type Plan struct {
 	Name        string
 	Version     string // upstream
-	Pav         int    // N de -0~pav<N>
+	Revision    int    // N de -0~tepache<N>
 	Arch        string
 	Maintainer  string
 	Summary     string
@@ -35,10 +35,10 @@ type Plan struct {
 	MTime       time.Time // SOURCE_DATE_EPOCH
 }
 
-// DebVersion es <upstream>-0~pav<N>.
-func (p *Plan) DebVersion() string { return fmt.Sprintf("%s-0~pav%d", p.Version, p.Pav) }
+// DebVersion es <upstream>-0~tepache<N>.
+func (p *Plan) DebVersion() string { return fmt.Sprintf("%s-0~tepache%d", p.Version, p.Revision) }
 
-// FileName es <name>_<upstream>-0~pav<N>_<arch>.deb.
+// FileName es <name>_<upstream>-0~tepache<N>_<arch>.deb.
 func (p *Plan) FileName() string { return fmt.Sprintf("%s_%s_%s.deb", p.Name, p.DebVersion(), p.Arch) }
 
 // Build escribe el .deb en outDir y devuelve su ruta. Con las mismas entradas
@@ -57,7 +57,7 @@ func Build(p *Plan, outDir string) (string, error) {
 		Platform:        "linux",
 		Version:         p.Version,
 		VersionSchema:   "none",
-		Release:         fmt.Sprintf("0~pav%d", p.Pav),
+		Release:         fmt.Sprintf("0~tepache%d", p.Revision),
 		Section:         p.Section,
 		Priority:        "optional",
 		Maintainer:      p.Maintainer,

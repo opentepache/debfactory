@@ -19,7 +19,7 @@ exacto en [contracts/state.md](contracts/state.md).
 
 | Campo | Tipo | Reglas |
 |---|---|---|
-| `version` | string | Versión Debian completa, `<upstream>-0~pav<N>`. Única por paquete. |
+| `version` | string | Versión Debian completa, `<upstream>-0~tepache<N>`. Única por paquete. |
 | `published` | fecha RFC 3339 (UTC) | Momento de la operación. |
 | `suites` | lista de suites | Subconjunto ordenado de `config.suites`. Sale de `test.json` (suites con `pass`) y es igual en todas las arquitecturas. |
 | `debs.<arch>` | sha256 (64 hex) | Una entrada por cada arquitectura de `config.arches`; no puede faltar ninguna. |

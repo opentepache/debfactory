@@ -54,7 +54,7 @@ func TestPackage(ctx context.Context, root string, cfg *config.Config, m *manife
 		return nil, fail("%v", err)
 	}
 	d := Deb{Path: base + ".deb", Package: m.Name, Arch: arch, TestCommand: info.TestCommand, Expect: expect}
-	rep := Run(ctx, d, m.Version, m.Pav, suites, m.Exclude.Suites)
+	rep := Run(ctx, d, m.Version, m.Revision, suites, m.Exclude.Suites)
 	rep.DebSHA256 = sha
 	if err := rep.Write(base + ".test.json"); err != nil {
 		return rep, fail("%v", err)

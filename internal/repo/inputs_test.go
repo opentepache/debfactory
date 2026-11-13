@@ -17,7 +17,7 @@ func suiteNames(t *testing.T) []string {
 
 func TestInputs(t *testing.T) {
 	cfg := loadCfg(t)
-	const v = "1.0.0-0~pav1"
+	const v = "1.0.0-0~tepache1"
 	dist := func(root, arch, ext string) string {
 		return filepath.Join(root, "dist", "foo_"+v+"_"+arch+ext)
 	}
@@ -29,7 +29,7 @@ func TestInputs(t *testing.T) {
 	}{
 		{name: "todo correcto", suite: []string{"bookworm", "trixie", "sid", "noble", "resolute"}},
 		{name: "falta arm64", edit: func(t *testing.T, root string) { os.Remove(dist(root, "arm64", ".deb")) },
-			want: "foo 1.0.0-0~pav1 arm64: inputs: falta dist/foo_1.0.0-0~pav1_arm64.deb"},
+			want: "foo 1.0.0-0~tepache1 arm64: inputs: falta dist/foo_1.0.0-0~tepache1_arm64.deb"},
 		{name: "lintian", edit: func(t *testing.T, root string) {
 			editJSON(t, dist(root, "amd64", ".build.json"), func(m map[string]any) { m["lintian"] = "fail" })
 		}, want: "amd64: inputs: build.json no aprobado (lintian: fail)"},
@@ -56,7 +56,7 @@ func TestInputs(t *testing.T) {
 				res := m["results"].([]any)
 				res[0].(map[string]any)["status"] = "excluded"
 			})
-		}, want: "foo 1.0.0-0~pav1 -: inputs: suites distintas entre amd64 [bookworm trixie sid noble resolute] y arm64 [trixie sid noble resolute]"},
+		}, want: "foo 1.0.0-0~tepache1 -: inputs: suites distintas entre amd64 [bookworm trixie sid noble resolute] y arm64 [trixie sid noble resolute]"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

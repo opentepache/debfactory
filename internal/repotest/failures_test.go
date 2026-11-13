@@ -32,7 +32,7 @@ func TestE2EFailures(t *testing.T) {
 	addRepo(t, ctx, c, e, blocks)
 
 	cur := packagesIn(st, "trixie")["fnm"]
-	next := strings.Replace(cur, "~pav1", "~pav2", 1)
+	next := strings.Replace(cur, "~tepache1", "~tepache2", 1)
 	var all []string
 	for _, s := range e.Cfg.Suites {
 		all = append(all, s.Name)

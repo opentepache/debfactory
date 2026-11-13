@@ -2,7 +2,7 @@
 schema: 1
 name: unknown-var
 version: 1.0.0
-pav: 1
+revision: 1
 level: 1
 summary: negative test fixture
 description: |

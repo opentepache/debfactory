@@ -20,9 +20,9 @@ func TestExpiryWarning(t *testing.T) {
 	if err != nil || exp.IsZero() {
 		t.Fatalf("expiry: %v %v", exp, err)
 	}
-	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "foo", "1.0.0-0~pav1"))
+	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "foo", "1.0.0-0~tepache1"))
 	e.Now = func() time.Time { return exp.Add(-30 * 24 * time.Hour) }
-	if err := e.Publish(ctx, []string{"foo"}, map[string]string{"foo": "1.0.0-0~pav1"}, false); err != nil {
+	if err := e.Publish(ctx, []string{"foo"}, map[string]string{"foo": "1.0.0-0~tepache1"}, false); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "aviso: la subllave de firma caduca el "+exp.UTC().Format(time.DateOnly)+" (en 29 días)") &&
@@ -30,8 +30,8 @@ func TestExpiryWarning(t *testing.T) {
 		t.Errorf("sin aviso:\n%s", out)
 	}
 	e.Now = func() time.Time { return exp.Add(time.Hour) }
-	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "foo", "1.1.0-0~pav1"))
-	err = e.Publish(ctx, []string{"foo"}, map[string]string{"foo": "1.1.0-0~pav1"}, false)
+	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "foo", "1.1.0-0~tepache1"))
+	err = e.Publish(ctx, []string{"foo"}, map[string]string{"foo": "1.1.0-0~tepache1"}, false)
 	if err == nil || !strings.Contains(err.Error(), "sign: la subllave") || !strings.Contains(err.Error(), "caducó el") {
 		t.Fatalf("subllave caducada: %v", err)
 	}

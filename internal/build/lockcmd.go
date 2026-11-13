@@ -226,7 +226,7 @@ func (e *Env) Prune(name string) error {
 			continue
 		}
 		for _, p := range st.Packages[m.Name] {
-			if strings.HasPrefix(p.Version, v+"-0~pav") {
+			if strings.HasPrefix(p.Version, v+"-0~tepache") {
 				published = append(published, v)
 				break
 			}

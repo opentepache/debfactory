@@ -58,10 +58,10 @@ func poolFiles(t *testing.T, dir string) []string {
 func TestPublish(t *testing.T) {
 	ctx := context.Background()
 	e, out := testEnv(t)
-	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "foo", "1.0.0-0~pav1"))
-	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "bar", "2.0.0-0~pav1", "bookworm"))
+	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "foo", "1.0.0-0~tepache1"))
+	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "bar", "2.0.0-0~tepache1", "bookworm"))
 
-	versions := map[string]string{"foo": "1.0.0-0~pav1", "bar": "2.0.0-0~pav1"}
+	versions := map[string]string{"foo": "1.0.0-0~tepache1", "bar": "2.0.0-0~tepache1"}
 	if err := e.Publish(ctx, []string{"foo", "bar"}, versions, false); err != nil {
 		t.Fatalf("publish: %v\n%s", err, out)
 	}
@@ -78,7 +78,7 @@ func TestPublish(t *testing.T) {
 		t.Errorf("pool = %v", got)
 	}
 	// US1-2: bar no está en bookworm (VerifyTree compara con el estado).
-	if p, _ := st.Find("bar", "2.0.0-0~pav1"); strings.Join(p.Suites, ",") != "trixie,sid,noble,resolute" {
+	if p, _ := st.Find("bar", "2.0.0-0~tepache1"); strings.Join(p.Suites, ",") != "trixie,sid,noble,resolute" {
 		t.Errorf("suites de bar = %v", p.Suites)
 	}
 	pk, _ := os.ReadFile(filepath.Join(cur.Dir(e.DataDir), "dists/bookworm/main/binary-amd64/Packages"))
@@ -98,19 +98,19 @@ func TestPublish(t *testing.T) {
 		t.Fatalf("republicar: %v\n%s", err, out)
 	}
 	// un .deb distinto con la misma versión falla
-	writeRelease(t, e.Root, e.suites(), release{name: "foo", version: "1.0.0-0~pav1",
-		debs: map[string][]byte{"amd64": fakeDeb(t, "foo", "1.0.0-0~pav1", "amd64"),
-			"arm64": fakeDeb(t, "foo", "1.0.0-0~pav1", "all")}})
+	writeRelease(t, e.Root, e.suites(), release{name: "foo", version: "1.0.0-0~tepache1",
+		debs: map[string][]byte{"amd64": fakeDeb(t, "foo", "1.0.0-0~tepache1", "amd64"),
+			"arm64": fakeDeb(t, "foo", "1.0.0-0~tepache1", "all")}})
 	err = e.Publish(ctx, []string{"foo"}, versions, false)
 	if err == nil || !strings.Contains(err.Error(), "ya publicada con otro sha256") {
 		t.Fatalf("reescribir: %v", err)
 	}
 
 	// US1-3: un test.json no aprobado deja estado y current sin cambios.
-	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "baz", "0.1.0-0~pav1"))
-	editJSON(t, filepath.Join(e.Root, "dist/baz_0.1.0-0~pav1_amd64.test.json"), func(m map[string]any) { m["overall"] = "fail" })
+	writeRelease(t, e.Root, e.suites(), fakeRelease(t, "baz", "0.1.0-0~tepache1"))
+	editJSON(t, filepath.Join(e.Root, "dist/baz_0.1.0-0~tepache1_amd64.test.json"), func(m map[string]any) { m["overall"] = "fail" })
 	before, _ := os.ReadFile(filepath.Join(e.Root, StateFile))
-	err = e.Publish(ctx, []string{"baz"}, map[string]string{"baz": "0.1.0-0~pav1"}, false)
+	err = e.Publish(ctx, []string{"baz"}, map[string]string{"baz": "0.1.0-0~tepache1"}, false)
 	after, _ := os.ReadFile(filepath.Join(e.Root, StateFile))
 	cur2, _ := Current(e.DataDir)
 	if err == nil || string(before) != string(after) || cur2.Name != cur.Name {
@@ -128,7 +128,7 @@ func TestPublishTiming(t *testing.T) {
 	for v := 1; v <= 3; v++ {
 		versions := map[string]string{}
 		for _, n := range names {
-			ver := "1.0." + string(rune('0'+v)) + "-0~pav1"
+			ver := "1.0." + string(rune('0'+v)) + "-0~tepache1"
 			writeRelease(t, e.Root, e.suites(), fakeRelease(t, n, ver))
 			versions[n] = ver
 		}

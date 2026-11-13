@@ -22,7 +22,7 @@ que nunca produzca un paquete inseguro, sin licencia válida o roto.
 El mantenedor tiene un manifiesto para una herramienta (por ejemplo `fnm`) y ejecuta un único
 comando indicando el paquete y, opcionalmente, la arquitectura (la versión es la declarada en
 el manifiesto). Obtiene un `.deb` instalable con versión
-`<upstream>-0~pav<N>`, metadatos completos y licencia en `copyright`, sin haber escrito código
+`<upstream>-0~tepache<N>`, metadatos completos y licencia en `copyright`, sin haber escrito código
 para ese paquete.
 
 **Why this priority**: es el núcleo de la fábrica; sin esto no hay nada que probar ni publicar.
@@ -34,7 +34,7 @@ descripción, homepage, arquitectura) son los esperados y que pasa `lintian` sin
 **Acceptance Scenarios**:
 
 1. **Given** un manifiesto válido de `fnm` en versión `1.39.0` con `N=1`, **When** el mantenedor
-   construye para `amd64`, **Then** obtiene `fnm_1.39.0-0~pav1_amd64.deb` con el binario
+   construye para `amd64`, **Then** obtiene `fnm_1.39.0-0~tepache1_amd64.deb` con el binario
    instalado en la ruta declarada y la licencia upstream en `copyright`.
 2. **Given** el mismo manifiesto, **When** el mantenedor construye "todas" las arquitecturas,
    **Then** obtiene un `.deb` por cada arquitectura soportada (`amd64`, `arm64`).
@@ -119,7 +119,7 @@ permitida) solo con un manifiesto nuevo y comprobar que construye y pasa las pru
    pruebas sin cambios en ningún otro archivo salvo su lockfile generado.
 2. **Given** un manifiesto en versión `X` con `N=2`, **When** se sube a versión upstream `Y`
    sin volver `N` a 1, **Then** la validación falla pidiendo `N=1`; con `N=1`, el paquete
-   resultante tiene versión `Y-0~pav1`.
+   resultante tiene versión `Y-0~tepache1`.
 
 ---
 
@@ -244,7 +244,7 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
 - **FR-014**: Antes de construir, el sistema MUST obtener el texto de licencia de la versión
   exacta desde la fuente declarada, identificarlo y fallar si: no es identificable, no está en
   la allowlist, o no coincide con la licencia esperada del manifiesto.
-- **FR-015**: El `.deb` MUST tener versión `<upstream>-0~pav<N>` y nombre de archivo estándar de
+- **FR-015**: El `.deb` MUST tener versión `<upstream>-0~tepache<N>` y nombre de archivo estándar de
   Debian (`<paquete>_<versión>_<arquitectura>.deb`); un mismo `.deb` de nivel 1 sirve para todas
   las suites.
 - **FR-016**: El `.deb` MUST incluir metadatos completos: mantenedor, descripción, homepage,
@@ -272,7 +272,7 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
   fallido (con etapa y salida) o excluido (con motivo), y un resultado global que es fallido si
   falla cualquier suite no excluida.
 - **FR-024**: La prueba MUST validar con `dpkg --compare-versions` que la versión generada es
-  menor que la oficial hipotética `<upstream>-1` y mayor que `<upstream>-0~pav<N-1>` cuando
+  menor que la oficial hipotética `<upstream>-1` y mayor que `<upstream>-0~tepache<N-1>` cuando
   `N > 1` (constitución VI).
 
 ### Key Entities
@@ -289,7 +289,7 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
 - **Configuración compartida**: mantenedor, suites y arquitecturas soportadas, allowlist de
   licencias, sufijos de suite y repositorios APT comunitarios conocidos.
 - **Paquete construido (`.deb`)**: resultado para un manifiesto, versión y arquitectura; tiene
-  versión `<upstream>-0~pav<N>` y un resultado de `lintian`.
+  versión `<upstream>-0~tepache<N>` y un resultado de `lintian`.
 - **Informe de prueba**: resultado por suite y arquitectura (aprobado / fallido / excluido) y
   resultado global.
 

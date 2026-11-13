@@ -2,7 +2,7 @@
 schema: 1
 name: url-traversal
 version: 1.0.0
-pav: 1
+revision: 1
 level: 1
 summary: example single static binary tool
 description: |

@@ -50,8 +50,8 @@ completions_image: "debian:trixie"
 
 repo:                      # fase 002: ver specs/002-signed-apt-repo/contracts/config.md
   url: ""
-  origin: debfactory
-  label: debfactory
+  origin: OpenTepache
+  label: OpenTepache
   component: main
   keep: 3
   signing: {masters: [], subkey: "", warn_days: 60}

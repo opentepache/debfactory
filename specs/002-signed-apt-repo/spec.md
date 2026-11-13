@@ -60,8 +60,8 @@ comprobar desde la PC, sin red externa, cuatro cosas:
 
 **Acceptance Scenarios**:
 
-1. **Given** un repositorio vacío y los `.deb` de `fnm 1.39.0-0~pav1` para `amd64` y `arm64`,
-   **When** el mantenedor publica `fnm`, **Then** las 5 suites contienen `fnm 1.39.0-0~pav1` en
+1. **Given** un repositorio vacío y los `.deb` de `fnm 1.39.0-0~tepache1` para `amd64` y `arm64`,
+   **When** el mantenedor publica `fnm`, **Then** las 5 suites contienen `fnm 1.39.0-0~tepache1` en
    ambas arquitecturas. Además, los índices de cada suite están firmados y cada `.deb` existe una
    sola vez en el repositorio, aunque lo usen las 5 suites.
 2. **Given** `bob`, que excluye `bookworm`, **When** se publica, **Then** aparece en `trixie`,
@@ -167,19 +167,19 @@ paquete roto quedaría servido indefinidamente.
 
 **Acceptance Scenarios**:
 
-1. **Given** `fnm 1.39.0-0~pav1` instalado, **When** se publica `fnm 1.40.0-0~pav1` y el
-   usuario ejecuta `apt update && apt upgrade`, **Then** queda instalada `1.40.0-0~pav1`.
+1. **Given** `fnm 1.39.0-0~tepache1` instalado, **When** se publica `fnm 1.40.0-0~tepache1` y el
+   usuario ejecuta `apt update && apt upgrade`, **Then** queda instalada `1.40.0-0~tepache1`.
 2. **Given** 4 versiones publicadas sucesivamente con la retención por defecto (3), **When** se
    publica la cuarta, **Then** el repositorio ofrece solo las 3 más recientes y el archivo de la
    más antigua deja de estar en el repositorio.
-3. **Given** `1.40.0-0~pav1` publicada y defectuosa, **When** el mantenedor la retira, **Then**
+3. **Given** `1.40.0-0~tepache1` publicada y defectuosa, **When** el mantenedor la retira, **Then**
    desaparece de las 5 suites en una sola operación atómica, y la versión vigente pasa a ser la
-   más reciente que queda (`1.39.0-0~pav1`).
+   más reciente que queda (`1.39.0-0~tepache1`).
 4. **Given** la versión retirada, **When** el usuario que la tiene instalada hace
    `apt update && apt upgrade`, **Then** apt no la cambia automáticamente. **When** ejecuta el
-   downgrade explícito documentado, **Then** queda instalada `1.39.0-0~pav1`.
+   downgrade explícito documentado, **Then** queda instalada `1.39.0-0~tepache1`.
 5. **Given** una versión retirada, **When** el mantenedor intenta publicarla otra vez con el
-   mismo número, **Then** se rechaza e indica que debe incrementar `pav` o publicar otra versión
+   mismo número, **Then** se rechaza e indica que debe incrementar `revision` o publicar otra versión
    upstream (constitución VI).
 6. **Given** que se pide retirar la única versión publicada de un paquete, **When** se ejecuta,
    **Then** se exige una confirmación explícita (un indicador en la orden), porque el paquete
@@ -294,7 +294,7 @@ En cada paso, comprobar que un cliente que solo siguió la documentación sigue 
 - **Paquete sin versiones**: retirar la última versión con confirmación deja el paquete fuera de
   todas las suites. Los índices siguen siendo válidos aunque una suite quede sin paquetes.
 - **Retención mayor que el historial**: con menos versiones que el máximo, no se borra nada.
-- **Varias versiones de la misma versión upstream** (`-0~pav1` y `-0~pav2`) cuentan como
+- **Varias versiones de la misma versión upstream** (`-0~tepache1` y `-0~tepache2`) cuentan como
   versiones distintas a efectos de retención.
 - **Archivo de paquete compartido**: el mismo `.deb` usado en varias suites se guarda una sola
   vez y solo se borra cuando ninguna suite lo referencia.

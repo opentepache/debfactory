@@ -13,13 +13,13 @@ Lo escribe una persona. Campos y reglas en el JSON Schema; aquí solo se resumen
 
 | Regla | Mensaje de error (ejemplo) |
 |---|---|
-| `name` coincide con el nombre del archivo (el campo `pav` guarda N de `-0~pav<N>`) | `packages/fnm.yaml: name: "fnmx" no coincide con el archivo "fnm"` |
+| `name` coincide con el nombre del archivo (el campo `revision` guarda N de `-0~tepache<N>`) | `packages/fnm.yaml: name: "fnmx" no coincide con el archivo "fnm"` |
 | Solo variables `{{version}}`, `{{tag}}`, `{{arch}}` (y `{{name}}` solo en `install[].src` con `format: binary`) | `…: artifact.url: variable desconocida {{arc}}` |
 | `artifact.url` y `checksums.url` empiezan por `https://github.com/<upstream>/releases/download/<tag renderizado>/` | `…: artifact.url: fuera de los releases de Schniz/fnm` |
 | `summary` sin artículo inicial (a/an/the) | `…: summary: no debe empezar con artículo` |
 | Claves de `exclude.suites` existen en la config | `…: exclude.suites.bullseye: suite no soportada` |
 | `level` es `1` (constitución II) | `…: level: solo se admite 1 en esta fase` |
-| Si `version` no está en el lockfile y este tiene otras versiones, `pav` es `1` | `…: pav: debe ser 1 para una versión upstream nueva` |
+| Si `version` no está en el lockfile y este tiene otras versiones, `revision` es `1` | `…: revision: debe ser 1 para una versión upstream nueva` |
 | `license.spdx` es una expresión SPDX válida | `…: license.spdx: "MIT/Apache" no es SPDX` |
 | `lintian_overrides[].tag` no coincide con ningún patrón de `lintian.never_override_patterns` | `…: lintian_overrides[0].tag: "embedded-library" no se puede silenciar` |
 | Destinos literales únicos (los que salen de globs se comprueban al ensamblar, etapa `assemble`) | `…: install[1].dst: /usr/bin/fnm duplicado` |
@@ -64,7 +64,7 @@ válido por definición.
 
 Resultado de resolver Manifest + Lock + Config para una `(versión, arch)`:
 lista ordenada de entradas `{dst, origen, mode, tipo: file|dir}`, metadatos de control
-(Package, Version `<v>-0~pav<N>`, Architecture, Maintainer, Section, Priority, Homepage,
+(Package, Version `<v>-0~tepache<N>`, Architecture, Maintainer, Section, Priority, Homepage,
 Depends calculado ∪ declarado, Recommends, Conflicts, Replaces, Provides, Description),
 `copyright`, `changelog.Debian.gz`, overrides de lintian y `SOURCE_DATE_EPOCH`. Es la entrada
 de nfpm.
@@ -75,7 +75,7 @@ Salida. Un solo `.deb` por `(versión, arch)` sirve para todas las suites (nivel
 acompañado de `dist/<name>_<version>_<arch>.build.json`:
 `{sha256, manifest_sha256, lock_sha256, lintian: "pass", overrides: [...], test_command}`, donde
 `test_command` es la orden de prueba ya resuelta (la del manifiesto o la de por defecto).
-`<version>` en estos nombres es siempre la versión completa `<upstream>-0~pav<N>`.
+`<version>` en estos nombres es siempre la versión completa `<upstream>-0~tepache<N>`.
 
 ### TestReport (`dist/<name>_<version>_<arch>.test.json`)
 

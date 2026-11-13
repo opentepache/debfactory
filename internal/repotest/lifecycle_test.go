@@ -18,7 +18,7 @@ func TestE2ELifecycle(t *testing.T) {
 	serveCurrent(t, ctx, e)
 	blocks := guide(t, e)
 	v1 := packagesIn(st, "trixie")["fnm"]
-	v2 := strings.Replace(v1, "~pav1", "~pav2", 1)
+	v2 := strings.Replace(v1, "~tepache1", "~tepache2", 1)
 
 	clients := make([]*Client, len(e.Cfg.Suites))
 	forEach := func(t *testing.T, step string, f func(t *testing.T, c *Client)) {

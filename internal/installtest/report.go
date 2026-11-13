@@ -35,10 +35,10 @@ type Report struct {
 // Run prueba d en cada suite de suites, salvo las excluidas, que se informan
 // con su motivo. Primero comprueba el orden de versiones: si falla, no
 // arranca contenedores.
-func Run(ctx context.Context, d Deb, upstream string, pav int, suites []config.Suite, excluded map[string]string) *Report {
-	rep := &Report{Package: d.Package, Version: fmt.Sprintf("%s-0~pav%d", upstream, pav), Arch: d.Arch,
+func Run(ctx context.Context, d Deb, upstream string, revision int, suites []config.Suite, excluded map[string]string) *Report {
+	rep := &Report{Package: d.Package, Version: fmt.Sprintf("%s-0~tepache%d", upstream, revision), Arch: d.Arch,
 		Versions: "pass", Results: []Result{}}
-	if err := CheckVersions(upstream, pav); err != nil {
+	if err := CheckVersions(upstream, revision); err != nil {
 		rep.Versions, rep.VersionsReason, rep.Overall = "fail", err.Error(), "fail"
 		return rep
 	}

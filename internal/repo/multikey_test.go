@@ -34,7 +34,7 @@ func TestAptlyMultiKey(t *testing.T) {
 	}
 	dir := t.TempDir()
 	deb := filepath.Join(dir, "foo.deb")
-	os.WriteFile(deb, fakeDeb(t, "foo", "1.0-0~pav1", "amd64"), 0o644)
+	os.WriteFile(deb, fakeDeb(t, "foo", "1.0-0~tepache1", "amd64"), 0o644)
 	conf := filepath.Join(dir, "aptly.conf")
 	os.WriteFile(conf, []byte(`{"rootDir":"`+dir+`/a","gpgProvider":"gpg2","architectures":["amd64"],
 "FileSystemPublishEndpoints":{"g":{"rootDir":"`+dir+`/g","linkMethod":"hardlink"}}}`), 0o644)

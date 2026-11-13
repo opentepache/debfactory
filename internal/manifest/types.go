@@ -13,7 +13,7 @@ type Manifest struct {
 	Schema           int               `yaml:"schema"`
 	Name             string            `yaml:"name"`
 	Version          string            `yaml:"version"`
-	Pav              int               `yaml:"pav"` // N en <upstream>-0~pav<N>
+	Revision         int               `yaml:"revision"` // N en <upstream>-0~tepache<N>
 	Level            int               `yaml:"level"`
 	Summary          string            `yaml:"summary"`
 	Description      string            `yaml:"description"`
@@ -122,13 +122,13 @@ type LintianOverride struct {
 	Reason string `yaml:"reason"`
 }
 
-// DebVersion es la versión Debian: <upstream>-0~pav<N> (constitución VI).
+// DebVersion es la versión Debian: <upstream>-0~tepache<N> (constitución VI).
 func (m *Manifest) DebVersion() string {
-	return fmt.Sprintf("%s-0~pav%d", m.Version, m.Pav)
+	return fmt.Sprintf("%s-0~tepache%d", m.Version, m.Revision)
 }
 
 // DebBase es el nombre de los archivos de salida sin extensión:
-// <name>_<upstream>-0~pav<N>_<arch>.
+// <name>_<upstream>-0~tepache<N>_<arch>.
 func (m *Manifest) DebBase(arch string) string {
 	return fmt.Sprintf("%s_%s_%s", m.Name, m.DebVersion(), arch)
 }

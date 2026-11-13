@@ -9,7 +9,7 @@
     "schema",
     "name",
     "version",
-    "pav",
+    "revision",
     "level",
     "summary",
     "description",
@@ -35,8 +35,8 @@
       "type": "string",
       "pattern": "^[0-9][A-Za-z0-9.+]*$"
     },
-    "pav": {
-      "description": "N en <upstream>-0~pav<N> (no es la revisión Debian, que siempre es 0). Empieza en 1 y se reinicia con cada versión upstream.",
+    "revision": {
+      "description": "N en <upstream>-0~tepache<N> (no es la revisión Debian, que siempre es 0). Empieza en 1 y se reinicia con cada versión upstream.",
       "type": "integer",
       "minimum": 1
     },

@@ -61,9 +61,9 @@ Con fnm instalado en un contenedor de prueba:
 ```bash
 # version nueva en el manifiesto → lock, build, test (fase 001) y:
 just publish fnm && just sync local       # en el contenedor: apt update && apt upgrade → nueva
-just retire fnm 1.40.0-0~pav1 "prueba de retiro" && just sync local
-# en el contenedor: apt update; apt install --allow-downgrades fnm=1.39.0-0~pav1
-bin/debfactory publish fnm 1.40.0-0~pav1  # → state: versión retirada…
+just retire fnm 1.40.0-0~tepache1 "prueba de retiro" && just sync local
+# en el contenedor: apt update; apt install --allow-downgrades fnm=1.39.0-0~tepache1
+bin/debfactory publish fnm 1.40.0-0~tepache1  # → state: versión retirada…
 ```
 
 **Esperado:**

@@ -15,7 +15,7 @@ import (
 
 // Check aplica las reglas de data-model.md que el schema no expresa (FR-010).
 // lk es el lockfile del paquete; puede ser nil si no se quiere comprobar la
-// regla de pav.
+// regla de revision.
 func Check(m *Manifest, cfg *config.Config, lk *lock.File) error {
 	c := &checker{m: m, cfg: cfg}
 	c.name()
@@ -41,7 +41,7 @@ func Check(m *Manifest, cfg *config.Config, lk *lock.File) error {
 		c.add("install", "con artifact.format binary debe haber exactamente un elemento")
 	}
 	if lk != nil {
-		c.pav(lk)
+		c.revision(lk)
 	}
 	return c.errs.Err()
 }
@@ -284,19 +284,19 @@ func (c *checker) commands() {
 	}
 }
 
-// pav: si la versión es nueva y el lockfile tiene otras, N vuelve a 1
+// revision: si la versión es nueva y el lockfile tiene otras, N vuelve a 1
 // (constitución VI).
-func (c *checker) pav(lk *lock.File) {
+func (c *checker) revision(lk *lock.File) {
 	if _, ok := lk.Versions[c.m.Version]; ok || len(lk.Versions) == 0 {
 		return
 	}
-	if c.m.Pav != 1 {
-		c.add("pav", "debe ser 1 para una versión upstream nueva")
+	if c.m.Revision != 1 {
+		c.add("revision", "debe ser 1 para una versión upstream nueva")
 	}
 }
 
 // Validate es la validación completa de `debfactory validate`: schema, reglas
-// semánticas y regla de pav con el lockfile del paquete.
+// semánticas y regla de revision con el lockfile del paquete.
 func Validate(root string, cfg *config.Config, name string) (*Manifest, error) {
 	m, err := Load(root, name)
 	if err != nil {

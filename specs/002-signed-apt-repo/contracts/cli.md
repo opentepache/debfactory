@@ -9,7 +9,7 @@ nueva: `--data DIR`, por defecto `~/.local/share/debfactory`, que contiene `gnup
 
 | Orden | Efecto | Red | Escribe |
 |---|---|---|---|
-| `publish <pkg> [<version>] [--dry-run]` | Publica una versión. Sin `<version>`, la del manifiesto (`<upstream>-0~pav<N>`). Pasos: verificar entradas (research D8) → estado nuevo con retención → generar `gen-<N+1>` → verificar → swap. Si la versión ya está publicada con el mismo sha256, no hace nada y sale con 0. | no | `repo/state.yaml`, `<data>/store`, `<data>/public` |
+| `publish <pkg> [<version>] [--dry-run]` | Publica una versión. Sin `<version>`, la del manifiesto (`<upstream>-0~tepache<N>`). Pasos: verificar entradas (research D8) → estado nuevo con retención → generar `gen-<N+1>` → verificar → swap. Si la versión ya está publicada con el mismo sha256, no hace nada y sale con 0. | no | `repo/state.yaml`, `<data>/store`, `<data>/public` |
 | `publish --all [--dry-run]` | Publica la versión del manifiesto de cada paquete de `packages/` en **una sola** generación. Si uno falla, no se publica ninguno y se listan todos los motivos (US3-4). | no | ídem |
 | `retire <pkg> <version> --reason TEXTO [--last] [--dry-run]` | Quita la versión de todas las suites y la añade a `retired`. Si es la única versión publicada del paquete, exige `--last`. | no | ídem |
 | `repo rebuild` | Regenera `current` desde `state.yaml` (FR-036). Toma los `.deb` del almacén, de `dist/` o los reconstruye con `build`. | solo si hay que reconstruir | `<data>/store`, `<data>/public` |
@@ -39,8 +39,8 @@ debfactory: fnm 1.40.0 -: lock: 1.39.0 sigue publicada; retírala o déjala caer
 
 ```text
 $ debfactory publish fnm
-fnm 1.40.0-0~pav1: agregar en bookworm trixie sid noble resolute (amd64 arm64)
-fnm 1.37.0-0~pav1: quitar por retención (keep 3) de bookworm trixie sid noble resolute
+fnm 1.40.0-0~tepache1: agregar en bookworm trixie sid noble resolute (amd64 arm64)
+fnm 1.37.0-0~tepache1: quitar por retención (keep 3) de bookworm trixie sid noble resolute
 repo: serial 8 → 9; firmado con 9990E287F03E70F5…
 aviso: la subllave de firma caduca el 2028-11-11 (en 54 días)
 ```
@@ -57,14 +57,14 @@ Las etapas nuevas son `state`, `inputs`, `generate`, `sign`, `verify-repo`, `swa
 `lock-repo`.
 
 ```text
-debfactory: fnm 1.40.0-0~pav1 arm64: inputs: falta dist/fnm_1.40.0-0~pav1_arm64.deb
-debfactory: fnm 1.40.0-0~pav1 amd64: inputs: test.json no aprobado (overall: fail)
-debfactory: fnm 1.40.0-0~pav1 amd64: inputs: sha256 del .deb no coincide con test.json; vuelve a ejecutar `debfactory test fnm`
-debfactory: fnm 1.40.0-0~pav1 amd64: inputs: test.json no cubre noble; ejecuta `debfactory test fnm` sin --suite
-debfactory: fnm 1.40.0-0~pav1 -: inputs: suites distintas entre amd64 [bookworm trixie sid noble resolute] y arm64 [trixie sid noble resolute]
-debfactory: fnm 1.39.0-0~pav1 amd64: state: ya publicada con otro sha256 (las versiones no se reescriben; sube pav)
-debfactory: fnm 1.40.1-0~pav1 -: state: versión retirada el 2026-12-03 (las versiones no se reutilizan; sube pav)
-debfactory: fnm 1.39.0-0~pav1 -: state: es la única versión publicada de fnm; usa --last para retirarla
+debfactory: fnm 1.40.0-0~tepache1 arm64: inputs: falta dist/fnm_1.40.0-0~tepache1_arm64.deb
+debfactory: fnm 1.40.0-0~tepache1 amd64: inputs: test.json no aprobado (overall: fail)
+debfactory: fnm 1.40.0-0~tepache1 amd64: inputs: sha256 del .deb no coincide con test.json; vuelve a ejecutar `debfactory test fnm`
+debfactory: fnm 1.40.0-0~tepache1 amd64: inputs: test.json no cubre noble; ejecuta `debfactory test fnm` sin --suite
+debfactory: fnm 1.40.0-0~tepache1 -: inputs: suites distintas entre amd64 [bookworm trixie sid noble resolute] y arm64 [trixie sid noble resolute]
+debfactory: fnm 1.39.0-0~tepache1 amd64: state: ya publicada con otro sha256 (las versiones no se reescriben; sube revision)
+debfactory: fnm 1.40.1-0~tepache1 -: state: versión retirada el 2026-12-03 (las versiones no se reutilizan; sube revision)
+debfactory: fnm 1.39.0-0~tepache1 -: state: es la única versión publicada de fnm; usa --last para retirarla
 debfactory: - - -: sign: la subllave 9990E287F03E70F5 caducó el 2028-11-11
 debfactory: - - -: sign: gpg: no hay llave secreta para 9990E287F03E70F5 en ~/.local/share/debfactory/gnupg
 debfactory: - - -: verify-repo: current (serial 8) no corresponde a repo/state.yaml (serial 9); ejecuta `debfactory repo rebuild`

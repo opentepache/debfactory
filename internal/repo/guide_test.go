@@ -53,17 +53,17 @@ func TestVerifyGuide(t *testing.T) {
 	st := Empty()
 	st.Serial = 1
 	all := []string{"bookworm", "trixie", "sid", "noble", "resolute"}
-	st.Packages["fnm"] = []Published{{Version: "1-0~pav1", Suites: all}}
-	st.Packages["bob"] = []Published{{Version: "1-0~pav1", Suites: all[1:]}}
+	st.Packages["fnm"] = []Published{{Version: "1-0~tepache1", Suites: all}}
+	st.Packages["bob"] = []Published{{Version: "1-0~tepache1", Suites: all[1:]}}
 	if err := VerifyGuide(guideRoot(t, withFpr), cfg, st); err != nil {
 		t.Fatalf("tabla coherente: %v", err)
 	}
-	st.Packages["bob"] = []Published{{Version: "1-0~pav1", Suites: all}}
+	st.Packages["bob"] = []Published{{Version: "1-0~tepache1", Suites: all}}
 	err = VerifyGuide(guideRoot(t, withFpr), cfg, st)
 	if err == nil || !strings.Contains(err.Error(), "la tabla dice que bob falta en [bookworm], pero el estado dice []") {
 		t.Fatalf("tabla incoherente: %v", err)
 	}
-	st.Packages["zzz"] = []Published{{Version: "1-0~pav1", Suites: all}}
+	st.Packages["zzz"] = []Published{{Version: "1-0~tepache1", Suites: all}}
 	if err := VerifyGuide(guideRoot(t, withFpr), cfg, st); err == nil || !strings.Contains(err.Error(), "no incluye zzz") {
 		t.Fatalf("paquete ausente: %v", err)
 	}

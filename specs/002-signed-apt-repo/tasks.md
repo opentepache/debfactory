@@ -43,7 +43,7 @@ Convenciones que usan varias tareas:
   - `public/gen-<N>/`, `public/gen-<N>.json` y `public/current`;
   - `sync/<dest>.json`;
   - `lock`.
-- **Versión publicada**: siempre la versión Debian completa `<upstream>-0~pav<N>`.
+- **Versión publicada**: siempre la versión Debian completa `<upstream>-0~tepache<N>`.
 - **Llave de prueba**: ningún test usa la llave real. `testutil.TestKey(t)` crea maestra y
   subllave desechables.
 - **Errores**: formato de la fase 001 (`internal/report`). Etapas nuevas: `state`, `inputs`,
@@ -172,8 +172,8 @@ Convenciones que usan varias tareas:
   Comparar el mensaje exacto de cada caso.
 - [X] T017 [US1] Crear en `internal/repo/state.go` la función `(s *State) Apply(op) (*State, []Change, error)` para la operación `Add{Package, Published}`:
   - mismo sha → sin cambios y sin error;
-  - misma versión con otro sha → `state: ya publicada con otro sha256 (las versiones no se reescriben; sube pav)`;
-  - versión en `retired` → `state: versión retirada el <fecha> (las versiones no se reutilizan; sube pav)`;
+  - misma versión con otro sha → `state: ya publicada con otro sha256 (las versiones no se reescriben; sube revision)`;
+  - versión en `retired` → `state: versión retirada el <fecha> (las versiones no se reutilizan; sube revision)`;
   - sube `serial`.
 
   `Change{Kind: add|remove|keep, Package, Version, Suites, Reason}` alimenta la salida de contracts/cli.md § Salida. La retención se añade en US4 (T035); de momento no se recorta nada.
@@ -315,7 +315,7 @@ Convenciones que usan varias tareas:
 
 ### Implementation for User Story 4
 
-- [X] T035 [US4] Añadir la retención a `State.Apply` (`internal/repo/state.go`). Tras `Add`, para cada paquete y suite, conservar las `repo.keep` versiones más altas según `dpkg --compare-versions`; `-0~pav1` y `-0~pav2` cuentan como distintas. Las versiones que salen de todas sus suites se eliminan de `packages` con `Change{Kind: remove, Reason: "retención (keep N)"}`. Una versión que sale solo de algunas suites conserva las demás (Edge Cases, exclusión nueva). Si la versión nueva excluye una suite en la que estaba la anterior, emitir `Change{Kind: keep, Reason: "excluida en <versión nueva>; los usuarios de <suite> se quedan en <anterior>"}` como aviso en la salida.
+- [X] T035 [US4] Añadir la retención a `State.Apply` (`internal/repo/state.go`). Tras `Add`, para cada paquete y suite, conservar las `repo.keep` versiones más altas según `dpkg --compare-versions`; `-0~tepache1` y `-0~tepache2` cuentan como distintas. Las versiones que salen de todas sus suites se eliminan de `packages` con `Change{Kind: remove, Reason: "retención (keep N)"}`. Una versión que sale solo de algunas suites conserva las demás (Edge Cases, exclusión nueva). Si la versión nueva excluye una suite en la que estaba la anterior, emitir `Change{Kind: keep, Reason: "excluida en <versión nueva>; los usuarios de <suite> se quedan en <anterior>"}` como aviso en la salida.
 - [X] T036 [US4] Añadir la operación `Retire{Package, Version, Reason, Last bool}` a `State.Apply`. Reglas:
   - la versión debe estar publicada;
   - si es la única versión del paquete y `Last` es falso, error `state: es la única versión publicada de <pkg>; usa --last para retirarla`;
@@ -324,14 +324,14 @@ Convenciones que usan varias tareas:
   - sube `serial`.
 - [X] T037 [P] [US4] Crear `internal/repo/retention_test.go` (unitario, sin aptly):
   - SC-008: con 5 versiones publicadas sucesivamente quedan exactamente 3;
-  - `pav1` y `pav2` de la misma versión upstream cuentan como dos;
+  - `~tepache1` y `~tepache2` de la misma versión upstream cuentan como dos;
   - una versión que deja de excluir una suite entra en ella y las anteriores siguen fuera;
   - retirar la vigente deja como vigente la más alta restante;
   - retirar la única sin `--last` falla;
   - republicar una retirada falla con el mensaje de T017.
 - [X] T038 [US4] Implementar `retire <pkg> <version> --reason TEXTO [--last] [--dry-run]` en `internal/repo/publish.go` (`Retire`) y `cmd/debfactory/main.go`. Usa el mismo flujo atómico de T021: `Apply(Retire)`, `Generate`, `VerifyTree` y `Commit`. Sin `--reason`, uso incorrecto (2).
 - [X] T039 [US4] Proteger `lock --prune` en `internal/build/lockcmd.go` (`Prune`, FR-038): leer `repo/state.yaml` y, si una versión que se va a borrar del lockfile sigue publicada, fallar con el mensaje exacto de contracts/cli.md. Si `state.yaml` no existe, se comporta como en la fase 001. Añadir el caso a `internal/build/lockcmd_test.go`.
-- [X] T040 [US4] Añadir a `internal/repotest/e2e_test.go` `TestE2ELifecycle`. Prepara dos versiones de un paquete de prueba: los `.deb` de `fnm` de amd64 **y** arm64 reempaquetados con `dpkg-deb -R`/`-b` como v1 (`1.39.0-0~pav1`) y v2 (`1.39.0-0~pav2`). Por cada versión y arquitectura, el test escribe `build.json` y un `test.json` completo (las 5 suites en `pass` y `deb_sha256`), porque `publish` exige todas las arquitecturas (T015). Técnica del spike, research §1. Con la llave de prueba, en cada suite (amd64):
+- [X] T040 [US4] Añadir a `internal/repotest/e2e_test.go` `TestE2ELifecycle`. Prepara dos versiones de un paquete de prueba: los `.deb` de `fnm` de amd64 **y** arm64 reempaquetados con `dpkg-deb -R`/`-b` como v1 (`1.39.0-0~tepache1`) y v2 (`1.39.0-0~tepache2`). Por cada versión y arquitectura, el test escribe `build.json` y un `test.json` completo (las 5 suites en `pass` y `deb_sha256`), porque `publish` exige todas las arquitecturas (T015). Técnica del spike, research §1. Con la llave de prueba, en cada suite (amd64):
   1. publicar v1, `add`, `install` y comprobar v1;
   2. publicar v2, ejecutar `upgrade` y comprobar v2;
   3. retirar v2, ejecutar `apt-get update` y el bloque `downgrade` con v1, y comprobar v1;
@@ -450,7 +450,7 @@ Convenciones que usan varias tareas:
   - el último `serial` sincronizado de cada destino (`sync/*.json`);
   - la caducidad de la subllave.
 - [X] T057 Completar `repo rebuild` con la reconstrucción desde git (FR-036, D5) en `internal/repo/rebuild.go`. Si un sha no está ni en el almacén ni en `dist/`:
-  1. buscar con `git log --format=%H -- packages/<name>.yaml` el commit cuyo manifiesto tiene esa `version` y `pav`;
+  1. buscar con `git log --format=%H -- packages/<name>.yaml` el commit cuyo manifiesto tiene esa `version` y `revision`;
   2. `git worktree add` temporal en ese commit;
   3. `debfactory build <name> --arch <arch>` en él;
   4. comprobar que el sha256 coincide con `state.yaml` y meterlo en el almacén;

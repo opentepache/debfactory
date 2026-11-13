@@ -28,9 +28,9 @@ func fixtureDeb(t *testing.T, root string) *manifest.Manifest {
 	os.WriteFile(bin, testutil.TinyELF("amd64", "example 1.0.0\n"), 0o755)
 	cr := filepath.Join(work, "copyright")
 	os.WriteFile(cr, []byte("Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/\n"), 0o644)
-	m := &manifest.Manifest{Name: "example", Version: "1.0.0", Pav: 1, Tag: "v{{version}}",
+	m := &manifest.Manifest{Name: "example", Version: "1.0.0", Revision: 1, Tag: "v{{version}}",
 		ArchMap: map[string]string{"amd64": "x86_64", "arm64": "aarch64"}}
-	plan := &pkg.Plan{Name: "example", Version: "1.0.0", Pav: 1, Arch: "amd64", Maintainer: "Test <t@example.com>",
+	plan := &pkg.Plan{Name: "example", Version: "1.0.0", Revision: 1, Arch: "amd64", Maintainer: "Test <t@example.com>",
 		Summary: "example tool", Description: "Integration test fixture.", Section: "devel",
 		Files: []assemble.File{{Dst: "/usr/bin/example", Src: bin, Mode: 0o755},
 			{Dst: "/usr/share/doc/example/copyright", Src: cr, Mode: 0o644}},
@@ -75,7 +75,7 @@ func TestForcedFailure(t *testing.T) {
 		rep.Results[0].Status != "fail" || rep.Results[0].Stage != StageVersion {
 		t.Errorf("informe = %+v", rep)
 	}
-	if _, err := os.Stat(filepath.Join(root, "dist", "example_1.0.0-0~pav1_amd64.test.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "dist", "example_1.0.0-0~tepache1_amd64.test.json")); err != nil {
 		t.Error("falta el test.json")
 	}
 }

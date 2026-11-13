@@ -58,7 +58,7 @@ func TestBuildReproducible(t *testing.T) {
 	}
 	debs := map[string]string{}
 	for _, arch := range []string{"amd64", "arm64"} {
-		p := filepath.Join(h.root, "dist", "example_1.0.0-0~pav1_"+arch+".deb")
+		p := filepath.Join(h.root, "dist", "example_1.0.0-0~tepache1_"+arch+".deb")
 		sha, err := fetch.SHA256File(p)
 		if err != nil {
 			t.Fatal(err)
@@ -79,7 +79,7 @@ func TestBuildReproducible(t *testing.T) {
 		t.Fatalf("%v\n%s", err, h.errb.String())
 	}
 	for arch, sha := range debs {
-		got, _ := fetch.SHA256File(filepath.Join(h.root, "dist", "example_1.0.0-0~pav1_"+arch+".deb"))
+		got, _ := fetch.SHA256File(filepath.Join(h.root, "dist", "example_1.0.0-0~tepache1_"+arch+".deb"))
 		if got != sha {
 			t.Errorf("%s: %s != %s", arch, got, sha)
 		}
@@ -91,13 +91,13 @@ func TestBuildReproducible(t *testing.T) {
 	if _, err := exec.LookPath("dpkg-deb"); err != nil {
 		t.Skip("sin dpkg-deb")
 	}
-	out, err := exec.Command("dpkg-deb", "-f", filepath.Join(h.root, "dist", "example_1.0.0-0~pav1_arm64.deb"),
+	out, err := exec.Command("dpkg-deb", "-f", filepath.Join(h.root, "dist", "example_1.0.0-0~tepache1_arm64.deb"),
 		"Package", "Version", "Maintainer", "Homepage", "Architecture", "Description").Output()
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"Package: example\n", "Version: 1.0.0-0~pav1\n", "Maintainer: " + h.env.Cfg.Maintainer + "\n",
+		"Package: example\n", "Version: 1.0.0-0~tepache1\n", "Maintainer: " + h.env.Cfg.Maintainer + "\n",
 		"Homepage: https://github.com/example/example\n", "Architecture: arm64\n",
 		"Description: example single static binary tool\n Placeholder showing the smallest valid manifest",
 	} {

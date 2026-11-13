@@ -21,17 +21,17 @@ import (
 )
 
 var (
-	versionRe = regexp.MustCompile(`(?m)^version:\s*"?([^"\s#]+)`)
-	pavRe     = regexp.MustCompile(`(?m)^pav:\s*(\d+)`)
+	versionRe  = regexp.MustCompile(`(?m)^version:\s*"?([^"\s#]+)`)
+	revisionRe = regexp.MustCompile(`(?m)^revision:\s*(\d+)`)
 )
 
 // manifestVersion devuelve la versión Debian de un manifiesto en texto.
 func manifestVersion(data []byte) string {
-	v, p := versionRe.FindSubmatch(data), pavRe.FindSubmatch(data)
+	v, p := versionRe.FindSubmatch(data), revisionRe.FindSubmatch(data)
 	if v == nil || p == nil {
 		return ""
 	}
-	return fmt.Sprintf("%s-0~pav%s", v[1], p[1])
+	return fmt.Sprintf("%s-0~tepache%s", v[1], p[1])
 }
 
 func git(ctx context.Context, root string, args ...string) ([]byte, error) {

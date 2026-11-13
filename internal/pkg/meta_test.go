@@ -13,7 +13,7 @@ import (
 
 func fnm() *manifest.Manifest {
 	return &manifest.Manifest{
-		Name: "fnm", Version: "1.39.0", Pav: 1, Upstream: "Schniz/fnm",
+		Name: "fnm", Version: "1.39.0", Revision: 1, Upstream: "Schniz/fnm",
 		Homepage: "https://github.com/Schniz/fnm",
 		License:  manifest.License{SPDX: "GPL-3.0-only"},
 		LintianOverrides: []manifest.LintianOverride{
@@ -88,7 +88,7 @@ func TestChangelogReproducible(t *testing.T) {
 	}
 	zr, _ := gzip.NewReader(bytes.NewReader(a))
 	text, _ := io.ReadAll(zr)
-	want := "fnm (1.39.0-0~pav1) unstable; urgency=medium\n\n" +
+	want := "fnm (1.39.0-0~tepache1) unstable; urgency=medium\n\n" +
 		"  * Repackage upstream release 1.39.0 with debfactory.\n\n" +
 		" -- Juan Pavon <pavon.gnu@gmail.com>  Fri, 06 Mar 2026 15:23:47 +0000\n"
 	if string(text) != want {

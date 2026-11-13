@@ -60,7 +60,7 @@ func TestE2ESyncLocal(t *testing.T) {
 		t.Fatalf("candidato inicial %s, se esperaba %s", got, v1)
 	}
 
-	v2 := strings.Replace(v1, "~pav1", "~pav2", 1)
+	v2 := strings.Replace(v1, "~tepache1", "~tepache2", 1)
 	var all []string
 	for _, s := range e.Cfg.Suites {
 		all = append(all, s.Name)

@@ -7,8 +7,8 @@ arquitecturas se toman de `suites` y `arches`, que ya existen. La lectura sigue 
 ```yaml
 repo:
   url: ""                      # https://apt.<dominio>; vacío hasta tener dominio (research D11)
-  origin: debfactory
-  label: debfactory
+  origin: OpenTepache
+  label: OpenTepache
   component: main
   keep: 3                      # versiones por paquete y suite (FR-013); mínimo 1
   signing:

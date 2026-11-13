@@ -24,10 +24,10 @@ docker run --rm --platform linux/arm64 debian:trixie uname -m   # → aarch64
 ```bash
 just lock fnm            # crea packages/fnm.lock.yaml; revisa el diff
 just build fnm amd64
-dpkg-deb -f dist/fnm_1.39.0-0~pav1_amd64.deb Package Version Maintainer Homepage
+dpkg-deb -f dist/fnm_1.39.0-0~tepache1_amd64.deb Package Version Maintainer Homepage
 ```
 
-**Esperado**: `fnm`, `1.39.0-0~pav1`, el mantenedor de la config y la homepage del manifiesto;
+**Esperado**: `fnm`, `1.39.0-0~tepache1`, el mantenedor de la config y la homepage del manifiesto;
 `build` termina con `lintian: pass`.
 
 ## Escenario 2: todos los paquetes, las dos arquitecturas (SC-001)
@@ -89,6 +89,6 @@ su lockfile).
 
 ## Escenario 7: actualizar una versión (SC-004)
 
-Cambiar `version:` en el manifiesto y volver `pav` a `1` (N se reinicia con cada versión
+Cambiar `version:` en el manifiesto y volver `revision` a `1` (N se reinicia con cada versión
 upstream nueva, constitución VI); luego `just lock <pkg>` y `just build <pkg>`.
-**Esperado**: el diff toca solo el manifiesto (`version` y `pav`) y el lockfile.
+**Esperado**: el diff toca solo el manifiesto (`version` y `revision`) y el lockfile.

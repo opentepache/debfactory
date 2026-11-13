@@ -88,4 +88,4 @@ Las órdenes y sus códigos de salida están en
    Debian estable, no tiene repositorio APT de su autor y no está en griffo (constitución V).
 2. `just lock <nombre> && just build <nombre> && just test <nombre>`.
 
-Para una versión nueva: cambiar `version`, volver `pav` a `1` y repetir el paso 2.
+Para una versión nueva: cambiar `version`, volver `revision` a `1` y repetir el paso 2.

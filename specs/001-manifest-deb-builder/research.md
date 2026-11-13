@@ -95,11 +95,11 @@ necesitaba.
 ### D2. Generación del .deb: nfpm v2.48.x como biblioteca
 
 - **Decision**: `github.com/goreleaser/nfpm/v2` (última v2.48.x), packager `deb`, con
-  `VersionSchema: "none"`, `Version: <upstream>`, `Release: "0~pav<N>"` y `MTime` igual a
+  `VersionSchema: "none"`, `Version: <upstream>`, `Release: "0~tepache<N>"` y `MTime` igual a
   `SOURCE_DATE_EPOCH`.
 - **Rationale**: en `deb/deb.go` (v2.48.0) la versión se compone como
-  `Version[~Prerelease][+Metadata]-Release`, así que `Release = "0~pav1"` produce exactamente
-  `1.40.0-0~pav1`. nfpm escribe `md5sums`, `Installed-Size` y aplica `MTime` a todos los
+  `Version[~Prerelease][+Metadata]-Release`, así que `Release = "0~tepache1"` produce exactamente
+  `1.40.0-0~tepache1`. nfpm escribe `md5sums`, `Installed-Size` y aplica `MTime` a todos los
   miembros. `VersionSchema: "none"` evita que interprete versiones que no son semver.
 - **Alternatives considered**: `dpkg-deb` como proceso externo (el usuario lo descartó y obliga
   a fijar permisos y orden a mano); `debhelper` (requiere árbol `debian/` por paquete, contrario
@@ -110,9 +110,9 @@ necesitaba.
 
 ### D3. Formato de versión: confirmado con lintian
 
-- **Decision**: `<upstream>-0~pav<N>` como manda la constitución VI.
+- **Decision**: `<upstream>-0~tepache<N>` como manda la constitución VI.
 - **Rationale**: `lintian` da **error** `debian-revision-is-zero` para `1.39.0-0`, pero **no**
-  para `1.39.0-0~pav1` (verificado). El orden con `dpkg --compare-versions` ya se verificó al
+  para `1.39.0-0~tepache1` (verificado). El orden con `dpkg --compare-versions` ya se verificó al
   enmendar la constitución.
 
 ### D4. Manifiestos YAML + JSON Schema
@@ -210,7 +210,7 @@ necesitaba.
   | `statically-linked-binary` | **E** | buf, aqua (Go estático, ambas arch); fnm **arm64** |
   | `unstripped-binary-or-object` | **E** | fnm **arm64** (verificado 2026-11-12) |
   | `embedded-library` | **E** | pnpm (libyaml); **no silenciable** → pnpm descartado |
-  | `debian-revision-is-zero` | **E** | solo con revisión `0` a secas (no `0~pavN`) |
+  | `debian-revision-is-zero` | **E** | solo con revisión `0` a secas (no `0~tepacheN`) |
   | `missing-dependency-on-libc` | **E** | binarios dinámicos sin `Depends` (resuelto en D8) |
   | `no-changelog`, `no-copyright-file` | **E** | si faltan (el builder los genera) |
   | `uncompressed-manual-page` | **E** | buf si no se comprimen (el builder las comprime) |
@@ -288,7 +288,7 @@ necesitaba.
    sha256 construyendo desde directorios distintos y con mtimes y permisos de origen
    distintos, siempre que cada contenido lleve `FileInfo{Owner, Group, Mode, MTime}` y se use
    `DisableGlobbing: true`. Los directorios implícitos salen `root:root`, 0755 y con `MTime`.
-   `dpkg-deb -f` da `Version: 1.0.0-0~pav1`. No hace falta post-procesar.
+   `dpkg-deb -f` da `Version: 1.0.0-0~tepache1`. No hace falta post-procesar.
 2. ~~**pnpm SEA con enlace simbólico**~~: ya no aplica; pnpm se descartó (§1.2b).
 3. **Completions bajo qemu**: algunos binarios pueden fallar bajo emulación; en ese caso se
    generan solo con el binario amd64. Son texto independiente de la arquitectura, pero la

@@ -63,7 +63,7 @@ func (s *State) Apply(cfg *config.Config, now time.Time, ops ...Op) (*State, []C
 		case Add:
 			p := o.Published
 			if r, ok := next.FindRetired(o.Package, p.Version); ok {
-				fail(o.Package, p.Version, "versión retirada el %s (las versiones no se reutilizan; sube pav)",
+				fail(o.Package, p.Version, "versión retirada el %s (las versiones no se reutilizan; sube revision)",
 					r.Date.UTC().Format(time.DateOnly))
 				continue
 			}
@@ -73,7 +73,7 @@ func (s *State) Apply(cfg *config.Config, now time.Time, ops ...Op) (*State, []C
 					if old.Debs[arch] != sha {
 						same = false
 						errs = append(errs, &report.Error{Package: o.Package, Version: p.Version, Arch: arch,
-							Stage: report.State, Cause: "ya publicada con otro sha256 (las versiones no se reescriben; sube pav)"})
+							Stage: report.State, Cause: "ya publicada con otro sha256 (las versiones no se reescriben; sube revision)"})
 					}
 				}
 				if same {

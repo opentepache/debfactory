@@ -17,24 +17,24 @@ schema: 1
 serial: 7
 packages:
   bob:
-    - version: 4.3.0-0~pav1
+    - version: 4.3.0-0~tepache1
       published: 2026-11-20T10:02:11Z
       suites: [trixie, sid, noble, resolute]
       debs:
         amd64: 3f11f9ac1491942250b382f211a446bda8d20ec59dd27a9899671e41cce81805
         arm64: 9a0c…
   fnm:
-    - version: 1.40.0-0~pav1
+    - version: 1.40.0-0~tepache1
       published: 2026-12-01T09:00:00Z
       suites: [bookworm, trixie, sid, noble, resolute]
       debs: {amd64: …, arm64: …}
-    - version: 1.39.0-0~pav1
+    - version: 1.39.0-0~tepache1
       published: 2026-11-20T10:02:11Z
       suites: [bookworm, trixie, sid, noble, resolute]
       debs: {amd64: 83ed64394a86…, arm64: 8c96c7a3…}
 retired:
   - package: fnm
-    version: 1.40.1-0~pav1
+    version: 1.40.1-0~tepache1
     date: 2026-12-03T18:30:00Z
     reason: "segfault al iniciar en arm64 (issue #12)"
 ```
@@ -48,4 +48,4 @@ retired:
 | falta una arquitectura | `repo/state.yaml: packages.fnm[0].debs: falta arm64` |
 | suite desconocida | `repo/state.yaml: packages.fnm[0].suites: suite "focal" no está en config` |
 | más de `keep` versiones por suite | `repo/state.yaml: fnm tiene 4 versiones en trixie (keep: 3)` |
-| una versión aparece publicada y retirada | `repo/state.yaml: fnm 1.40.1-0~pav1 está publicada y retirada` |
+| una versión aparece publicada y retirada | `repo/state.yaml: fnm 1.40.1-0~tepache1 está publicada y retirada` |

@@ -18,7 +18,7 @@ import (
 
 // TestNfpmReproducible es el spike de research.md §3 riesgo 1: nfpm produce el
 // mismo .deb byte a byte desde directorios de trabajo distintos, y la versión
-// sale como <upstream>-0~pav<N>.
+// sale como <upstream>-0~tepache<N>.
 func TestNfpmReproducible(t *testing.T) {
 	mtime := time.Unix(1772810627, 0).UTC()
 	build := func() []byte {
@@ -31,7 +31,7 @@ func TestNfpmReproducible(t *testing.T) {
 		os.Chtimes(bin, time.Now(), time.Now())
 		info := &nfpm.Info{
 			Name: "tool", Arch: "amd64", Platform: "linux",
-			Version: "1.0.0", VersionSchema: "none", Release: "0~pav1",
+			Version: "1.0.0", VersionSchema: "none", Release: "0~tepache1",
 			Section: "devel", Priority: "optional",
 			Maintainer:      "Test <test@example.com>",
 			Description:     "test tool\nLonger description.",
@@ -63,7 +63,7 @@ func TestNfpmReproducible(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v := strings.TrimSpace(string(out)); v != "1.0.0-0~pav1" {
+	if v := strings.TrimSpace(string(out)); v != "1.0.0-0~tepache1" {
 		t.Errorf("Version = %q", v)
 	}
 	cmd := exec.Command("dpkg-deb", "-c", path)

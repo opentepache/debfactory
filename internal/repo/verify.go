@@ -19,7 +19,8 @@ import (
 // VerifyTree comprueba una generación contra el estado: firmas de cada
 // suite con el keyring publicado y la subllave configurada, índices contra
 // sus hashes, paquetes y versiones exactos por suite y arquitectura con el
-// sha256 del estado, y ausencia de Valid-Until (FR-004, FR-004a).
+// sha256 del estado, Origin y Label configurados, y ausencia de
+// Valid-Until (FR-004, FR-004a).
 func VerifyTree(ctx context.Context, cfg *config.Config, st *State, genDir string) error {
 	var errs report.Errors
 	fail := func(suite, format string, args ...any) {
@@ -60,6 +61,10 @@ func VerifyTree(ctx context.Context, cfg *config.Config, st *State, genDir strin
 		}
 		if fields["Acquire-By-Hash"] != "yes" {
 			fail(su.Name, "Release sin Acquire-By-Hash: yes")
+		}
+		if fields["Origin"] != cfg.Repo.Origin || fields["Label"] != cfg.Repo.Label {
+			fail(su.Name, "Release con Origin %q y Label %q; se esperaba %q (constitución, alcance)",
+				fields["Origin"], fields["Label"], cfg.Repo.Origin)
 		}
 		for path, sha := range sums {
 			got, err := fetch.SHA256File(filepath.Join(dists, path))

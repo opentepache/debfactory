@@ -280,7 +280,7 @@ func (e *Env) assembleAndPackage(ctx context.Context, m *manifest.Manifest, entr
 		return nil, fail(report.Assemble, err)
 	}
 	plan := &pkg.Plan{
-		Name: m.Name, Version: m.Version, Pav: m.Pav, Arch: arch,
+		Name: m.Name, Version: m.Version, Revision: m.Revision, Arch: arch,
 		Maintainer: e.Cfg.Maintainer, Summary: m.Summary, Description: m.Description,
 		Homepage: m.Homepage, Section: m.Section,
 		Depends:    assemble.MergeDepends(depends, m.Depends),
