@@ -38,7 +38,7 @@ tmpfs.
 e2e con `just check` (build de todos, reproducibilidad, lintian y pruebas de instalación en
 contenedores).
 
-**Target Platform**: PC Debian trixie amd64 (64 GB RAM) como host de build. Paquetes para
+**Target Platform**: PC Debian trixie amd64 (16 núcleos, 31 GB RAM) como host de build. Paquetes para
 `amd64` y `arm64`, probados en bookworm, trixie, sid, noble y resolute.
 
 **Project Type**: CLI de un solo binario más datos declarativos (manifiestos y config).

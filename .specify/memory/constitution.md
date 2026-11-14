@@ -130,8 +130,8 @@ la confianza de APT.
 ### IX. Simplicidad operativa
 
 - Se MUST preferir herramientas estándar, maduras y empaquetadas en Debian.
-- Toda la operación MUST correr en una sola PC Debian (64 GB RAM) más un hosting estático; no se
-  introducen servicios que requieran infraestructura adicional.
+- Toda la operación MUST correr en una sola PC Debian (amd64, 16 núcleos, 31 GB RAM) más un
+  hosting estático; no se introducen servicios que requieran infraestructura adicional.
 - El hosting público es almacenamiento estático S3-compatible (actualmente Cloudflare R2). El
   diseño MUST ser agnóstico del proveedor: solo se usan operaciones del API S3 estándar, y el
   proveedor, endpoint y bucket se configuran, nunca se codifican.
@@ -203,4 +203,4 @@ se notifica según el principio VIII:
   de los principios I–X en su sección "Constitution Check". Toda desviación MUST justificarse en
   la tabla de seguimiento de complejidad del plan o el plan no se aprueba.
 
-**Version**: 1.6.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-12
+**Version**: 1.6.1 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-14
