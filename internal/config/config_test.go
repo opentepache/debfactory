@@ -66,7 +66,7 @@ func TestLoadRejects(t *testing.T) {
 		"validity.days":                 {`days: 30 `, `days: 7 `, "repo.validity.days debe estar entre 8 y 90"},
 		"validity.days alto":            {`days: 30 `, `days: 91 `, "repo.validity.days debe estar entre 8 y 90"},
 		"validity.warn_days":            {`warn_days: 7 `, `warn_days: 23 `, "repo.validity.warn_days deja menos de una semana entre refirmados"},
-		"ci.repository":                 {`repository: ""`, `repository: "solo-nombre"`, "ci.repository inválido"},
+		"ci.repository":                 {`repository: "opentepache/debfactory"`, `repository: "solo-nombre"`, "ci.repository inválido"},
 		"ci.destination":                {`destination: r2 `, `destination: r3 `, `ci.destination "r3" no existe`},
 		"ci.destination sin public_url": {`destination: r2 `, `destination: local `, `ci.destination "local" no existe`},
 		"ci.labels":                     {`pub: debfactory-main`, `pub: debfactory-pr`, "las etiquetas de los dos niveles deben ser distintas"},

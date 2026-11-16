@@ -329,12 +329,17 @@ cada uno instala exactamente los archivos declarados en sus rutas destino.
 - **Paquetes iniciales**: `fnm`, `bob`, `buf`, `aqua`. Ninguno está en griffo
   (verificado en bookworm, trixie, sid, noble y resolute). Descartados:
   - `tenv`: su autor publica un repositorio APT oficial (Cloudsmith); viola la constitución V.
-  - `uv`: ya está empaquetado en griffo (y 0.9.17 en Debian testing/sid).
+  - `uv`: ya está empaquetado en griffo (y 0.9.17 en Debian testing/sid). *Nota (constitución
+    1.7.0, 2026-11-16): desde el 1 de octubre de 2026 `deb.griffo.io` exige suscripción, y un
+    repositorio de pago ya no bloquea; `uv` vuelve a ser candidato si su versión estable no está
+    al día en el espejo gratuito.*
   - `pnpm`: su binario oficial (v12.18.0) da el error de lintian `embedded-library` (libyaml),
     que la constitución VII no permite silenciar.
 - **Repositorios comunitarios conocidos**: por ahora, griffo (`debian.griffo.io`), en la
   configuración compartida (constitución V, v1.3.0). La lista se
-  amplía cuando se conozcan otros; la comprobación es manual en esta fase.
+  amplía cuando se conozcan otros; la comprobación es manual en esta fase. *Nota (constitución
+  1.7.0): solo cuentan los repositorios gratuitos, sin registro y al día; la lista pasa a ser el
+  espejo gratuito `deb-free.griffo.io`.*
 - **Licencias compuestas**: una expresión SPDX como `MIT OR Apache-2.0` se acepta si al menos
   una alternativa está en la allowlist; con `AND`, todas deben estarlo.
 - **N es manual**: el mantenedor fija `N` en el manifiesto; el sistema no lo calcula.

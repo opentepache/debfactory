@@ -69,16 +69,20 @@ cada eslabón previo es verificable.
 ### V. No duplicar
 
 - MUST NOT empaquetarse software que ya tenga un repositorio APT oficial mantenido por su autor.
-- MUST NOT empaquetarse software cuya versión en Debian estable esté al día con upstream.
-- MUST NOT empaquetarse software que ya se distribuya en un repositorio APT comunitario conocido
-  y mantenido (por ejemplo, griffo, `debian.griffo.io`). La lista de repositorios comunitarios
-  conocidos se mantiene versionada en el repositorio de debfactory; ampliarla no requiere
-  enmienda.
+- MUST NOT empaquetarse software cuya versión en Debian estable esté al día con la última
+  versión estable de upstream.
+- MUST NOT empaquetarse software que ya se distribuya gratis, sin registro y al día con la última
+  versión estable de upstream en un repositorio APT comunitario conocido y mantenido. Un
+  repositorio que exige pago, suscripción o registro para instalar no cuenta. La lista de
+  repositorios comunitarios conocidos se mantiene versionada en la configuración del repositorio
+  de paquetes; ampliarla no requiere enmienda.
 - Cada manifiesto MUST documentar por qué el paquete aporta valor frente a las alternativas
   existentes, confirmando las tres comprobaciones anteriores.
 
 *Rationale*: cada paquete es mantenimiento perpetuo; solo se asume cuando nadie más lo cubre,
-sea Debian, el propio autor u otra comunidad.
+sea Debian, el propio autor u otra comunidad. Un repositorio de pago o desactualizado no cubre a
+los usuarios, y ofrecer una alternativa a software libre redistribuible es legítimo si se
+construye desde upstream, sin copiar el empaquetado de terceros ni usar su marca.
 
 ### VI. Versionado compatible con Debian
 
@@ -170,6 +174,10 @@ reside solo en el pipeline determinista y en el mantenedor.
   "falla en una, no se publica en ninguna" del principio VII.
 - **Hosting público**: almacenamiento estático S3-compatible (Cloudflare R2), con diseño
   agnóstico del proveedor (ver IX).
+- **Solo versiones estables**: debfactory MUST empaquetar únicamente versiones estables y de
+  producción de upstream. MUST NOT empaquetar versiones preliminares (alpha, beta, rc, preview,
+  nightly, tip, canary, dev) ni releases marcadas como pre-release por upstream. El repositorio
+  es para uso productivo y su promesa al usuario es estabilidad.
 - **Paquetes iniciales**: `fnm`, `bob`, `buf`, `aqua`. Cada uno MUST cumplir todos los
   principios (en particular V) antes de publicarse.
 - Ampliar arquitecturas o suites es una enmienda a esta sección.
@@ -203,4 +211,4 @@ se notifica según el principio VIII:
   de los principios I–X en su sección "Constitution Check". Toda desviación MUST justificarse en
   la tabla de seguimiento de complejidad del plan o el plan no se aprueba.
 
-**Version**: 1.6.1 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-14
+**Version**: 1.7.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-16
