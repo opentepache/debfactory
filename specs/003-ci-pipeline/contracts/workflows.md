@@ -70,7 +70,7 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_REASON: ${{ inputs.reason }}
           INPUT_LAST: ${{ inputs.last }}
-        run: bin/debfactory ci "${INPUT_ACTION:-main}"   # los inputs solo pasan por env
+        run: bin/debfactory ci main   # con workflow_dispatch, ci main lee INPUT_ACTION y despacha
       - if: failure()
         run: bin/debfactory ci notify --package pipeline --version - --stage-file "$RUNNER_TEMP/debfactory-stage" --reason "la ejecución terminó antes de su informe"
 ```

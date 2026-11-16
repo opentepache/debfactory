@@ -103,9 +103,12 @@ Permite el DNS del sistema (`127.0.0.53`). La prueba de aceptación consiste en 
 
 - **Base**: `debian:trixie`, fijada por digest.
 - **Paquetes de trixie y trixie-backports**: `golang-1.26-go`, `git`, `just`, `aptly`, `gnupg`,
-  `rclone`, `curl`, `ca-certificates` y `docker-cli`.
+  `gpgv`, `rclone`, `curl`, `jq`, `ca-certificates`, `docker-cli` y `docker-buildx`, más las
+  bibliotecas que pide el runner (`libicu76`, `libkrb5-3`, `zlib1g`, `liblttng-ust1t64`).
 - **Runner**: `actions-runner-linux-x64-<versión>.tar.gz` de `github.com/actions/runner`, con
-  sha256 fijado en el Dockerfile y verificado al construir. El runner no debe actualizarse solo; si la
+  versión y sha256 fijados en `ci/runner/runner.env` y verificados al construir. Como el
+  contenedor es `--read-only`, `entrypoint.sh` copia el runner a `/tmp` (tmpfs) y lo arranca con
+  `run.sh --jitconfig`; nunca ejecuta `config.sh`. El runner no debe actualizarse solo; si la
   configuración JIT lo impide se verifica en el spike T021. Actualizarlo es un cambio revisado en
   git, antes de 30 días desde un release nuevo (`ci doctor` avisa a los 14).
 - **Usuario**: root del contenedor, con `RUNNER_ALLOW_RUNASROOT=1` y sin `sudo`. Con Docker
@@ -113,5 +116,24 @@ Permite el DNS del sistema (`127.0.0.53`). La prueba de aceptación consiste en 
   a nombre del usuario del nivel (research D5).
 - **Hook**: el de arriba, solo en la variante `pub` (`--target pub`).
 
-`just runner-image` construye las dos variantes y las etiqueta con la versión del runner y el
-commit. Las unidades usan la etiqueta fijada en `/etc/default/debfactory-runner`.
+`just runner-image` construye las dos variantes en el Docker del mantenedor y las etiqueta con la
+versión del runner y el commit. `setup.sh --runner-tag <etiqueta>` las carga en el Docker
+rootless de `dfci` y `dfpub` y guarda su **ID de contenido** en `/etc/default/debfactory-runner`
+(`DEBFACTORY_RUNNER_ID_CI` y `DEBFACTORY_RUNNER_ID_PUB`). `run-runner.sh` arranca la imagen por
+ese ID, así que un job no puede sustituirla retagueando otra, y `cleanup.sh` del nivel `ci` borra
+todas las imágenes de `dfci` salvo esa.
+
+## Diferencias de la implementación
+
+- **binfmt**: dentro del contenedor `/proc/sys/fs/binfmt_misc` no está montado. `run-runner.sh`
+  monta el del host en `/run/binfmt_misc` (solo lectura) y fija `DEBFACTORY_BINFMT_DIR`, que usa
+  la comprobación previa de Docker y qemu.
+- **Refirmado**: el temporizador ejecuta `/usr/local/lib/debfactory/dispatch-refresh.sh`
+  (`curl` con el token por la entrada estándar).
+- **Unidad**: además de lo de arriba, `NoNewPrivileges=yes`, `ProtectSystem=strict`,
+  `ProtectHome=read-only` y `PrivateTmp=yes` para los procesos del host de la unidad.
+- **Contenedor**: `--init`, `--read-only`, `--tmpfs /tmp` y `/root`,
+  `--security-opt no-new-privileges`. Las capacidades se ajustarán tras el spike T019 con
+  Docker rootless (T041).
+- **Serialización**: además del `flock` de `<data>/lock` (publish, retire, sync), `debfactory ci`
+  toma `<data>/ci/lock` durante toda la ejecución que escribe.

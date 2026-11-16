@@ -17,6 +17,7 @@ import (
 	"debfactory/internal/fetch"
 	"debfactory/internal/repo"
 	"debfactory/internal/report"
+	"debfactory/internal/sign"
 )
 
 // fetcher lee archivos de un destino: por HTTP (public_url) o, para un
@@ -139,6 +140,7 @@ func VerifyDest(ctx context.Context, e *repo.Env, destName string) error {
 	_, viaHTTP := f.(httpFetcher)
 	deadline := time.Now().Add(staleWait)
 	warned := false
+	var validUntil time.Time // el más temprano de los InRelease servidos (FR-032)
 	for _, p := range check {
 		var data []byte
 		var h http.Header
@@ -169,6 +171,14 @@ func VerifyDest(ctx context.Context, e *repo.Env, destName string) error {
 				fail(suiteOf(p), "InRelease no verifica con el debfactory.gpg publicado: %s",
 					strings.TrimSpace(string(bytes.TrimSpace(out))))
 			}
+			if vu, err := sign.ValidUntil(data); err == nil && !vu.IsZero() {
+				if !vu.After(e.NowTime()) {
+					fail(suiteOf(p), "el destino sirve una generación caducada el %s (Valid-Until)", vu.Format(time.DateOnly))
+				}
+				if validUntil.IsZero() || vu.Before(validUntil) {
+					validUntil = vu
+				}
+			}
 		}
 	}
 	if dest.CacheControl {
@@ -186,6 +196,7 @@ func VerifyDest(ctx context.Context, e *repo.Env, destName string) error {
 	if err := errs.Err(); err != nil {
 		return err
 	}
+	repo.WarnValidity(e.Out, e.Cfg, "lo que sirve "+destName, validUntil, e.NowTime())
 	e.Out.Event("verify-dest", map[string]any{"dest": destName, "serial": cur.Serial, "files": len(check)},
 		fmt.Sprintf("%s: serial %d verificado (%d archivos, firmas y encabezados)", destName, cur.Serial, len(check)))
 	return nil

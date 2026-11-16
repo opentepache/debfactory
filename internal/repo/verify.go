@@ -10,18 +10,20 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"debfactory/internal/config"
 	"debfactory/internal/fetch"
 	"debfactory/internal/report"
+	"debfactory/internal/sign"
 )
 
 // VerifyTree comprueba una generación contra el estado: firmas de cada
 // suite con el keyring publicado y la subllave configurada, índices contra
 // sus hashes, paquetes y versiones exactos por suite y arquitectura con el
-// sha256 del estado, Origin y Label configurados, y ausencia de
-// Valid-Until (FR-004, FR-004a).
-func VerifyTree(ctx context.Context, cfg *config.Config, st *State, genDir string) error {
+// sha256 del estado, Origin y Label configurados, y un Valid-Until posterior
+// a now (FR-004; FR-030 de la fase 003, que sustituye a FR-004a).
+func VerifyTree(ctx context.Context, cfg *config.Config, st *State, genDir string, now time.Time) error {
 	var errs report.Errors
 	fail := func(suite, format string, args ...any) {
 		errs = append(errs, &report.Error{Suite: suite, Stage: report.VerifyRepo, Cause: fmt.Sprintf(format, args...)})
@@ -56,8 +58,13 @@ func VerifyTree(ctx context.Context, cfg *config.Config, st *State, genDir strin
 			continue
 		}
 		fields, sums := parseRelease(rel)
-		if _, ok := fields["Valid-Until"]; ok {
-			fail(su.Name, "Release declara Valid-Until (FR-004a)")
+		switch vu, err := sign.ValidUntil(rel); {
+		case err != nil:
+			fail(su.Name, "Valid-Until ilegible: %v", err)
+		case vu.IsZero():
+			fail(su.Name, "Release sin Valid-Until (FR-030)")
+		case !vu.After(now):
+			fail(su.Name, "la generación caducó el %s (Valid-Until)", vu.Format(time.DateOnly))
 		}
 		if fields["Acquire-By-Hash"] != "yes" {
 			fail(su.Name, "Release sin Acquire-By-Hash: yes")
@@ -206,4 +213,39 @@ func hasCompressed(sums map[string]string, dists, path string) bool {
 		}
 	}
 	return false
+}
+
+// TreeValidUntil devuelve el Valid-Until más temprano de las suites de una
+// generación.
+func TreeValidUntil(cfg *config.Config, genDir string) (time.Time, error) {
+	var first time.Time
+	for _, su := range cfg.Suites {
+		rel, err := os.ReadFile(filepath.Join(genDir, "dists", su.Name, "Release"))
+		if err != nil {
+			return time.Time{}, err
+		}
+		vu, err := sign.ValidUntil(rel)
+		if err != nil {
+			return time.Time{}, err
+		}
+		if first.IsZero() || (!vu.IsZero() && vu.Before(first)) {
+			first = vu
+		}
+	}
+	return first, nil
+}
+
+// WarnValidity emite el evento "expiry" si a validUntil le quedan menos de
+// repo.validity.warn_days días (FR-032 de la fase 003). No hace fallar: la
+// caducidad ya vencida la rechaza VerifyTree.
+func WarnValidity(out *report.Printer, cfg *config.Config, where string, validUntil, now time.Time) {
+	if validUntil.IsZero() {
+		return
+	}
+	days := int(validUntil.Sub(now).Hours() / 24)
+	date := validUntil.UTC().Format(time.DateOnly)
+	if days < cfg.Repo.Validity.WarnDays {
+		out.Event("expiry", map[string]any{"where": where, "valid_until": date, "days": days},
+			fmt.Sprintf("aviso: %s caduca el %s (en %d días); ejecuta `debfactory ci refresh` o `repo rebuild`", where, date, days))
+	}
 }

@@ -1,0 +1,32 @@
+# Runner efímero de debfactory (specs/003-ci-pipeline, contracts/runner-host.md).
+# Instancias: debfactory-runner@ci (PRs, dfci) y debfactory-runner@pub (main, dfpub).
+# Cada ciclo: configuración JIT de un solo uso → un job en un contenedor nuevo → limpieza.
+[Unit]
+Description=Runner efímero de debfactory (%i)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=df%i
+Group=df%i
+LoadCredential=gh:/etc/credstore/debfactory-gh-runner
+RuntimeDirectory=debfactory-runner-%i
+RuntimeDirectoryMode=0700
+# dfci no puede ni listar el directorio JIT de pub (y al revés).
+ExecStartPre=+/usr/local/lib/debfactory/jitconfig.sh %i
+ExecStart=/usr/local/lib/debfactory/run-runner.sh %i
+ExecStopPost=+/usr/local/lib/debfactory/cleanup.sh %i
+Restart=always
+RestartSec=5
+CPUQuota=1400%
+MemoryMax=24G
+TasksMax=4096
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=-/srv/debfactory/%i/work -/run/user
+ProtectHome=read-only
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

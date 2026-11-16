@@ -16,6 +16,9 @@ repo:
       - 7A1798EE1F842B3AC4FBA6D0AEE4D97E303806E7
     subkey: 9990E287F03E70F590DED142C9CC7E5409A3415C   # la que firma
     warn_days: 60              # FR-023
+  validity:                    # añadido en la fase 003 (FR-030); ver specs/003-ci-pipeline/contracts/config.md
+    days: 30
+    warn_days: 7
   destinations:
     local:
       remote: /var/tmp/debfactory-repo      # directorio que sirve `just serve`

@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
@@ -34,6 +37,7 @@ type Config struct {
 	CommunityRepos   []Repo            `yaml:"community_repos"`
 	CompletionsImage string            `yaml:"completions_image"`
 	Repo             RepoConfig        `yaml:"repo"`
+	CI               CI                `yaml:"ci"`
 
 	// Licenses es la allowlist de config/licenses.yaml (constitución IV).
 	Licenses []string `yaml:"-"`
@@ -73,6 +77,7 @@ type RepoConfig struct {
 	Component    string                 `yaml:"component"`
 	Keep         int                    `yaml:"keep"`
 	Signing      Signing                `yaml:"signing"`
+	Validity     Validity               `yaml:"validity"`
 	Destinations map[string]Destination `yaml:"destinations"`
 	CacheControl CacheControl           `yaml:"cache_control"`
 }
@@ -83,6 +88,59 @@ type Signing struct {
 	Masters  []string `yaml:"masters"`
 	Subkey   string   `yaml:"subkey"`
 	WarnDays int      `yaml:"warn_days"`
+}
+
+// Validity es la caducidad de los índices firmados (Valid-Until, FR-030 de
+// la fase 003).
+type Validity struct {
+	Days     int `yaml:"days"`
+	WarnDays int `yaml:"warn_days"`
+}
+
+// CI es la configuración del pipeline (specs/003-ci-pipeline/contracts/config.md).
+type CI struct {
+	Repository    string   `yaml:"repository"`
+	Destination   string   `yaml:"destination"`
+	StateBranch   string   `yaml:"state_branch"`
+	StatePRMaxAge Duration `yaml:"state_pr_max_age"`
+	FailureLabel  string   `yaml:"failure_label"`
+	Labels        CILabels `yaml:"labels"`
+	CodePaths     []string `yaml:"code_paths"`
+}
+
+// CILabels son las etiquetas de los runners de cada nivel de confianza.
+type CILabels struct {
+	CI  string `yaml:"ci"`
+	Pub string `yaml:"pub"`
+}
+
+// Duration acepta los sufijos de time.ParseDuration y además "d" (días).
+type Duration time.Duration
+
+// UnmarshalYAML lee "7d", "36h", "90m"...
+func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
+	v, err := ParseDuration(n.Value)
+	if err != nil {
+		return err
+	}
+	*d = Duration(v)
+	return nil
+}
+
+// ParseDuration es time.ParseDuration con el sufijo "d" (24 h).
+func ParseDuration(s string) (time.Duration, error) {
+	if n, ok := strings.CutSuffix(s, "d"); ok {
+		days, err := strconv.Atoi(n)
+		if err != nil || days < 0 {
+			return 0, fmt.Errorf("duración %q inválida", s)
+		}
+		return time.Duration(days) * 24 * time.Hour, nil
+	}
+	v, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("duración %q inválida", s)
+	}
+	return v, nil
 }
 
 // Destination es un destino de sincronización: un remote de rclone, sin
@@ -136,6 +194,61 @@ func (r *RepoConfig) validate() error {
 	}
 	if r.CacheControl.Immutable == "" || r.CacheControl.Mutable == "" {
 		return errors.New("repo.cache_control: immutable y mutable no pueden estar vacíos")
+	}
+	if r.Validity.Days == 0 && r.Validity.WarnDays == 0 {
+		r.Validity = Validity{Days: 30, WarnDays: 7}
+	}
+	if r.Validity.Days < 8 || r.Validity.Days > 90 {
+		return errors.New("repo.validity.days debe estar entre 8 y 90")
+	}
+	if r.Validity.WarnDays < 0 || r.Validity.WarnDays >= r.Validity.Days-7 {
+		return errors.New("repo.validity.warn_days deja menos de una semana entre refirmados")
+	}
+	return nil
+}
+
+var repositoryRe = regexp.MustCompile(`^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$`)
+
+// validate comprueba la sección ci. repository puede estar vacío hasta que
+// exista el repositorio en GitHub; las órdenes ci lo exigen (RequireRepository).
+func (c *CI) validate(r *RepoConfig) error {
+	if c.Repository != "" && !repositoryRe.MatchString(c.Repository) {
+		return errors.New("ci.repository inválido")
+	}
+	if c.Destination == "" {
+		c.Destination = "r2"
+	}
+	if d, ok := r.Destinations[c.Destination]; !ok || d.PublicURL == "" {
+		return fmt.Errorf("ci.destination %q no existe", c.Destination)
+	}
+	if c.StateBranch == "" {
+		c.StateBranch = "debfactory/state"
+	}
+	if c.StateBranch == "main" {
+		return errors.New("ci.state_branch no puede ser main")
+	}
+	if c.StatePRMaxAge == 0 {
+		c.StatePRMaxAge = Duration(7 * 24 * time.Hour)
+	}
+	if c.FailureLabel == "" {
+		c.FailureLabel = "pipeline-failure"
+	}
+	if c.Labels.CI == "" {
+		c.Labels.CI = "debfactory-pr"
+	}
+	if c.Labels.Pub == "" {
+		c.Labels.Pub = "debfactory-main"
+	}
+	if c.Labels.CI == c.Labels.Pub {
+		return errors.New("las etiquetas de los dos niveles deben ser distintas")
+	}
+	return nil
+}
+
+// RequireRepository falla si ci.repository está vacío.
+func (c *CI) RequireRepository() error {
+	if c.Repository == "" {
+		return report.New(report.Config, "ci.repository está vacío en "+MainFile)
 	}
 	return nil
 }
@@ -244,7 +357,10 @@ func (c *Config) validate() error {
 	if c.CompletionsImage == "" {
 		return errors.New("completions_image: no puede estar vacío")
 	}
-	return c.Repo.validate()
+	if err := c.Repo.validate(); err != nil {
+		return err
+	}
+	return c.CI.validate(&c.Repo)
 }
 
 // UnmarshalYAML lee el mapa de suites conservando su orden y rechazando

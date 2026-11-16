@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // TestE2ELifecycle recorre en cada suite (amd64) publicar → instalar →
@@ -92,4 +93,27 @@ func TestE2ELifecycle(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "versión retirada") {
 		t.Fatalf("republicar v2: %v", err)
 	}
+	// 5. Valid-Until (FR-030 de la fase 003): una generación firmada hace 31
+	// días está caducada y apt la rechaza. La fecha de firma se inyecta con
+	// Env.Now; nunca se cambia el reloj del host (los contenedores lo
+	// comparten).
+	signedAt := time.Now().AddDate(0, 0, -(e.Cfg.Repo.Validity.Days + 1))
+	e.Now = func() time.Time { return signedAt }
+	if err := e.Rebuild(ctx); err != nil {
+		t.Fatalf("regenerar con firma antigua: %v", err)
+	}
+	e.Now = nil
+	forEach(t, "generación caducada", func(t *testing.T, c *Client) {
+		out, _ := c.Script(ctx, "apt-get update 2>&1 || true")
+		if !strings.Contains(out, "is expired") {
+			t.Errorf("%s: apt-get update no rechazó la generación caducada:\n%s", c.Suite, out)
+		}
+	})
+	// Una generación firmada ahora vuelve a ser válida.
+	if err := e.Rebuild(ctx); err != nil {
+		t.Fatalf("regenerar: %v", err)
+	}
+	forEach(t, "generación renovada", func(t *testing.T, c *Client) {
+		run(t, c, "upgrade", nil)
+	})
 }

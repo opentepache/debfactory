@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"debfactory/internal/config"
 	"debfactory/internal/redact"
@@ -26,9 +27,13 @@ func StoreFor(dataDir string) Store { return Store{Dir: filepath.Join(dataDir, "
 // Generate crea desde cero una generación completa y firmada del árbol para
 // st (research D2): por cada suite, un repositorio local de aptly, un
 // snapshot y su publicación en un endpoint de archivos nuevo, con
-// Acquire-By-Hash. Devuelve el directorio de la generación. Ante cualquier
-// fallo la borra.
-func Generate(ctx context.Context, cfg *config.Config, st *State, store Store, dataDir string) (genDir string, err error) {
+// Acquire-By-Hash. aptly publica sin firmar; debfactory añade Valid-Until
+// (repo.validity.days) a cada Release y lo firma con la subllave
+// (specs/003-ci-pipeline, research D11). Devuelve el directorio de la
+// generación. Ante cualquier fallo la borra. signedAt es la fecha de firma
+// (Env.Now): los tests la fijan en el pasado para probar la caducidad sin
+// tocar el reloj del host.
+func Generate(ctx context.Context, cfg *config.Config, st *State, store Store, dataDir string, signedAt time.Time) (genDir string, err error) {
 	home := sign.Home(dataDir)
 	if err := sign.TestSign(ctx, home, cfg.Repo.Signing.Subkey); err != nil {
 		return "", err
@@ -111,13 +116,18 @@ func Generate(ctx context.Context, cfg *config.Config, st *State, store Store, d
 		if err := aptly("snapshot", "create", snap, "from", "repo", repoName); err != nil {
 			return "", err
 		}
-		if err := aptly("publish", "snapshot", "-batch",
-			"-gpg-key="+cfg.Repo.Signing.Subkey+"!",
-			"-passphrase-file="+sign.PassphraseFile(home),
+		if err := aptly("publish", "snapshot", "-batch", "-skip-signing",
 			"-acquire-by-hash",
 			"-origin="+cfg.Repo.Origin, "-label="+cfg.Repo.Label,
 			"-architectures="+strings.Join(cfg.Arches, ","),
 			snap, "filesystem:gen:."); err != nil {
+			return "", err
+		}
+		dists := filepath.Join(genDir, "dists", su.Name)
+		if err := sign.AddValidUntil(filepath.Join(dists, "Release"), signedAt, cfg.Repo.Validity.Days); err != nil {
+			return "", report.Newf(report.Sign, "%s: %v", su.Name, err)
+		}
+		if err := sign.SignRelease(ctx, home, cfg.Repo.Signing.Subkey, dists); err != nil {
 			return "", err
 		}
 	}

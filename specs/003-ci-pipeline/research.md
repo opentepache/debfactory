@@ -6,7 +6,23 @@ Los hechos sobre GitHub se verificaron el 2026-11-13 contra docs.github.com y el
 
 ## 1. Decisiones
 
-### D1. Forja: GitHub, repositorio público en la cuenta personal
+### D1. Forja: GitHub, repositorio privado en la organización `opentepache` con GitHub Team
+
+> **Enmienda 2026-11-15.** La decisión original era un repositorio público en la cuenta personal.
+> El repositorio se creó en la organización `opentepache` y el mantenedor decidió mantenerlo
+> **privado** y contratar **GitHub Team**, porque en GitHub Free los rulesets solo existen en
+> repositorios públicos (la API responde 403 a un privado). Consecuencias:
+>
+> - **Forks**: un repositorio privado no tiene "Require approval for all external contributors"
+>   (la API responde 422). En su lugar, *Fork pull request workflows in private repositories*
+>   queda **desactivado**: el código de un fork nunca se ejecuta en la PC, lo que cumple FR-013
+>   con más margen (no hay aprobación que conceder por error). Solo pueden hacer fork quienes
+>   tengan acceso de lectura al repositorio.
+> - `ci doctor` detecta la visibilidad: en un privado exige que los workflows de forks estén
+>   desactivados (sin tokens de escritura ni secretos); en un público, la aprobación de forks.
+> - El ruleset de `main` se mantiene igual (Team lo ofrece en privados).
+> - Los usuarios finales no ven las recetas ni `audit.jsonl`; la trazabilidad (FR-025, SC-006)
+>   se conserva para el mantenedor.
 
 - **Decision**: GitHub, con GitHub Actions y runners propios (*self-hosted*) en la PC.
 - **Rationale**:
@@ -14,7 +30,8 @@ Los hechos sobre GitHub se verificaron el 2026-11-13 contra docs.github.com y el
   - Ofrece todo lo que pide la spec sin servicios propios:
     - aprobación de PR de forks;
     - `workflow_dispatch` con parámetros, que solo puede lanzar quien tiene escritura;
-    - rulesets para proteger `main` (disponibles en repos públicos con GitHub Free);
+    - rulesets para proteger `main` (en repos públicos con GitHub Free; en privados de una
+      organización, con GitHub Team);
     - issues;
     - configuración JIT de runners de un solo uso.
   - El principio X ya habla de "pull requests e issues".
@@ -394,3 +411,18 @@ Los hechos sobre GitHub se verificaron el 2026-11-13 contra docs.github.com y el
    advertencias (con `just e2e`), y rechazar una generación caducada.
 4. **Tiempo de SC-001**: una publicación completa de fnm desde la ejecución de `main` tiene que
    tardar menos de 30 min con las cachés de `dfpub` en frío.
+
+### Resultados (2026-11-14, `/speckit-implement`)
+
+- **Riesgo 3, cerrado.** aptly publica con `-skip-signing`; debfactory añade `Valid-Until` a cada
+  `Release` y firma `InRelease` y `Release.gpg`. `just e2e` (TestE2ELifecycle) pasa en las 5
+  suites: apt acepta la generación sin advertencias y rechaza con `is expired` una generación
+  firmada 31 días antes (fecha de firma inyectada; el reloj del host no se toca).
+- **Riesgo 1, parcial.** Con el Docker del mantenedor (no rootless), dentro de la imagen
+  `debfactory-runner:2.338.2-…-ci` y con montajes en la misma ruta, `go build` + `debfactory
+  build fnm` + `debfactory test fnm` pasan en las 5 suites y en arm64 (qemu con flag `F`) en
+  1 min 52 s. Hizo falta montar `binfmt_misc` del host (ver runner-host.md § Diferencias). Los
+  `.deb` construidos dentro de la imagen son **idénticos byte a byte** a los publicados en la
+  fase 002 (sha256 de `repo/state.yaml`), lo que valida FR-010 y `rebuild`. Falta repetirlo con
+  Docker rootless como `dfci` (T019).
+- **Riesgos 2 y 4**: pendientes de T021 y T033 (necesitan el repositorio en GitHub).

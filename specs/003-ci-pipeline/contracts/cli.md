@@ -36,7 +36,11 @@ sale con código 3 antes de tocar nada. Es una segunda barrera después del hook
 | `ci restore-state-pr` | `pub` | Vuelve a crear la rama y el PR de estado desde `<data>/ci/` (D8). Antes comprueba que `<data>/ci/state.yaml` corresponde a la generación `current`. | rama de estado |
 | `ci notify --package P --version V (--stage S \| --stage-file FILE) --reason TEXTO` | `pub` | Abre o comenta el issue de fallo. La usan los pasos `if: failure()` cuando la ejecución muere antes de su propio informe. Con `--stage-file` lee la etapa en curso que `ci` escribe en `$RUNNER_TEMP/debfactory-stage`; si no existe, la etapa es `pipeline`. | issues |
 | `ci audit check [--against REF]` | ambos | Comprueba los invariantes de la auditoría: solo añadir respecto de `REF` y cobertura de `state.yaml` (FR-024, FR-025). | nada |
-| `ci doctor` | ninguno (lo ejecuta el mantenedor con un token suyo) | Comprueba con la API la configuración de GitHub (research §2) y en local la del host ([runner-host.md](runner-host.md)). Lista lo que falta. | nada |
+| `ci doctor` | ninguno (lo ejecuta el mantenedor con un token suyo) | Comprueba con la API la configuración de GitHub (research §2; en un repositorio privado, workflows de forks desactivados en lugar de la aprobación de forks, D1) y en local la del host ([runner-host.md](runner-host.md)). Lista lo que falta. | nada |
+
+Con `GITHUB_EVENT_NAME=workflow_dispatch`, `ci main` lee `INPUT_ACTION` (y `INPUT_PACKAGE`,
+`INPUT_VERSION`, `INPUT_REASON`, `INPUT_LAST`), los valida y despacha a `rebuild`, `retire`,
+`refresh` o `restore-state-pr`; así `main.yml` siempre ejecuta `bin/debfactory ci main`.
 
 Cambios en órdenes de la fase 002:
 

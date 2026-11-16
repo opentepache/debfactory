@@ -66,6 +66,16 @@ archivos que faltan. La llave maestra vive fuera de línea; la PC solo tiene una
 `debfactory repo sync <destino>`, `debfactory repo verify [--dest D]`, `debfactory repo rebuild`,
 `debfactory repo status` ([cli.md](specs/002-signed-apt-repo/contracts/cli.md)).
 
+**Pipeline**. GitHub Actions con dos runners efímeros en la PC: `debfactory-pr` (usuario `dfci`,
+sin secretos ni red local) prueba cada pull request con los gates 1–6, y `debfactory-main`
+(usuario `dfpub`) publica lo que llega a `main`: concilia los manifiestos con el estado
+publicado, construye y prueba solo lo que falta, publica, sincroniza, verifica, deja la entrada
+en `repo/audit.jsonl` y abre un PR de estado que integra el mantenedor. Los fallos abren issues;
+cada semana se vuelven a firmar los índices (`Valid-Until` de 30 días). Desde que está en marcha
+es el único que escribe en el repositorio público.
+Órdenes: `debfactory ci main|pr|rebuild|retire|refresh|restore-state-pr|doctor`
+([cli.md](specs/003-ci-pipeline/contracts/cli.md); [operación](docs/operacion-ci.md)).
+
 ## Atajos
 
 ```bash

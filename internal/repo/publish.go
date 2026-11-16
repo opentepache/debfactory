@@ -29,6 +29,9 @@ type Env struct {
 	Restore func(ctx context.Context, store Store, name, version, arch, sha string) error
 }
 
+// NowTime devuelve la hora de Env.Now, o la real si no está fijada.
+func (e *Env) NowTime() time.Time { return e.now() }
+
 func (e *Env) now() time.Time {
 	if e.Now != nil {
 		return e.Now()
@@ -151,7 +154,7 @@ func (e *Env) mutate(ctx context.Context, dryRun bool, build func(*State) ([]Op,
 
 // commit genera, verifica y expone la generación de st.
 func (e *Env) commit(ctx context.Context, st *State) (*GenInfo, error) {
-	genDir, err := Generate(ctx, e.Cfg, st, StoreFor(e.DataDir), e.DataDir)
+	genDir, err := Generate(ctx, e.Cfg, st, StoreFor(e.DataDir), e.DataDir, e.now())
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +164,7 @@ func (e *Env) commit(ctx context.Context, st *State) (*GenInfo, error) {
 			return nil, err
 		}
 	}
-	if err := VerifyTree(ctx, e.Cfg, st, genDir); err != nil {
+	if err := VerifyTree(ctx, e.Cfg, st, genDir, e.now()); err != nil {
 		removeGen(genDir)
 		return nil, err
 	}

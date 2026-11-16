@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -271,12 +272,23 @@ func Preflight(ctx context.Context, arches []string) error {
 		if !ok {
 			return &report.EnvError{Cause: "no se conoce la emulación de " + a}
 		}
-		if _, err := os.Stat("/proc/sys/fs/binfmt_misc/" + name); err != nil {
+		dir := binfmtDir()
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			return &report.EnvError{Cause: fmt.Sprintf(
-				"no hay binfmt para %s (/proc/sys/fs/binfmt_misc/%s); instala qemu-user-binfmt", a, name)}
+				"no hay binfmt para %s (%s/%s); instala qemu-user-binfmt", a, dir, name)}
 		}
 	}
 	return nil
+}
+
+// binfmtDir es donde se comprueba la emulación. Dentro del contenedor del
+// runner (specs/003-ci-pipeline) /proc/sys/fs/binfmt_misc no está montado:
+// run-runner.sh monta el del host en solo lectura y fija DEBFACTORY_BINFMT_DIR.
+func binfmtDir() string {
+	if d := os.Getenv("DEBFACTORY_BINFMT_DIR"); d != "" {
+		return d
+	}
+	return "/proc/sys/fs/binfmt_misc"
 }
 
 // TailLines devuelve las últimas n líneas no vacías de b.

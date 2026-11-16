@@ -40,7 +40,8 @@ check: bin
     test -z "$(gofmt -l .)" || { gofmt -l .; echo "gofmt: hay archivos sin formatear"; exit 1; }
     go vet ./...
     go test ./...
-    go test -tags integration ./internal/repo/ ./internal/sign/
+    go test -tags integration ./internal/repo/ ./internal/sign/ ./internal/ci/
+    just ci-lint
     bin/debfactory validate
     bin/debfactory build --all --check-reproducible
     bin/debfactory test --all
@@ -75,3 +76,35 @@ e2e-key: bin
 # Sincroniza a un bucket S3 real con una llave de prueba (T048). Usa las credenciales de rclone.
 e2e-r2 dest="r2test": bin
     DEBFACTORY_E2E_R2={{dest}} go test -tags e2e -run TestE2ESyncR2 ./internal/repotest/ -timeout 30m -v
+
+# --- Pipeline (specs/003-ci-pipeline/contracts/cli.md § justfile) ---
+
+# Construye las imágenes de los runners (ci y pub) desde ci/runner/Dockerfile.
+runner-image:
+    #!/bin/sh
+    set -eu
+    . ci/runner/runner.env
+    tag="${RUNNER_VERSION}-$(git rev-parse --short HEAD)"
+    for t in ci pub; do
+        docker build --pull --target "$t" \
+            --build-arg RUNNER_VERSION="$RUNNER_VERSION" --build-arg RUNNER_SHA256="$RUNNER_SHA256" \
+            -t "debfactory-runner:${tag}-${t}" ci/runner
+    done
+    echo "imágenes: debfactory-runner:${tag}-{ci,pub}"
+    echo "para usarlas: DEBFACTORY_RUNNER_TAG=${tag} en /etc/default/debfactory-runner"
+
+# Comprueba la configuración de GitHub y de la PC (GH_TOKEN del mantenedor).
+ci-doctor *args: bin
+    bin/debfactory ci doctor {{args}}
+
+# Ejecuta en local lo mismo que el check de un PR.
+ci-local-pr: bin
+    bin/debfactory ci pr --base origin/main
+
+# Comprueba los scripts de ci/ (POSIX sh) y el hook.
+ci-lint:
+    #!/bin/sh
+    set -eu
+    for f in $(find ci -name '*.sh'); do sh -n "$f"; done
+    if command -v checkbashisms >/dev/null; then checkbashisms $(find ci -name '*.sh'); else echo "ci-lint: falta checkbashisms (devscripts)"; exit 1; fi
+    sh ci/runner/hooks/trusted-gate_test.sh

@@ -203,8 +203,11 @@ func (e *Env) Verify(ctx context.Context) error {
 		e.Out.Event("verify", map[string]any{"serial": 0}, "repo: vacío (serial 0); nada que verificar")
 		return nil
 	}
-	if err := VerifyTree(ctx, e.Cfg, st, cur.Dir(e.DataDir)); err != nil {
+	if err := VerifyTree(ctx, e.Cfg, st, cur.Dir(e.DataDir), e.now()); err != nil {
 		return err
+	}
+	if vu, err := TreeValidUntil(e.Cfg, cur.Dir(e.DataDir)); err == nil {
+		WarnValidity(e.Out, e.Cfg, "la generación local "+cur.Name, vu, e.now())
 	}
 	e.Out.Event("verify", map[string]any{"serial": st.Serial, "generation": cur.Name},
 		fmt.Sprintf("repo: serial %d (%s) verificado", st.Serial, cur.Name))

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadRepoConfig(t *testing.T) {
@@ -31,6 +32,12 @@ func TestLoadRepoConfig(t *testing.T) {
 	if !c.LicenseAllowed("MIT") || c.LicenseAllowed("BUSL-1.1") {
 		t.Error("allowlist incorrecta")
 	}
+	if c.Repo.Validity != (Validity{Days: 30, WarnDays: 7}) {
+		t.Errorf("repo.validity = %+v", c.Repo.Validity)
+	}
+	if c.CI.StatePRMaxAge != Duration(7*24*time.Hour) || c.CI.Labels.Pub != "debfactory-main" || c.CI.Destination != "r2" {
+		t.Errorf("ci = %+v", c.CI)
+	}
 }
 
 func TestLoadRejects(t *testing.T) {
@@ -55,6 +62,16 @@ func TestLoadRejects(t *testing.T) {
 		"subkey":             {`subkey: 84983CE038A7C73647AF0C9A15DDD1383F3A75D5`, `subkey: "84983ce038a7c73647af0c9a15ddd1383f3a75d5"`, "repo.signing.subkey: fingerprint inválido"},
 		"nombre de destino":  {`    r2:`, `    R2:`, `repo.destinations: nombre "R2" inválido`},
 		"credenciales":       {`"r2:debfactory-apt"`, `"user:secret@host:/srv"`, "repo.destinations.r2.remote: no puede contener credenciales"},
+		// Fase 003 (specs/003-ci-pipeline/contracts/config.md).
+		"validity.days":                 {`days: 30 `, `days: 7 `, "repo.validity.days debe estar entre 8 y 90"},
+		"validity.days alto":            {`days: 30 `, `days: 91 `, "repo.validity.days debe estar entre 8 y 90"},
+		"validity.warn_days":            {`warn_days: 7 `, `warn_days: 23 `, "repo.validity.warn_days deja menos de una semana entre refirmados"},
+		"ci.repository":                 {`repository: ""`, `repository: "solo-nombre"`, "ci.repository inválido"},
+		"ci.destination":                {`destination: r2 `, `destination: r3 `, `ci.destination "r3" no existe`},
+		"ci.destination sin public_url": {`destination: r2 `, `destination: local `, `ci.destination "local" no existe`},
+		"ci.labels":                     {`pub: debfactory-main`, `pub: debfactory-pr`, "las etiquetas de los dos niveles deben ser distintas"},
+		"ci.state_branch":               {`state_branch: debfactory/state`, `state_branch: main`, "ci.state_branch no puede ser main"},
+		"ci.state_pr_max_age":           {`state_pr_max_age: 7d`, `state_pr_max_age: siete`, `duración "siete" inválida`},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

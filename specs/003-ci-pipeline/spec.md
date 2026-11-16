@@ -457,9 +457,10 @@ nada y termina en verde.
 
 ## Assumptions
 
-- **Forja**: el código se aloja en una forja pública que ofrece pull requests desde forks,
+- **Forja**: el código se aloja en una forja que ofrece pull requests desde forks,
   runners propios, ejecuciones manuales con parámetros y protección de la rama principal. Se
-  eligió GitHub en `/speckit-plan` (research D1); los requisitos no dependen de ella.
+  eligió GitHub en `/speckit-plan`, con el repositorio privado (research D1); los requisitos no
+  dependen de ella.
 - **Lockfiles**: los genera una persona con `lock` y van en el mismo cambio que el manifiesto. El
   pipeline los verifica, pero nunca los escribe. Generarlos solo sería parte de la detección
   automática de versiones, que queda para otra fase.

@@ -9,7 +9,8 @@ y la PC en [contracts/runner-host.md](contracts/runner-host.md).
 - **Fases anteriores**: lo de las fases 001 y 002, con el repositorio publicado
   (`repo verify --dest r2` en verde).
 - **En GitHub**:
-  - el repositorio, público, con el código en `main`;
+  - el repositorio, privado en la organización `opentepache` con GitHub Team, con el código
+    en `main` (research D1);
   - un fine-grained PAT solo para ese repositorio, con `Administration: write` y
     `Actions: write`. Se pega solo en la entrada estándar de `setup.sh`, nunca en el chat ni en
     un archivo del repositorio.
@@ -18,9 +19,10 @@ y la PC en [contracts/runner-host.md](contracts/runner-host.md).
     la regla de nftables;
   - `sudo ci/host/migrate-data.sh`: mueve los datos y las credenciales a `/srv/debfactory`;
   - `just runner-image`.
-- **Comprobación**: `just ci-doctor` en verde, tanto para la configuración de GitHub (fork
-  approval, permisos del token, ruleset en `main`, etiqueta) como para la del host.
-- **Una cuenta de GitHub secundaria** que haga de contribuyente externo (escenario 3).
+- **Comprobación**: `just ci-doctor` en verde, tanto para la configuración de GitHub (workflows
+  de forks desactivados, permisos del token, ruleset en `main`, etiqueta) como para la del host.
+- **Una cuenta de GitHub secundaria** con acceso de lectura al repositorio, que haga de
+  contribuyente externo (escenario 3).
 
 ## 1. Un merge publica solo (US1, SC-001)
 
@@ -56,8 +58,17 @@ git commit -am "fnm: 1.40.0" && git push -u origin fnm-1.40.0
 
 ## 3. Secretos fuera del alcance de los forks (US3, SC-003)
 
-Desde la cuenta secundaria, haz un fork y abre un PR que añada un paso a `pr.yml` y un workflow
-nuevo con `runs-on: [self-hosted, debfactory-main]`. Ambos deben intentar lo siguiente:
+Con el repositorio privado, los PRs de forks no ejecutan workflows (research D1). La prueba tiene
+dos partes:
+
+1. **Fork**: desde la cuenta secundaria, haz un fork y abre el PR de abajo. **Esperado**: no se
+   ejecuta ningún workflow, ni siquiera tras un commit nuevo, y ni `dfci` ni `dfpub` ven un job.
+2. **Rama del repositorio**: abre el mismo PR desde una rama tuya. FR-014 lo trata igual que a un
+   fork, así que el resto de esta sección se comprueba con él (lo de "antes de aprobar" no
+   aplica: un PR de una rama corre sin aprobación, pero como `dfci` y sin secretos).
+
+El PR añade un paso a `pr.yml` y un workflow nuevo con `runs-on: [self-hosted, debfactory-main]`.
+Ambos deben intentar lo siguiente:
 
 ```bash
 env | sort; ls -la /srv/debfactory /home/pav0n ~/.local/share/debfactory ~/.gnupg
@@ -68,15 +79,13 @@ curl -m 5 http://192.168.1.1/; touch /srv/debfactory/x
 
 **Esperado:**
 
-- **Antes de aprobar**: el PR muestra "Approve workflows to run" y no se ejecuta nada en la PC.
-- **Después de aprobar**:
+- **Al ejecutarse**:
   - el job que pidió `debfactory-main` falla en "Set up runner" con `trusted-gate: rechazado`,
     sin ningún paso ejecutado;
   - el job de `pr.yml` corre en `debfactory-pr` y no ve ningún secreto ni `/home/pav0n`;
   - el `docker run -v /:/host` solo ve lo que puede leer `dfci`, y `/srv/debfactory/data` le da
     permiso denegado;
   - `curl` a la red local se rechaza y `touch` falla.
-- **Commit nuevo en el PR**: vuelve a pedir aprobación.
 - **Logs**: `grep -E 'PRIVATE KEY|secret_access_key|access_key_id'` sobre los logs
   descargados no encuentra nada.
 - **Tras el job**: `/srv/debfactory/ci/work` está vacío y `dfci` no tiene imágenes.

@@ -332,7 +332,8 @@ En cada paso, comprobar que un cliente que solo siguió la documentación sigue 
 - **FR-004**: Cada suite MUST tener índices de paquetes por arquitectura y un índice de suite
   firmado, en las dos formas que apt acepta: firma integrada y firma separada.
 - **FR-004a**: Los índices de suite MUST NOT declarar fecha de caducidad (`Valid-Until`) en
-  esta fase.
+  esta fase. *Sustituido por FR-030 de la fase 003 (`Valid-Until` de 30 días con refirmado
+  semanal).*
 - **FR-005**: El árbol del repositorio MUST poder servirse con cualquier servidor de archivos
   estáticos, sin lógica en el servidor.
 

@@ -1,0 +1,280 @@
+package ci
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
+	"time"
+
+	"debfactory/internal/repo"
+	"debfactory/internal/report"
+)
+
+// AuditFile es el registro de auditoría en el repositorio (contracts/audit.md).
+const AuditFile = "repo/audit.jsonl"
+
+// Operaciones de la auditoría.
+const (
+	OpPublish = "publish"
+	OpRetire  = "retire"
+	OpImport  = "import"
+)
+
+// Entry es una línea de repo/audit.jsonl. El orden de los campos es el del
+// contrato; Run es un puntero para emitir null en import.
+type Entry struct {
+	Seq     int               `json:"seq"`
+	Time    time.Time         `json:"time"`
+	Op      string            `json:"op"`
+	Package string            `json:"package"`
+	Version string            `json:"version"`
+	Commit  string            `json:"commit"`
+	Debs    map[string]string `json:"debs,omitempty"`
+	Serial  int               `json:"serial"`
+	Run     *string           `json:"run"`
+	Reason  string            `json:"reason,omitempty"`
+}
+
+// MarshalJSON escribe la entrada con las claves en orden fijo, la fecha sin
+// fracciones y debs con amd64 antes que arm64.
+func (e Entry) MarshalJSON() ([]byte, error) {
+	var b bytes.Buffer
+	field := func(k string, v any) {
+		if b.Len() > 0 {
+			b.WriteByte(',')
+		}
+		kb, _ := json.Marshal(k)
+		vb, _ := json.Marshal(v)
+		b.Write(kb)
+		b.WriteByte(':')
+		b.Write(vb)
+	}
+	field("seq", e.Seq)
+	field("time", e.Time.UTC().Truncate(time.Second).Format(time.RFC3339))
+	field("op", e.Op)
+	field("package", e.Package)
+	field("version", e.Version)
+	field("commit", e.Commit)
+	if len(e.Debs) > 0 {
+		var d bytes.Buffer
+		keys := make([]string, 0, len(e.Debs))
+		for k := range e.Debs {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		d.WriteByte('{')
+		for i, k := range keys {
+			if i > 0 {
+				d.WriteByte(',')
+			}
+			kb, _ := json.Marshal(k)
+			vb, _ := json.Marshal(e.Debs[k])
+			d.Write(kb)
+			d.WriteByte(':')
+			d.Write(vb)
+		}
+		d.WriteByte('}')
+		if b.Len() > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(`"debs":`)
+		b.Write(d.Bytes())
+	}
+	field("serial", e.Serial)
+	field("run", e.Run)
+	if e.Reason != "" {
+		field("reason", e.Reason)
+	}
+	return []byte("{" + b.String() + "}"), nil
+}
+
+var (
+	hex40 = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	hex64 = regexp.MustCompile(`^[0-9a-f]{64}$`)
+)
+
+// ParseAudit lee un registro completo, estricto: JSON válido, sin claves
+// desconocidas, campos del contrato y seq consecutivo desde 1.
+func ParseAudit(data []byte) ([]Entry, error) {
+	var out []Entry
+	sc := bufio.NewScanner(bytes.NewReader(data))
+	sc.Buffer(make([]byte, 1<<20), 1<<20)
+	for n := 1; sc.Scan(); n++ {
+		line := sc.Bytes()
+		fail := func(format string, args ...any) error {
+			return report.Newf(report.Audit, "%s:%d: %s", AuditFile, n, fmt.Sprintf(format, args...))
+		}
+		if len(line) == 0 {
+			return nil, fail("línea vacía")
+		}
+		dec := json.NewDecoder(bytes.NewReader(line))
+		dec.DisallowUnknownFields()
+		var e Entry
+		if err := dec.Decode(&e); err != nil {
+			var msg = err.Error()
+			if m := regexp.MustCompile(`unknown field "([^"]+)"`).FindStringSubmatch(msg); m != nil {
+				return nil, fail("clave desconocida %q", m[1])
+			}
+			return nil, fail("JSON inválido: %v", err)
+		}
+		if want := len(out) + 1; e.Seq != want {
+			prev := 0
+			if len(out) > 0 {
+				prev = out[len(out)-1].Seq
+			}
+			return nil, fail("seq %d tras %d", e.Seq, prev)
+		}
+		switch e.Op {
+		case OpPublish, OpImport:
+			if len(e.Debs) == 0 {
+				return nil, fail("%s sin debs", e.Op)
+			}
+			for arch, sha := range e.Debs {
+				if !hex64.MatchString(sha) {
+					return nil, fail("debs.%s: sha256 inválido", arch)
+				}
+			}
+			if e.Op == OpPublish && e.Run == nil {
+				return nil, fail("publish sin run")
+			}
+		case OpRetire:
+			if e.Reason == "" {
+				return nil, fail("retire sin reason")
+			}
+		default:
+			return nil, fail("op %q desconocida", e.Op)
+		}
+		if e.Package == "" || e.Version == "" || !hex40.MatchString(e.Commit) || e.Serial < 1 {
+			return nil, fail("faltan package, version, commit (40 hex) o serial")
+		}
+		out = append(out, e)
+	}
+	return out, sc.Err()
+}
+
+// ReadAudit lee root/repo/audit.jsonl; si no existe devuelve nil sin error.
+func ReadAudit(root string) ([]byte, []Entry, error) {
+	data, err := os.ReadFile(filepath.Join(root, AuditFile))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	entries, err := ParseAudit(data)
+	return data, entries, err
+}
+
+// MarshalEntries serializa entradas, una por línea.
+func MarshalEntries(entries []Entry) []byte {
+	var b bytes.Buffer
+	for _, e := range entries {
+		line, _ := e.MarshalJSON()
+		b.Write(line)
+		b.WriteByte('\n')
+	}
+	return b.Bytes()
+}
+
+// AppendAudit añade entradas a root/repo/audit.jsonl con seq consecutivo y
+// escritura atómica. Devuelve las entradas tal como quedaron escritas.
+func AppendAudit(root string, entries ...Entry) ([]Entry, error) {
+	data, old, err := ReadAudit(root)
+	if err != nil {
+		return nil, err
+	}
+	for i := range entries {
+		entries[i].Seq = len(old) + i + 1
+	}
+	out := append(slices.Clone(data), MarshalEntries(entries)...)
+	if _, err := ParseAudit(out); err != nil {
+		return nil, err
+	}
+	path := filepath.Join(root, AuditFile)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, out, 0o644); err != nil {
+		return nil, err
+	}
+	return entries, os.Rename(tmp, path)
+}
+
+// IsPrefix indica si el registro a es prefijo exacto, byte a byte, de b.
+func IsPrefix(a, b []byte) bool { return bytes.HasPrefix(b, a) }
+
+// CheckAudit aplica las reglas de contracts/audit.md § Reglas:
+//   - el registro de referencia (against) es prefijo exacto de data;
+//   - todo .deb de st tiene una entrada publish o import con su sha256;
+//   - todo retire se refiere a una versión publicada o importada antes.
+//
+// Los errores de formato y de seq los da ParseAudit.
+func CheckAudit(data, against []byte, st *repo.State) error {
+	entries, err := ParseAudit(data)
+	if err != nil {
+		return err
+	}
+	if against != nil && !IsPrefix(against, data) {
+		line := 1 + bytes.Count(commonPrefix(against, data), []byte("\n"))
+		return report.Newf(report.Audit, "%s: la línea %d difiere de la referencia (solo se permite añadir)", AuditFile, line)
+	}
+	published := map[string]map[string]string{} // "pkg version" -> arch -> sha
+	var errs report.Errors
+	for _, e := range entries {
+		key := e.Package + " " + e.Version
+		switch e.Op {
+		case OpPublish, OpImport:
+			published[key] = e.Debs
+		case OpRetire:
+			if _, ok := published[key]; !ok {
+				errs = append(errs, report.Newf(report.Audit, "%s:%d: retiro de una versión nunca publicada", AuditFile, e.Seq))
+			}
+		}
+	}
+	if st != nil {
+		for _, name := range st.PackageNames() {
+			for _, p := range st.Packages[name] {
+				for arch, sha := range p.Debs {
+					if published[name+" "+p.Version][arch] != sha {
+						errs = append(errs, report.Newf(report.Audit, "%s: falta la publicación de %s %s %s", AuditFile, name, p.Version, arch))
+					}
+				}
+			}
+		}
+	}
+	return errs.Err()
+}
+
+func commonPrefix(a, b []byte) []byte {
+	n := min(len(a), len(b))
+	for i := 0; i < n; i++ {
+		if a[i] != b[i] {
+			// hasta el inicio de la línea que difiere
+			return a[:bytes.LastIndexByte(a[:i], '\n')+1]
+		}
+	}
+	return a[:n]
+}
+
+// ImportEntries crea una entrada import por cada versión ya publicada en st
+// (contracts/audit.md § Primera ejecución), en orden de paquete y de versión
+// ascendente, con el commit que dejó ese estado.
+func ImportEntries(st *repo.State, commit string) []Entry {
+	var out []Entry
+	for _, name := range st.PackageNames() {
+		pubs := st.Packages[name]
+		for i := len(pubs) - 1; i >= 0; i-- { // state.yaml va de mayor a menor
+			p := pubs[i]
+			out = append(out, Entry{Time: p.Published, Op: OpImport, Package: name, Version: p.Version,
+				Commit: commit, Debs: p.Debs, Serial: st.Serial})
+		}
+	}
+	return out
+}

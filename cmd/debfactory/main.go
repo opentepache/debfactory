@@ -18,6 +18,7 @@ import (
 	"syscall"
 
 	"debfactory/internal/build"
+	"debfactory/internal/ci"
 	"debfactory/internal/config"
 	"debfactory/internal/container"
 	"debfactory/internal/fetch"
@@ -46,6 +47,7 @@ const usage = `uso: debfactory <orden> [opciones]
   repo rebuild                                 regenera el árbol desde repo/state.yaml
   repo status                                  muestra lo publicado y lo sincronizado
   repo serve [--port 8080]                     sirve el destino local por HTTP
+  ci <orden> [opciones]                        pipeline de GitHub Actions (debfactory ci help)
 
 Opciones globales: --root DIR, --workdir DIR, --cache DIR, --data DIR, --json
 Códigos de salida: 0 éxito, 1 fallo de una etapa, 2 uso incorrecto, 3 entorno incompleto.
@@ -76,6 +78,12 @@ type options struct {
 	dryRun, last               bool
 	reason, dest               string
 	port, jobs                 int
+
+	// ci (specs/003-ci-pipeline/contracts/cli.md)
+	envFile, mode, base       string
+	pkg, version              string
+	stage, stageFile, against string
+	fix                       bool
 }
 
 type app struct {
@@ -129,6 +137,19 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fs.StringVar(&o.dest, "dest", "", "")
 		fs.BoolVar(&o.dryRun, "dry-run", false, "")
 		fs.IntVar(&o.port, "port", 8080, "")
+	case "ci":
+		fs.StringVar(&o.envFile, "env-file", "", "")
+		fs.StringVar(&o.mode, "mode", "", "")
+		fs.StringVar(&o.base, "base", "", "")
+		fs.StringVar(&o.pkg, "package", "", "")
+		fs.StringVar(&o.version, "version", "", "")
+		fs.StringVar(&o.reason, "reason", "", "")
+		fs.StringVar(&o.stage, "stage", "", "")
+		fs.StringVar(&o.stageFile, "stage-file", "", "")
+		fs.StringVar(&o.against, "against", "", "")
+		fs.BoolVar(&o.last, "last", false, "")
+		fs.BoolVar(&o.fix, "fix", false, "")
+		fs.IntVar(&o.jobs, "jobs", defaultJobs(), "")
 	default:
 		fmt.Fprintf(stderr, "debfactory: orden desconocida %q\n\n%s", cmd, usage)
 		return 2
@@ -149,12 +170,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 func exitCode(err error) int {
 	var env *report.EnvError
 	var u usageError
+	var in *ci.InputError
 	switch {
 	case err == nil:
 		return 0
 	case errors.As(err, &env):
 		return 3
-	case errors.As(err, &u):
+	case errors.As(err, &u), errors.As(err, &in):
 		return 2
 	}
 	return 1
@@ -171,7 +193,7 @@ func (a *app) dispatch(ctx context.Context, cmd string, pos []string) error {
 	}
 	names := pos
 	switch cmd {
-	case "lint", "repo":
+	case "lint", "repo", "ci":
 		names = nil
 	case "publish", "retire":
 		if len(pos) > 0 {
@@ -217,6 +239,8 @@ func (a *app) dispatch(ctx context.Context, cmd string, pos []string) error {
 		return a.retire(ctx, pos)
 	case "repo":
 		return a.repo(ctx, pos)
+	case "ci":
+		return a.ci(ctx, pos)
 	}
 	return usageError{"orden no implementada: " + cmd}
 }
@@ -432,6 +456,9 @@ func defaultWorkdir() string {
 }
 
 func defaultData() string {
+	if d := os.Getenv("DEBFACTORY_DATA"); d != "" {
+		return d
+	}
 	if d, err := os.UserHomeDir(); err == nil {
 		return filepath.Join(d, ".local", "share", "debfactory")
 	}
@@ -439,6 +466,9 @@ func defaultData() string {
 }
 
 func defaultCache() string {
+	if d := os.Getenv("DEBFACTORY_CACHE"); d != "" {
+		return d
+	}
 	if d, err := os.UserCacheDir(); err == nil {
 		return filepath.Join(d, "debfactory")
 	}

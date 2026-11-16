@@ -1,0 +1,10 @@
+[Unit]
+Description=debfactory: refirmado semanal del repositorio APT
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target

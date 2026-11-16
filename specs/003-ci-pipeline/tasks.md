@@ -66,16 +66,16 @@ Convenciones que usan varias tareas:
 
 **Purpose**: configuración, etapas de error y esqueleto de directorios.
 
-- [ ] T001 Añadir a `config/debfactory.yaml` la sección `repo.validity` (`days: 30`, `warn_days: 7`) y la sección `ci` exactamente como en contracts/config.md:
+- [X] T001 Añadir a `config/debfactory.yaml` la sección `repo.validity` (`days: 30`, `warn_days: 7`) y la sección `ci` exactamente como en contracts/config.md:
   - `repository: ""` (se rellena en T020, cuando exista el repositorio en GitHub; hasta entonces la validación de `ci` solo se aplica en las órdenes `ci`), `destination: r2`, `state_branch: debfactory/state`;
   - `state_pr_max_age: 7d`, `failure_label: pipeline-failure`;
   - `labels.ci: debfactory-pr`, `labels.pub: debfactory-main`;
   - `code_paths` con `cmd/`, `internal/`, `config/`, `schema/`, `ci/`, `go.mod` y `go.sum`.
 
   Copiar el bloque de ejemplo a `specs/002-signed-apt-repo/contracts/config.md`, con una línea que remita a 003.
-- [ ] T002 [P] Añadir a `internal/report/errors.go` las etapas `Plan`, `State` (ya existe: reutilizarla), `Audit`, `Notify`, `Expiry`, `StatePRAge` (`"state-pr-age"`), `Config`, `Code` y `Compare`, si no existen. Documentar en `EnvError` (código 3) que también lo usan el nivel de confianza equivocado y el entorno de GitHub incompleto.
-- [ ] T003 [P] Crear los directorios `ci/runner/`, `ci/runner/hooks/`, `ci/host/` y `.github/workflows/`. Añadir `ci/runner/*.tar.gz` a `.gitignore` (el tarball del runner nunca se versiona).
-- [ ] T004 [P] Añadir al `justfile` las recetas de contracts/cli.md § justfile:
+- [X] T002 [P] Añadir a `internal/report/errors.go` las etapas `Plan`, `State` (ya existe: reutilizarla), `Audit`, `Notify`, `Expiry`, `StatePRAge` (`"state-pr-age"`), `Config`, `Code` y `Compare`, si no existen. Documentar en `EnvError` (código 3) que también lo usan el nivel de confianza equivocado y el entorno de GitHub incompleto.
+- [X] T003 [P] Crear los directorios `ci/runner/`, `ci/runner/hooks/`, `ci/host/` y `.github/workflows/`. Añadir `ci/runner/*.tar.gz` a `.gitignore` (el tarball del runner nunca se versiona).
+- [X] T004 [P] Añadir al `justfile` las recetas de contracts/cli.md § justfile:
   - `runner-image`: `docker build --target ci` y `--target pub` de `ci/runner/Dockerfile`, etiquetadas `debfactory-runner:<versión-runner>-<commit corto>-{ci,pub}`;
   - `ci-doctor`: `bin/debfactory ci doctor`;
   - `ci-local-pr`: `bin/debfactory ci pr --base origin/main`;
@@ -91,12 +91,12 @@ Convenciones que usan varias tareas:
 
 ### Configuración y contexto
 
-- [ ] T005 Ampliar `internal/config/config.go`:
+- [X] T005 Ampliar `internal/config/config.go`:
   - `Repo.Validity{Days int, WarnDays int}` con valores por defecto 30 y 7;
   - el tipo `CI{Repository, Destination, StateBranch, StatePRMaxAge time.Duration, FailureLabel, Labels{CI, Pub}, CodePaths []string}`; `state_pr_max_age` admite el sufijo `d` (días) además de los de `time.ParseDuration`.
 
   Validar con las 6 reglas y los mensajes exactos de contracts/config.md (por ejemplo, `config: repo.validity.days debe estar entre 8 y 90` y `config: ci.state_branch no puede ser main`). Un caso por regla en `internal/config/config_test.go`.
-- [ ] T006 [P] Crear `internal/ci/env.go`:
+- [X] T006 [P] Crear `internal/ci/env.go`:
   - `type Env{EventName, Ref, SHA, Repository, RunID, ServerURL, Token, StepSummary, Trust string}`, leído de `GITHUB_*`, `RUNNER_LABELS` (contiene `ci.labels.pub` → `Trust="pub"`, `ci.labels.ci` → `"ci"`) y, para pruebas locales, de `--env-file` (formato `CLAVE=valor`, una por línea);
   - `RunURL()` = `<ServerURL>/<Repository>/actions/runs/<RunID>`;
   - `RequireWriter(cfg)`: devuelve `report.EnvError` (código 3) salvo que `Trust=="pub"`, `EventName` ∈ {`push`, `workflow_dispatch`}, `Ref=="refs/heads/main"` y `Repository==cfg.CI.Repository` (data-model.md §1, segunda barrera tras el hook);
@@ -104,7 +104,7 @@ Convenciones que usan varias tareas:
   - `String()` nunca incluye `Token`.
 
   Tests en `internal/ci/env_test.go`: cada regla de `RequireWriter`, inputs con `;`, `$(…)` y saltos de línea rechazados, y `fmt.Sprintf("%+v", env)` sin el token.
-- [ ] T007 [P] Crear `internal/forge/github.go`, un cliente REST mínimo con `net/http`:
+- [X] T007 [P] Crear `internal/forge/github.go`, un cliente REST mínimo con `net/http`:
   - `New(baseURL, repo, token)`; cabeceras `Authorization: Bearer`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28` y `User-Agent: debfactory`;
   - se niega a enviar el token si el host de `baseURL` no es `api.github.com`, salvo que `baseURL` sea `http://127.0.0.1:*` (tests);
   - issues: `ListOpenIssues(label)` paginado por `Link`, `CreateIssue`, `CommentIssue`, `CloseIssue`;
@@ -114,36 +114,36 @@ Convenciones que usan varias tareas:
   - `Dispatch(workflow, ref, inputs)`.
 
   Los errores HTTP incluyen método, ruta y código, nunca cabeceras ni el token; el cuerpo de error pasa por `redact.Lines` con el token como secreto. Tests en `internal/forge/github_test.go` contra `httptest`: paginación, cabeceras, rechazo de un host ajeno y un error 500 cuyo texto no contiene el token.
-- [ ] T008 Crear `cmd/debfactory/ci.go` con el despachador de `debfactory ci <orden>`: registra `plan`, `pr`, `main`, `rebuild`, `retire`, `refresh`, `restore-state-pr`, `notify`, `audit check` y `doctor`, con las opciones de contracts/cli.md y las globales después de la orden. Las órdenes no implementadas todavía salen con código 2 y `no implementado`. Añadir `--env-file`. Test de uso en `cmd/debfactory/main_test.go`.
+- [X] T008 Crear `cmd/debfactory/ci.go` con el despachador de `debfactory ci <orden>`: registra `plan`, `pr`, `main`, `rebuild`, `retire`, `refresh`, `restore-state-pr`, `notify`, `audit check` y `doctor`, con las opciones de contracts/cli.md y las globales después de la orden. Las órdenes no implementadas todavía salen con código 2 y `no implementado`. Añadir `--env-file`. Test de uso en `cmd/debfactory/main_test.go`.
 
 ### Riesgo 3: `Valid-Until` con firma propia (FR-030)
 
-- [ ] T009 Crear `internal/sign/release.go`:
+- [X] T009 Crear `internal/sign/release.go`:
   - `AddValidUntil(releasePath string, signedAt time.Time, days int) error` inserta `Valid-Until: <RFC 1123 UTC>` justo después de `Date:` y conserva el resto byte a byte;
   - `SignRelease(ctx, gnupgHome, subkey, dir)` escribe `InRelease` (`gpg --clearsign`) y `Release.gpg` (`gpg --detach-sign --armor`) con `--batch --no-tty --pinentry-mode loopback --passphrase-file <home>/passphrase --local-user <subkey>!`, y la salida pasa por `redact`.
 
   Tests en `internal/sign/release_test.go`: inserción (unitario, con un `Release` de fixture en `testdata/repo/release/`) y firma verificable con `gpgv` y la llave de `testutil.TestKey` (tag `integration`).
-- [ ] T010 Cambiar `internal/repo/generate.go`: `aptly publish` pasa a `-skip-signing` (quitar `-gpg-key` y `-passphrase-file`). Después de publicar, para cada suite: `sign.AddValidUntil` con `cfg.Repo.Validity.Days` y `sign.SignRelease`. La fecha de firma es una sola para toda la generación y sale de un reloj inyectable (`now func() time.Time`, por defecto `time.Now`), para que los tests puedan firmar en el pasado sin código especial en producción. Mantener la atomicidad: si falla la firma de una suite, la generación se descarta como hasta ahora (etapa `sign`).
-- [ ] T011 Cambiar `internal/repo/verify.go` (sustituye FR-004a de la fase 002):
+- [X] T010 Cambiar `internal/repo/generate.go`: `aptly publish` pasa a `-skip-signing` (quitar `-gpg-key` y `-passphrase-file`). Después de publicar, para cada suite: `sign.AddValidUntil` con `cfg.Repo.Validity.Days` y `sign.SignRelease`. La fecha de firma es una sola para toda la generación y sale de un reloj inyectable (`now func() time.Time`, por defecto `time.Now`), para que los tests puedan firmar en el pasado sin código especial en producción. Mantener la atomicidad: si falla la firma de una suite, la generación se descarta como hasta ahora (etapa `sign`).
+- [X] T011 Cambiar `internal/repo/verify.go` (sustituye FR-004a de la fase 002):
   - falla si un `Release` no tiene `Valid-Until` (`Release sin Valid-Until (FR-030)`);
   - falla (código 1) si `Valid-Until` ya pasó;
   - avisa si quedan menos de `repo.validity.warn_days`; con `--json` emite `{"event":"expiry","valid_until":…,"days":…}`.
 
   Actualizar las pruebas que exigían la ausencia de `Valid-Until` (`grep -rn 'Valid-Until\|FR-004a' internal/`) y añadir a `internal/repo/expiry_test.go` (tag `integration`) los casos "con `Valid-Until`", "caducada" (reloj adelantado) y "aviso a 6 días".
-- [ ] T012 Ampliar `internal/repotest/lifecycle_test.go` (tag `e2e`, `just e2e`): en las 5 suites, `apt-get update` acepta la generación sin advertencias. Para la caducidad, el test publica una generación firmada con fecha de ahora − 31 días (reloj inyectado de T010) y comprueba que `apt-get update` la rechaza con `is expired`. **Nunca se cambia el reloj del host ni se usa `--cap-add SYS_TIME`**: los contenedores comparten el reloj del kernel. **Riesgo 3 cerrado** cuando pasa.
+- [X] T012 Ampliar `internal/repotest/lifecycle_test.go` (tag `e2e`, `just e2e`): en las 5 suites, `apt-get update` acepta la generación sin advertencias. Para la caducidad, el test publica una generación firmada con fecha de ahora − 31 días (reloj inyectado de T010) y comprueba que `apt-get update` la rechaza con `is expired`. **Nunca se cambia el reloj del host ni se usa `--cap-add SYS_TIME`**: los contenedores comparten el reloj del kernel. **Riesgo 3 cerrado** cuando pasa.
 
 ### Runners en la PC (riesgos 1 y 2)
 
-- [ ] T013 Crear `ci/runner/Dockerfile` (contracts/runner-host.md § Imagen):
+- [X] T013 Crear `ci/runner/Dockerfile` (contracts/runner-host.md § Imagen):
   - base `debian:trixie@sha256:<digest>`;
   - `trixie-backports` para `golang-1.26-go`; `git`, `just`, `aptly`, `gnupg`, `rclone`, `curl`, `ca-certificates`, `docker-cli` y `jq` de trixie;
   - `ARG RUNNER_VERSION` y `ARG RUNNER_SHA256`; descarga `actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz` de `github.com/actions/runner/releases`, `sha256sum -c` y falla si no coincide;
   - `ENV RUNNER_ALLOW_RUNASROOT=1 PATH=/usr/lib/go-1.26/bin:$PATH GOTOOLCHAIN=local`; sin `sudo`;
   - `ENTRYPOINT` que ejecuta `./run.sh --jitconfig "$(cat /run/jit/config)"` y nunca `config.sh`. Si una configuración JIT impide la actualización automática del runner se comprueba en T021. Un comentario documenta que actualizar es un cambio revisado de `RUNNER_VERSION` y `RUNNER_SHA256`;
   - dos `target`: `ci` y `pub`; `pub` copia `ci/runner/hooks/trusted-gate.sh` y fija `ACTIONS_RUNNER_HOOK_JOB_STARTED`.
-- [ ] T014 [P] Crear `ci/runner/hooks/trusted-gate.sh` (contracts/runner-host.md § Hook): compara `GITHUB_REPOSITORY`, `GITHUB_EVENT_NAME`, `GITHUB_REF` y `GITHUB_WORKFLOW_REF` con los valores esperados (el repositorio llega por `DEBFACTORY_REPOSITORY`, fijado por `run-runner.sh`, no por el workflow). Si algo no coincide, imprime `trusted-gate: rechazado (<variable>=<valor>)` y sale con 1. Nunca lee `GITHUB_EVENT_PATH`. Variable `TRUSTED_GATE_MODE=log` para el spike (imprime y sale con 0). Test en `ci/runner/hooks/trusted-gate_test.sh` con una tabla de casos (push a main ok; `pull_request` con `refs/pull/1/merge`, otro workflow, otra rama y otro repositorio rechazados), ejecutado por `just ci-lint`.
-- [ ] T015 [P] Crear `ci/runner/jitconfig.sh <nivel>` (corre como root en `ExecStartPre=+`): lee el PAT de `$CREDENTIALS_DIRECTORY/gh`, hace `POST /repos/<repo>/actions/runners/generate-jitconfig` con `{"name":"debfactory-<nivel>-<uuid>","runner_group_id":1,"labels":["self-hosted","<etiqueta>"],"work_folder":"/srv/debfactory/<nivel>/work/_work"}`, y escribe `encoded_jit_config` en `$RUNTIME_DIRECTORY/config` con dueño `df<nivel>` y permisos `600`. El PAT nunca va en la línea de órdenes (`curl -H @-` o `--config -` desde stdin) ni en la salida. `User-Agent: debfactory`.
-- [ ] T016 [P] Crear `ci/runner/run-runner.sh <nivel>` (contracts/runner-host.md § Contenedor): `DOCKER_HOST=unix://$XDG_RUNTIME_DIR/docker.sock docker run --rm --name debfactory-runner-<nivel>` con:
+- [X] T014 [P] Crear `ci/runner/hooks/trusted-gate.sh` (contracts/runner-host.md § Hook): compara `GITHUB_REPOSITORY`, `GITHUB_EVENT_NAME`, `GITHUB_REF` y `GITHUB_WORKFLOW_REF` con los valores esperados (el repositorio llega por `DEBFACTORY_REPOSITORY`, fijado por `run-runner.sh`, no por el workflow). Si algo no coincide, imprime `trusted-gate: rechazado (<variable>=<valor>)` y sale con 1. Nunca lee `GITHUB_EVENT_PATH`. Variable `TRUSTED_GATE_MODE=log` para el spike (imprime y sale con 0). Test en `ci/runner/hooks/trusted-gate_test.sh` con una tabla de casos (push a main ok; `pull_request` con `refs/pull/1/merge`, otro workflow, otra rama y otro repositorio rechazados), ejecutado por `just ci-lint`.
+- [X] T015 [P] Crear `ci/runner/jitconfig.sh <nivel>` (corre como root en `ExecStartPre=+`): lee el PAT de `$CREDENTIALS_DIRECTORY/gh`, hace `POST /repos/<repo>/actions/runners/generate-jitconfig` con `{"name":"debfactory-<nivel>-<uuid>","runner_group_id":1,"labels":["self-hosted","<etiqueta>"],"work_folder":"/srv/debfactory/<nivel>/work/_work"}`, y escribe `encoded_jit_config` en `$RUNTIME_DIRECTORY/config` con dueño `df<nivel>` y permisos `600`. El PAT nunca va en la línea de órdenes (`curl -H @-` o `--config -` desde stdin) ni en la salida. `User-Agent: debfactory`.
+- [X] T016 [P] Crear `ci/runner/run-runner.sh <nivel>` (contracts/runner-host.md § Contenedor): `DOCKER_HOST=unix://$XDG_RUNTIME_DIR/docker.sock docker run --rm --name debfactory-runner-<nivel>` con:
   - `--mount` de `/srv/debfactory/<nivel>/work` en la misma ruta y `TMPDIR` dentro de ella;
   - el socket rootless del usuario en `/var/run/docker.sock`;
   - `$RUNTIME_DIRECTORY/config` en `/run/jit/config` de solo lectura;
@@ -152,8 +152,8 @@ Convenciones que usan varias tareas:
   - la etiqueta de imagen fijada en `/etc/default/debfactory-runner`.
 
   En esta tarea sin `--read-only` (lo añade T041).
-- [ ] T017 [P] Crear `ci/runner/cleanup.sh <nivel>` (`ExecStopPost=+`): borra `/srv/debfactory/<nivel>/work/*` y el archivo JIT. En `ci`, además, `docker system prune -af --volumes` con el Docker rootless de `dfci` y `rm -rf ~dfci/.cache/debfactory`. Nunca toca `/srv/debfactory/data`.
-- [ ] T018 Crear las unidades y `ci/host/setup.sh` (idempotente, POSIX sh, como root):
+- [X] T017 [P] Crear `ci/runner/cleanup.sh <nivel>` (`ExecStopPost=+`): borra `/srv/debfactory/<nivel>/work/*` y el archivo JIT. En `ci`, además, `docker system prune -af --volumes` con el Docker rootless de `dfci` y `rm -rf ~dfci/.cache/debfactory`. Nunca toca `/srv/debfactory/data`.
+- [X] T018 Crear las unidades y `ci/host/setup.sh` (idempotente, POSIX sh, como root):
   - `ci/host/debfactory-runner@.service` exactamente como en contracts/runner-host.md § Unidades systemd (`User=df%i`, `LoadCredential=gh:/etc/credstore/debfactory-gh-runner`, `RuntimeDirectory` con `RuntimeDirectoryMode=0700`, `ExecStartPre=+`, `ExecStart`, `ExecStopPost=+`, `Restart=always`, `CPUQuota=1400%`, `MemoryMax=24G`, `TasksMax=4096`);
   - `setup.sh`: crea `dfci` y `dfpub` (`adduser --system --group --home /var/lib/df<nivel> --shell /usr/sbin/nologin df<nivel>`, home `700`), sus rangos en `/etc/subuid` y `/etc/subgid` y `loginctl enable-linger`; instala Docker rootless con `machinectl shell df<nivel>@ /usr/bin/dockerd-rootless-setuptool.sh install` (necesita la sesión de usuario de systemd) y comprueba que `systemctl --user -M df<nivel>@ is-active docker` da `active`; crea `/srv/debfactory/{ci,pub}/work`, `/srv/debfactory/data`, `/srv/debfactory/rclone` y `/srv/debfactory/cache-pub` con los dueños y permisos de contracts/runner-host.md § Usuarios y directorios; comprueba que `/home/pav0n` tiene `700` (si no, avisa y para);
   - instala `ci/runner/*.sh` en `/usr/local/lib/debfactory/` y las unidades en `/etc/systemd/system/`;
@@ -167,7 +167,7 @@ Convenciones que usan varias tareas:
 
 ### Repositorio de pruebas para `internal/ci`
 
-- [ ] T022 Crear `internal/ci/citest/` (solo para tests): `FakeGitHub(t)`, un `httptest.Server` con estado en memoria para issues (con etiquetas y comentarios), PRs, refs y dispatch, que registra cada petición; y `GitFixture(t)`, que crea un remoto `git init --bare` en `t.TempDir()` con un `main` que contiene `config/`, `packages/` (fixtures de `testdata/manifests/`), `repo/state.yaml` y un clon de trabajo. Lo usan las pruebas de US1–US6.
+- [X] T022 Crear `internal/ci/citest/` (solo para tests): `FakeGitHub(t)`, un `httptest.Server` con estado en memoria para issues (con etiquetas y comentarios), PRs, refs y dispatch, que registra cada petición; y `GitFixture(t)`, que crea un remoto `git init --bare` en `t.TempDir()` con un `main` que contiene `config/`, `packages/` (fixtures de `testdata/manifests/`), `repo/state.yaml` y un clon de trabajo. Lo usan las pruebas de US1–US6.
 
 **Checkpoint**: firma con `Valid-Until` en verde en `just e2e`; los dos runners atienden jobs efímeros; el hook rechaza lo que no es `main.yml` en `main`; `go test ./...` pasa.
 
@@ -179,15 +179,15 @@ Convenciones que usan varias tareas:
 
 **Independent Test**: quickstart §1 con `ci.destination: r2test` y datos desechables: subir la `revision` de fnm, integrar el PR y comprobar en contenedores limpios que `apt-get install fnm` instala la versión nueva, que los otros paquetes no cambian y que el merge del PR de estado no publica nada.
 
-- [ ] T023 [P] [US1] Crear `internal/ci/plan.go` para los modos `main` y `rebuild`:
+- [X] T023 [P] [US1] Crear `internal/ci/plan.go` para los modos `main` y `rebuild`:
   - tipos `Plan{Mode, Reference{Source, SHA256}, Publish, Test, Compare, Skipped, Errors}` y `AffectedPackage{Package, Version, Commit, Reason}` con `reason` ∈ `new-package|new-version|new-revision|rebuild` (data-model.md §2);
   - `PlanMain(cfg, root, ref *repo.State, head string)` aplica la tabla de conciliación de data-model.md §2 literalmente, incluidos los mensajes `versión retirada; sube revision`, `versión anterior a la publicada` y `regenera el lockfile con \`debfactory lock\``;
   - los paquetes son independientes: un error en uno no lo quita a los demás (FR-004);
   - salida de texto y `--json` (un objeto).
 
   Tests en `internal/ci/plan_test.go`: una fila de la tabla por caso, con fixtures en `testdata/ci/plan/`.
-- [ ] T024 [P] [US1] Crear `internal/ci/audit.go` (lectura y escritura; los invariantes completos son de US5): tipo `Entry` con las claves y el orden exacto de contracts/audit.md (`seq`, `time`, `op`, `package`, `version`, `commit`, `debs`, `serial`, `run`, `reason`), `run` como `*string` para emitir `null`; `Read(path)` estricta (clave desconocida = error con número de línea); `Append(path, entries…)` atómica con `seq` consecutivo; `IsPrefix(a, b)` por bytes. Tests en `internal/ci/audit_test.go`: ida y vuelta byte a byte y orden de claves.
-- [ ] T025 [US1] Crear `internal/ci/statepr.go` (research D8, data-model.md §3):
+- [X] T024 [P] [US1] Crear `internal/ci/audit.go` (lectura y escritura; los invariantes completos son de US5): tipo `Entry` con las claves y el orden exacto de contracts/audit.md (`seq`, `time`, `op`, `package`, `version`, `commit`, `debs`, `serial`, `run`, `reason`), `run` como `*string` para emitir `null`; `Read(path)` estricta (clave desconocida = error con número de línea); `Append(path, entries…)` atómica con `seq` consecutivo; `IsPrefix(a, b)` por bytes. Tests en `internal/ci/audit_test.go`: ida y vuelta byte a byte y orden de claves.
+- [X] T025 [US1] Crear `internal/ci/statepr.go` (research D8, data-model.md §3):
   - copia local en `<data>/ci/`: `state.yaml`, `audit.jsonl` y `pushed.json` `{state_sha256, audit_sha256, branch_commit, pr_number, pushed_at}`, escritos de forma atómica;
   - `Reconcile(ctx)` aplica la tabla de transiciones: coincide → seguir; `main` contiene la copia → seguir y borrar la rama; la rama falta o va por detrás y su `audit.jsonl` es prefijo del de la copia → volver a empujar y seguir (FR-029); cualquier otro caso → `report.Error` de etapa `state` (FR-007b);
   - `Reference()` devuelve el estado del PR si hay uno abierto y si no el de `main` (FR-007a);
@@ -195,7 +195,7 @@ Convenciones que usan varias tareas:
   - el remoto git usa `GITHUB_TOKEN` vía `http.extraheader` en un `GIT_CONFIG_*` del proceso, nunca en la URL ni en la línea de órdenes visible.
 
   Tests en `internal/ci/statepr_test.go` (tag `integration`, con `citest.GitFixture` y `FakeGitHub`): una prueba por fila de la tabla, "nunca dos PR abiertos" y "PR cerrado sin integrar → etapa `state`".
-- [ ] T026 [US1] Crear `internal/ci/run.go` con `Main(ctx, cfg, env, jobs)` en el orden exacto de contracts/cli.md (`ci main`):
+- [X] T026 [US1] Crear `internal/ci/run.go` con `Main(ctx, cfg, env, jobs)` en el orden exacto de contracts/cli.md (`ci main`):
   1. `env.RequireWriter`; si `GITHUB_SHA` ya no es la punta de `origin/main` (`git ls-remote`), termina con código 0 y el evento `superseded`;
   2. `statepr.Reconcile`; si el destino tiene un `serial` sincronizado menor que el local (`sync/<dest>.json`), `repo sync` + `repo verify --dest` sin reconstruir; si la rama va por detrás, push (FR-029);
   3. `PlanMain` contra `statepr.Reference()`;
@@ -207,17 +207,17 @@ Convenciones que usan varias tareas:
   8. notificaciones: un punto de extensión `Notifier` que en esta historia solo registra en el log (lo implementa US4).
 
   Al empezar cada etapa escribe su nombre en `$RUNNER_TEMP/debfactory-stage` (lo lee `ci notify --stage-file`, T052). Toma el `flock` de `<data>/lock` de la fase 002 durante los pasos 2–7. Escribe la salida de contracts/cli.md § Salida y el resumen en `GITHUB_STEP_SUMMARY`. Código 1 si falló algún paquete o etapa, aunque otros se publicaran (FR-004).
-- [ ] T027 [US1] Conectar `ci plan --mode main` y `ci main` en `cmd/debfactory/ci.go`.
-- [ ] T028 [US1] Prueba de integración `internal/ci/run_test.go` (tag `integration`, gpg y aptly reales, destino `local`, `citest`):
+- [X] T027 [US1] Conectar `ci plan --mode main` y `ci main` en `cmd/debfactory/ci.go`.
+- [X] T028 [US1] Prueba de integración `internal/ci/run_test.go` (tag `integration`, gpg y aptly reales, destino `local`, `citest`):
   - publicar una `revision` nueva de un paquete de fixture: serial +1, entrada `publish` en `audit.jsonl`, PR de estado abierto y los `.deb` de los demás paquetes iguales byte a byte (US1 escenario 2);
   - volver a ejecutar sobre el commit del merge del PR de estado: `nada que publicar` y el serial no cambia (escenario 6);
   - un paquete cuya prueba falla en una suite no se publica en ninguna y el otro sí (escenario 4, FR-004);
   - ejecución superada: código 0 sin construir;
   - un push que solo cambia `internal/` y altera el `.deb` de una versión publicada falla en la etapa `compare` y no publica (FR-005, paso 3b).
-- [ ] T029 [US1] Prueba de recuperación (SC-007, FR-029) en `internal/ci/recovery_test.go` (tag `integration`): inyectar un fallo justo después del swap (`ci.testHookAfterSwap`), relanzar y comprobar que sync, verify y push se completan, que no se genera otra generación y que no hay entradas de auditoría duplicadas; repetir con el fallo después del sync y antes del push.
-- [ ] T030 [US1] Crear `.github/workflows/main.yml` exactamente como el esbozo de contracts/workflows.md, con `actions/checkout` fijada por sha de commit (`ref: main`, `fetch-depth: 0`), `concurrency: {group: publish, cancel-in-progress: false, queue: max}`, `timeout-minutes: 120` y `permissions` `contents`, `pull-requests` e `issues` en `write`. Los inputs pasan por `env:` (`INPUT_ACTION: ${{ inputs.action }}`, etc.) y nunca se interpolan en `run:`. En esta historia el paso `if: failure()` queda comentado (lo activa T052).
-- [ ] T031 [US1] Crear `internal/ci/refresh.go` (depende de T025) y conectar `ci refresh` (FR-031): `RequireWriter`, `statepr.Reconcile`, `repo rebuild` (misma `serial`, generación nueva con `genName`), `repo sync` y `repo verify --dest`. No toca `state.yaml` ni la auditoría. Tests en `internal/ci/refresh_test.go` (tag `integration`): tras `refresh`, el `Valid-Until` es posterior, `state.yaml` es idéntico byte a byte y `audit.jsonl` no cambia.
-- [ ] T032 [P] [US1] Crear `ci/host/debfactory-refresh.service` y `ci/host/debfactory-refresh.timer` (contracts/runner-host.md § Temporizador): `OnCalendar=weekly`, `Persistent=true`, `RandomizedDelaySec=1h`; el servicio con `DynamicUser=yes` y `LoadCredential=gh:/etc/credstore/debfactory-gh-runner` hace `POST /repos/<repo>/actions/workflows/main.yml/dispatches` con `{"ref":"main","inputs":{"action":"refresh"}}` por `curl` con el token desde stdin y `User-Agent: debfactory`. `setup.sh` (T018) los instala y habilita.
+- [X] T029 [US1] Prueba de recuperación (SC-007, FR-029) en `internal/ci/recovery_test.go` (tag `integration`): inyectar un fallo justo después del swap (`ci.testHookAfterSwap`), relanzar y comprobar que sync, verify y push se completan, que no se genera otra generación y que no hay entradas de auditoría duplicadas; repetir con el fallo después del sync y antes del push.
+- [X] T030 [US1] Crear `.github/workflows/main.yml` exactamente como el esbozo de contracts/workflows.md, con `actions/checkout` fijada por sha de commit (`ref: main`, `fetch-depth: 0`), `concurrency: {group: publish, cancel-in-progress: false, queue: max}`, `timeout-minutes: 120` y `permissions` `contents`, `pull-requests` e `issues` en `write`. Los inputs pasan por `env:` (`INPUT_ACTION: ${{ inputs.action }}`, etc.) y nunca se interpolan en `run:`. En esta historia el paso `if: failure()` queda comentado (lo activa T052).
+- [X] T031 [US1] Crear `internal/ci/refresh.go` (depende de T025) y conectar `ci refresh` (FR-031): `RequireWriter`, `statepr.Reconcile`, `repo rebuild` (misma `serial`, generación nueva con `genName`), `repo sync` y `repo verify --dest`. No toca `state.yaml` ni la auditoría. Tests en `internal/ci/refresh_test.go` (tag `integration`): tras `refresh`, el `Valid-Until` es posterior, `state.yaml` es idéntico byte a byte y `audit.jsonl` no cambia.
+- [X] T032 [P] [US1] Crear `ci/host/debfactory-refresh.service` y `ci/host/debfactory-refresh.timer` (contracts/runner-host.md § Temporizador): `OnCalendar=weekly`, `Persistent=true`, `RandomizedDelaySec=1h`; el servicio con `DynamicUser=yes` y `LoadCredential=gh:/etc/credstore/debfactory-gh-runner` hace `POST /repos/<repo>/actions/workflows/main.yml/dispatches` con `{"ref":"main","inputs":{"action":"refresh"}}` por `curl` con el token desde stdin y `User-Agent: debfactory`. `setup.sh` (T018) los instala y habilita.
 - [ ] T033 **(manual)** [US1] Medir el riesgo 4 (SC-001) con quickstart §1 sobre `r2test` y las cachés de `dfpub` vacías: anotar la hora del merge, la del `verify --dest` en verde y la de la primera instalación en un contenedor limpio. Debe ser < 30 min; anotar el desglose por etapa en research.md §3. **Riesgo 4 cerrado**.
 
 **Checkpoint**: US1 funciona contra `r2test`. No migrar los datos reales ni apuntar `ci.destination` a `r2` hasta cerrar US3.
@@ -230,27 +230,27 @@ Convenciones que usan varias tareas:
 
 **Independent Test**: quickstart §2: un PR con un sha256 roto falla en `verify` nombrando el artefacto y los dos hashes, y `repo status` muestra el mismo serial y `current`.
 
-- [ ] T034 [P] [US2] Ampliar `internal/ci/plan.go` con `PlanPR(cfg, root, base)`:
+- [X] T034 [P] [US2] Ampliar `internal/ci/plan.go` con `PlanPR(cfg, root, base)`:
   - `git diff --name-only <base>...HEAD`;
   - `test[]`: paquetes con `packages/<p>.yaml` o `packages/<p>.lock.yaml` cambiados;
   - si algún archivo empieza por un prefijo de `ci.code_paths`, `compare[]` = todas las versiones publicadas en el `state.yaml` de la base (FR-010);
   - un paquete en `test[]` cuya versión ya está publicada con el mismo `.deb` es un error de etapa `state` (`versión publicada; sube revision`).
 
   Tests en `internal/ci/plan_test.go`: solo manifiesto, solo lockfile, solo código, código + paquete y nada relevante.
-- [ ] T035 [US2] Crear `internal/ci/pr.go` con `PR(ctx, cfg, env, base, jobs)`:
+- [X] T035 [US2] Crear `internal/ci/pr.go` con `PR(ctx, cfg, env, base, jobs)`:
   - si `env.Trust == "pub"` sale con código 3 (un PR nunca corre en el nivel confiable);
   - si cambió código: `gofmt -l` vacío, `go vet ./...`, `go test ./...` y `debfactory validate`;
   - gates 1–6 de `plan.test[]` con la caché del nivel `ci`;
   - para `plan.compare[]`: reconstruye la versión publicada con el manifiesto y el lockfile de la base y compara el sha256 por arquitectura con `state.yaml`; si difiere y el PR no sube su `revision`, falla nombrando los paquetes (FR-010);
   - nunca abre `<data>` ni llama a `sign`, `publish`, `sync` ni a la API de escritura (FR-009); `<data>` apunta a un directorio temporal vacío;
   - escribe en `GITHUB_STEP_SUMMARY` una tabla Markdown paquete × suite × arquitectura con ✅/❌ y el motivo (FR-008, FR-022).
-- [ ] T036 [US2] Conectar `ci plan --mode pr --base REF` y `ci pr` en `cmd/debfactory/ci.go`.
-- [ ] T037 [US2] Pruebas en `internal/ci/pr_test.go` (tag `integration`, `citest.GitFixture`):
+- [X] T036 [US2] Conectar `ci plan --mode pr --base REF` y `ci pr` en `cmd/debfactory/ci.go`.
+- [X] T037 [US2] Pruebas en `internal/ci/pr_test.go` (tag `integration`, `citest.GitFixture`):
   - lockfile con un sha256 cambiado → falla en `verify` antes de construir, con el artefacto y los dos hashes en el mensaje (US2 escenario 1, SC-002);
   - un cambio en `internal/` que altera el changelog sin subir revisiones → falla nombrando los paquetes (escenario 3);
   - el árbol `<data>` real (un directorio de fixture) queda idéntico byte a byte tras cada caso (FR-009);
   - el resumen contiene una fila por suite y arquitectura.
-- [ ] T038 [US2] Crear `.github/workflows/pr.yml` exactamente como el esbozo de contracts/workflows.md: `paths-ignore` (`docs/**`, `specs/**`, `**.md`, `repo/state.yaml`, `repo/audit.jsonl`), `permissions: contents: read`, `concurrency: pr-<número>` con `cancel-in-progress: true`, `runs-on: [self-hosted, debfactory-pr]`, `timeout-minutes: 90` y `actions/checkout` fijada por sha con `fetch-depth: 0` y `persist-credentials: false`.
+- [X] T038 [US2] Crear `.github/workflows/pr.yml` exactamente como el esbozo de contracts/workflows.md: `paths-ignore` (`docs/**`, `specs/**`, `**.md`, `repo/state.yaml`, `repo/audit.jsonl`), `permissions: contents: read`, `concurrency: pr-<número>` con `cancel-in-progress: true`, `runs-on: [self-hosted, debfactory-pr]`, `timeout-minutes: 90` y `actions/checkout` fijada por sha con `fetch-depth: 0` y `persist-credentials: false`.
 - [ ] T039 **(manual)** [US2] Ejecutar las cuatro filas de quickstart §2 con PR desde ramas propias y anotar el resultado en research.md §3, junto con la duración del PR que sube un paquete (meta del plan: < 30 min).
 
 **Checkpoint**: los PR muestran el check y el resumen; ninguno escribe.
@@ -263,9 +263,9 @@ Convenciones que usan varias tareas:
 
 **Independent Test**: quickstart §3 desde una cuenta secundaria: ningún secreto, ninguna escritura fuera del trabajo, la red local rechazada y el job que pidió `debfactory-main` rechazado por el hook.
 
-- [ ] T040 [P] [US3] Crear `ci/host/debfactory-ci.nft` exactamente como en contracts/runner-host.md § Red (tabla `inet debfactory_ci`, `meta skuid "dfci"` contra RFC 1918, `169.254.0.0/16`, `100.64.0.0/10`, `fc00::/7` y `fe80::/10`). `setup.sh` lo instala en `/etc/nftables.d/`, se asegura de que `/etc/nftables.conf` incluye ese directorio y lo carga con `nft -f`.
+- [X] T040 [P] [US3] Crear `ci/host/debfactory-ci.nft` exactamente como en contracts/runner-host.md § Red (tabla `inet debfactory_ci`, `meta skuid "dfci"` contra RFC 1918, `169.254.0.0/16`, `100.64.0.0/10`, `fc00::/7` y `fe80::/10`). `setup.sh` lo instala en `/etc/nftables.d/`, se asegura de que `/etc/nftables.conf` incluye ese directorio y lo carga con `nft -f`.
 - [ ] T041 [P] [US3] Endurecer `ci/runner/run-runner.sh`: `--read-only`, `--tmpfs /tmp` y `--tmpfs /root` (el `HOME` del root del contenedor), `--security-opt no-new-privileges`, `--cap-drop ALL` salvo lo que el runner necesite (anotar cuáles), y en `ci` ningún montaje fuera de su `work`. Repetir T019 con la imagen endurecida.
-- [ ] T042 [US3] Crear `internal/ci/doctor.go` y conectar `ci doctor` (contracts/cli.md; research §2). Con un token del mantenedor (`GH_TOKEN` en el entorno, nunca impreso) comprueba por la API:
+- [X] T042 [US3] Crear `internal/ci/doctor.go` y conectar `ci doctor` (contracts/cli.md; research §2). Con un token del mantenedor (`GH_TOKEN` en el entorno, nunca impreso) comprueba por la API:
   - fork PR workflows = "Require approval for all external contributors";
   - permisos por defecto del token = solo lectura, y "Allow GitHub Actions to create and approve pull requests" activado;
   - un ruleset activo sobre la rama por defecto que exige PR, bloquea force push y borrado, y no tiene `bypass_actors`;
@@ -273,8 +273,8 @@ Convenciones que usan varias tareas:
   - `RUNNER_VERSION` (de `/etc/default/debfactory-runner`) no está más de 14 días por detrás de `GET /repos/actions/runner/releases/latest` (GitHub deja de aceptar runners atrasados unos 30 días).
 
   En local comprueba: usuarios `dfci` y `dfpub` sin los grupos `docker` ni `sudo`; `/home/pav0n` con `700`; dueños y permisos de contracts/runner-host.md § Usuarios y directorios; el credstore en `root:600`; las unidades y el temporizador habilitados; la tabla `debfactory_ci` cargada (`nft list table inet debfactory_ci`). Imprime una línea por comprobación con ✅/❌ y sale con 1 si falta algo. Tests en `internal/ci/doctor_test.go` contra `FakeGitHub` (la parte de la API) y con un `fs.FS` falso (la parte local).
-- [ ] T043 [P] [US3] Ampliar `internal/repotest/zz_secrets_test.go` (tag `e2e`; depende de T026 y T035): ejecutar `ci main`, `ci refresh` y `ci pr` contra `citest` con la llave de prueba y un `rclone.conf` de prueba con valores centinela, y comprobar que ninguna salida, resumen, cuerpo de issue o PR enviado a `FakeGitHub` contiene la frase de paso, `PRIVATE KEY`, las claves de `rclone.conf` ni el token.
-- [ ] T044 [US3] Crear `ci/host/migrate-data.sh` (research D17): con el runner `pub` parado, copia `~pav0n/.local/share/debfactory` a `/srv/debfactory/data` y el `rclone.conf` de R2 a `/srv/debfactory/rclone/rclone.conf` con dueño `dfpub` y los permisos de contracts/runner-host.md; ejecuta como `dfpub` `debfactory repo verify --data /srv/debfactory/data` y `repo status`; solo si pasan, mueve los originales a `~/.local/share/debfactory.migrated-<fecha>` (no los borra). Nunca imprime el contenido de `gnupg/` ni de `rclone.conf`.
+- [X] T043 [P] [US3] Ampliar `internal/repotest/zz_secrets_test.go` (tag `e2e`; depende de T026 y T035): ejecutar `ci main`, `ci refresh` y `ci pr` contra `citest` con la llave de prueba y un `rclone.conf` de prueba con valores centinela, y comprobar que ninguna salida, resumen, cuerpo de issue o PR enviado a `FakeGitHub` contiene la frase de paso, `PRIVATE KEY`, las claves de `rclone.conf` ni el token.
+- [X] T044 [US3] Crear `ci/host/migrate-data.sh` (research D17): con el runner `pub` parado, copia `~pav0n/.local/share/debfactory` a `/srv/debfactory/data` y el `rclone.conf` de R2 a `/srv/debfactory/rclone/rclone.conf` con dueño `dfpub` y los permisos de contracts/runner-host.md; ejecuta como `dfpub` `debfactory repo verify --data /srv/debfactory/data` y `repo status`; solo si pasan, mueve los originales a `~/.local/share/debfactory.migrated-<fecha>` (no los borra). Nunca imprime el contenido de `gnupg/` ni de `rclone.conf`.
 - [ ] T045 **(manual)** [US3] En GitHub: activar "Require approval for all external contributors", permisos del token en solo lectura, "Allow GitHub Actions to create and approve pull requests", el ruleset de `main` sin bypass y la etiqueta. `just ci-doctor` en verde.
 - [ ] T046 **(manual)** [US3] Ejecutar `sudo ci/host/migrate-data.sh`, cambiar `ci.destination` a `r2` (ya lo es en `config/debfactory.yaml`; quitar la anulación de prueba de US1) y relanzar `debfactory-runner@pub`.
 - [ ] T047 **(manual)** [US3] Ejecutar quickstart §3 completo desde la cuenta secundaria (SC-003) y anotar el resultado de cada comprobación, incluida la búsqueda en los logs descargados.
@@ -289,7 +289,7 @@ Convenciones que usan varias tareas:
 
 **Independent Test**: quickstart §5: provocar un fallo de prueba de instalación en `main`, ver el issue, repetirlo (un comentario, no otro issue) y corregirlo (el issue se cierra con el enlace).
 
-- [ ] T048 [P] [US4] Crear `internal/ci/notify.go` (contracts/notificaciones.md):
+- [X] T048 [P] [US4] Crear `internal/ci/notify.go` (contracts/notificaciones.md):
   - `Key{Package, Version, Stage}`; `version` es `-` en `pipeline`, `state`, `audit` y `expiry`;
   - marcador `<!-- debfactory:failure package=… version=… stage=… -->` en la primera línea; título `fallo: <package> <version> en <stage>`; cuerpo con paquete, versión, etapa, motivo, suite y arquitectura si aplican, log y commit, en el formato exacto del contrato;
   - `Fail(key, reason, suite, arch)`: busca con `ListOpenIssues(ci.failure_label)` paginado (nunca la API de búsqueda) y comenta o crea;
@@ -299,10 +299,10 @@ Convenciones que usan varias tareas:
   - si la API falla, devuelve el error para el log y el resumen, sin cambiar el código de salida de la ejecución.
 
   Tests en `internal/ci/notify_test.go` contra `FakeGitHub`: crear, comentar al repetir (FR-021), cerrar al publicar, cerrar por etapa, issues de otra etiqueta ignorados, paginación con 150 issues y API caída.
-- [ ] T049 [US4] Implementar el `Notifier` de `run.go` con `notify.go` y conectarlo en `Main` y `Refresh` (`Rebuild` y `Retire` lo usan al crearse en T059 y T060): cada `report.Error` se convierte en `Fail` con su etapa, suite y arquitectura; cada paquete publicado llama a `ResolvePublished`; cada etapa global que pasa llama a `ResolveStage`. Ampliar `internal/ci/run_test.go` para comprobar las peticiones registradas en `FakeGitHub`.
-- [ ] T050 [US4] Aviso de caducidad (FR-032): en `ci main` y `ci refresh`, tras `repo verify --dest`, si el evento `expiry` indica menos de `repo.validity.warn_days`, `Fail({pipeline, -, expiry})` con la fecha `Valid-Until`; si no, `ResolveStage(expiry)`. Test con el reloj adelantado.
-- [ ] T051 [US4] PR de estado antiguo (FR-007c): en `statepr.Reconcile`, si el PR abierto tiene más de `ci.state_pr_max_age`, `Fail({pipeline, -, state-pr-age})` con el enlace al PR y seguir; al integrarse, `ResolveStage(state-pr-age)`. Ampliar `internal/ci/statepr_test.go`.
-- [ ] T052 [US4] Conectar `ci notify --package P --version V (--stage S | --stage-file FILE) --reason TEXTO`; con `--stage-file`, si el archivo no existe la etapa es `pipeline`. Activar en `.github/workflows/main.yml` el paso `if: failure()` exactamente como en contracts/workflows.md (`--stage-file "$RUNNER_TEMP/debfactory-stage"`).
+- [X] T049 [US4] Implementar el `Notifier` de `run.go` con `notify.go` y conectarlo en `Main` y `Refresh` (`Rebuild` y `Retire` lo usan al crearse en T059 y T060): cada `report.Error` se convierte en `Fail` con su etapa, suite y arquitectura; cada paquete publicado llama a `ResolvePublished`; cada etapa global que pasa llama a `ResolveStage`. Ampliar `internal/ci/run_test.go` para comprobar las peticiones registradas en `FakeGitHub`.
+- [X] T050 [US4] Aviso de caducidad (FR-032): en `ci main` y `ci refresh`, tras `repo verify --dest`, si el evento `expiry` indica menos de `repo.validity.warn_days`, `Fail({pipeline, -, expiry})` con la fecha `Valid-Until`; si no, `ResolveStage(expiry)`. Test con el reloj adelantado.
+- [X] T051 [US4] PR de estado antiguo (FR-007c): en `statepr.Reconcile`, si el PR abierto tiene más de `ci.state_pr_max_age`, `Fail({pipeline, -, state-pr-age})` con el enlace al PR y seguir; al integrarse, `ResolveStage(state-pr-age)`. Ampliar `internal/ci/statepr_test.go`.
+- [X] T052 [US4] Conectar `ci notify --package P --version V (--stage S | --stage-file FILE) --reason TEXTO`; con `--stage-file`, si el archivo no existe la etapa es `pipeline`. Activar en `.github/workflows/main.yml` el paso `if: failure()` exactamente como en contracts/workflows.md (`--stage-file "$RUNNER_TEMP/debfactory-stage"`).
 - [ ] T053 **(manual)** [US4] Ejecutar las siete filas de quickstart §5 y medir que cada issue aparece en menos de 5 minutos (SC-005). Restaurar la configuración real al terminar.
 
 **Checkpoint**: los fallos de `main` llegan por correo de GitHub y se cierran solos.
@@ -315,10 +315,10 @@ Convenciones que usan varias tareas:
 
 **Independent Test**: quickstart §6: `ci audit check --against origin/main` en verde, y reconstruir un `.deb` desde el commit de su entrada da el mismo sha256.
 
-- [ ] T054 [P] [US5] Completar `internal/ci/audit.go` con `Check(entries, state, againstPrefix []byte)` y las 5 reglas y mensajes exactos de contracts/audit.md § Reglas (clave desconocida, `seq` no consecutivo, no es prefijo, falta la publicación de `<pkg> <ver> <arch>`, retiro de una versión nunca publicada). Tests en `internal/ci/audit_test.go` con fixtures en `testdata/ci/audit/`: un archivo por regla con un comentario `# want:` al lado (en un `.want` hermano, porque JSONL no admite comentarios).
-- [ ] T055 [US5] Primera ejecución (contracts/audit.md § Primera ejecución): si `repo/audit.jsonl` no existe y `state.yaml` tiene `serial ≥ 1`, `ci main` crea una entrada `import` por cada versión publicada, en orden de paquete y versión, con `time` = `published` de `state.yaml`, `run: null` y `commit = git log -1 --format=%H -- repo/state.yaml`. Test: con el `state.yaml` actual (4 paquetes, serial 1) se generan 4 entradas `import` con el commit de `9306cdd` completo.
-- [ ] T056 [US5] Conectar `ci audit check [--against REF]` y añadir la etapa `audit` a `ci main`, `ci rebuild` y `ci retire`, antes de publicar: compara el registro de la referencia (`statepr.Reference`) con el de `REF` y `state.yaml`; si falla, no publica y notifica (etapa `audit`).
-- [ ] T057 [US5] Prueba en `internal/ci/run_test.go` (tag `integration`): editar una línea antigua de `repo/audit.jsonl` en `main` hace fallar la siguiente ejecución en la etapa `audit` sin publicar (quickstart §6), y tras dos publicaciones el registro tiene dos entradas nuevas con el sha256 de cada `.deb` de `state.yaml`.
+- [X] T054 [P] [US5] Completar `internal/ci/audit.go` con `Check(entries, state, againstPrefix []byte)` y las 5 reglas y mensajes exactos de contracts/audit.md § Reglas (clave desconocida, `seq` no consecutivo, no es prefijo, falta la publicación de `<pkg> <ver> <arch>`, retiro de una versión nunca publicada). Tests en `internal/ci/audit_test.go` con fixtures en `testdata/ci/audit/`: un archivo por regla con un comentario `# want:` al lado (en un `.want` hermano, porque JSONL no admite comentarios).
+- [X] T055 [US5] Primera ejecución (contracts/audit.md § Primera ejecución): si `repo/audit.jsonl` no existe y `state.yaml` tiene `serial ≥ 1`, `ci main` crea una entrada `import` por cada versión publicada, en orden de paquete y versión, con `time` = `published` de `state.yaml`, `run: null` y `commit = git log -1 --format=%H -- repo/state.yaml`. Test: con el `state.yaml` actual (4 paquetes, serial 1) se generan 4 entradas `import` con el commit de `9306cdd` completo.
+- [X] T056 [US5] Conectar `ci audit check [--against REF]` y añadir la etapa `audit` a `ci main`, `ci rebuild` y `ci retire`, antes de publicar: compara el registro de la referencia (`statepr.Reference`) con el de `REF` y `state.yaml`; si falla, no publica y notifica (etapa `audit`).
+- [X] T057 [US5] Prueba en `internal/ci/run_test.go` (tag `integration`): editar una línea antigua de `repo/audit.jsonl` en `main` hace fallar la siguiente ejecución en la etapa `audit` sin publicar (quickstart §6), y tras dos publicaciones el registro tiene dos entradas nuevas con el sha256 de cada `.deb` de `state.yaml`.
 - [ ] T058 **(manual)** [US5] Ejecutar quickstart §6 sobre el repositorio real (SC-006) para un `.deb` publicado por el pipeline y para uno importado.
 
 **Checkpoint**: cada `.deb` servido tiene su entrada y es reconstruible.
@@ -331,11 +331,11 @@ Convenciones que usan varias tareas:
 
 **Independent Test**: quickstart §7: `rebuild` de `fnm 1.39.0-0~tepache1` termina en verde con "sha256 iguales; nada que publicar".
 
-- [ ] T059 [US6] Crear `Rebuild(ctx, cfg, env, pkg, version, jobs)` en `internal/ci/run.go` (FR-026): `restore.FindCommit(ctx, root, pkg, version)` da el commit cuyo manifiesto y lockfile se usan (en un `git worktree` temporal); si ningún commit la declaró, falla sin hacer nada. Gates 1–6. Si la versión ya está publicada, compara el sha256 por arquitectura con `state.yaml`: iguales → `sha256 iguales; nada que publicar`, código 0 y `ResolvePublished`; distintos → falla sin publicar. Si no está publicada, aplica la tabla de conciliación de data-model.md §2: si es menor que la más alta publicada falla en la etapa `state` con `versión anterior a la publicada`, sin construir; si no, sigue los pasos 5–8 de `Main`. Conectar `ci rebuild` y `ci plan --mode rebuild`.
-- [ ] T060 [US6] Crear `Retire(ctx, cfg, env, pkg, version, reason, last)` en `internal/ci/run.go` (FR-027): `RequireWriter`, `statepr.Reconcile`, `repo retire` de la fase 002 (con `--last` solo si `INPUT_LAST=true`; sin él, la única versión falla sin cambios y pide `last`), `audit.Append` de una entrada `retire` con el commit de la ejecución y `reason`, sync, verify y `statepr.Push`. Conectar `ci retire`.
-- [ ] T061 [P] [US6] Crear `RestoreStatePR(ctx, cfg, env)` en `internal/ci/statepr.go` y conectar `ci restore-state-pr`: comprueba que `<data>/ci/state.yaml` coincide con el estado de la generación `current` y vuelve a crear la rama y el PR desde la copia.
-- [ ] T062 [US6] Despachar `workflow_dispatch` en `ci main` según `env.Inputs().Action` (`rebuild`, `retire`, `refresh`, `restore-state-pr`), de modo que `main.yml` siempre llama a `bin/debfactory ci "${INPUT_ACTION:-main}"`, y validar los inputs antes de tomar el bloqueo.
-- [ ] T063 [US6] Pruebas en `internal/ci/manual_test.go` (tag `integration`): `rebuild` de una versión publicada con hashes iguales y con un hash alterado en `state.yaml`; `rebuild` de una versión que no está en ningún commit; `retire` con y sin `last`; `restore-state-pr` tras cerrar el PR en `FakeGitHub`, y la ejecución siguiente pasa la etapa `state` (quickstart §8.4).
+- [X] T059 [US6] Crear `Rebuild(ctx, cfg, env, pkg, version, jobs)` en `internal/ci/run.go` (FR-026): `restore.FindCommit(ctx, root, pkg, version)` da el commit cuyo manifiesto y lockfile se usan (en un `git worktree` temporal); si ningún commit la declaró, falla sin hacer nada. Gates 1–6. Si la versión ya está publicada, compara el sha256 por arquitectura con `state.yaml`: iguales → `sha256 iguales; nada que publicar`, código 0 y `ResolvePublished`; distintos → falla sin publicar. Si no está publicada, aplica la tabla de conciliación de data-model.md §2: si es menor que la más alta publicada falla en la etapa `state` con `versión anterior a la publicada`, sin construir; si no, sigue los pasos 5–8 de `Main`. Conectar `ci rebuild` y `ci plan --mode rebuild`.
+- [X] T060 [US6] Crear `Retire(ctx, cfg, env, pkg, version, reason, last)` en `internal/ci/run.go` (FR-027): `RequireWriter`, `statepr.Reconcile`, `repo retire` de la fase 002 (con `--last` solo si `INPUT_LAST=true`; sin él, la única versión falla sin cambios y pide `last`), `audit.Append` de una entrada `retire` con el commit de la ejecución y `reason`, sync, verify y `statepr.Push`. Conectar `ci retire`.
+- [X] T061 [P] [US6] Crear `RestoreStatePR(ctx, cfg, env)` en `internal/ci/statepr.go` y conectar `ci restore-state-pr`: comprueba que `<data>/ci/state.yaml` coincide con el estado de la generación `current` y vuelve a crear la rama y el PR desde la copia.
+- [X] T062 [US6] Despachar `workflow_dispatch` en `ci main` según `env.Inputs().Action` (`rebuild`, `retire`, `refresh`, `restore-state-pr`), de modo que `main.yml` siempre llama a `bin/debfactory ci "${INPUT_ACTION:-main}"`, y validar los inputs antes de tomar el bloqueo.
+- [X] T063 [US6] Pruebas en `internal/ci/manual_test.go` (tag `integration`): `rebuild` de una versión publicada con hashes iguales y con un hash alterado en `state.yaml`; `rebuild` de una versión que no está en ningún commit; `retire` con y sin `last`; `restore-state-pr` tras cerrar el PR en `FakeGitHub`, y la ejecución siguiente pasa la etapa `state` (quickstart §8.4).
 - [ ] T064 **(manual)** [US6] Ejecutar las cinco filas de quickstart §7 desde la interfaz de GitHub (SC-008) y comprobar que la cuenta secundaria no ve el botón "Run workflow" (FR-028).
 
 **Checkpoint**: las seis historias funcionan de forma independiente.
@@ -346,19 +346,19 @@ Convenciones que usan varias tareas:
 
 **Purpose**: documentación, mediciones pendientes y validación final.
 
-- [ ] T065 [P] Crear `docs/operacion-ci.md`:
+- [X] T065 [P] Crear `docs/operacion-ci.md`:
   - instalación: `setup.sh`, PAT por stdin, `just runner-image`, `just ci-doctor` y `migrate-data.sh`;
   - avisos: activar en GitHub (Settings → Notifications → Actions) el correo de ejecuciones fallidas o canceladas, que cubre los jobs que GitHub cancela tras 24 h en cola con la PC apagada (constitución VIII);
   - operación diaria: integrar el PR de estado, leer issues y lanzar ejecuciones manuales;
   - recuperación: `restore-state-pr`; PC apagada más de una semana; runner que no arranca (`journalctl -u debfactory-runner@pub`); PC perdida con el PR de estado abierto: `git checkout debfactory/state` antes de `repo rebuild`, porque ese PR tiene el `state.yaml` que corresponde a lo que sirve R2;
   - actualización del runner: cuando `ci doctor` avise, cambiar `RUNNER_VERSION` y `RUNNER_SHA256` en un PR revisado, siempre antes de 30 días;
   - rotación del PAT.
-- [ ] T066 [P] Actualizar la documentación de las fases anteriores:
+- [X] T066 [P] Actualizar la documentación de las fases anteriores:
   - `README.md`: componente **Pipeline** de un párrafo y enlace a `docs/operacion-ci.md`;
   - `docs/operacion-llave.md`: la subllave y la frase de paso viven ahora en `/srv/debfactory/data/gnupg` (dueño `dfpub`);
   - `specs/002-signed-apt-repo/spec.md`: nota en FR-004a "Sustituido por FR-030 de 003";
   - `docs/usuario.md`: una línea sobre `Valid-Until` y qué hacer si `apt update` dice `is expired`.
-- [ ] T067 [P] Añadir a `justfile` `ci-lint` a `check` y ejecutar `gofmt -l`, `go vet ./...`, `go test ./...`, `go test -tags integration ./...` y `just ci-lint` en verde.
+- [X] T067 [P] Añadir a `justfile` `ci-lint` a `check` y ejecutar `gofmt -l`, `go vet ./...`, `go test ./...`, `go test -tags integration ./...` y `just ci-lint` en verde.
 - [ ] T068 **(manual)** Ejecutar quickstart §4 (serialización, SC-004) y §8.1–8.3 (caducidad y recuperación con `systemctl kill debfactory-runner@pub`, SC-007). Medir la duración de una ejecución `refresh` (meta del plan: < 5 min).
 - [ ] T069 **(manual)** Con la primera publicación real del pipeline (quickstart §1 sobre `r2`), medir SC-001 y SC-007 de la fase 002 (T062 paso 5 de 002) y marcar esa tarea en `specs/002-signed-apt-repo/tasks.md`.
 - [ ] T070 **(manual)** SC-009: dejar pasar 5 semanas sin cambios de paquetes y comprobar 5 ejecuciones `refresh` en verde y que la generación servida nunca bajó de 23 días de validez (quickstart §8.2).

@@ -1,0 +1,18 @@
+# Refirmado semanal (FR-031): lanza workflow_dispatch de main.yml con
+# action=refresh. Se lanza desde la PC porque `on: schedule` se desactiva en
+# repos públicos tras 60 días sin actividad (research D11).
+[Unit]
+Description=debfactory: refirmado semanal del repositorio APT (workflow_dispatch refresh)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+LoadCredential=gh:/etc/credstore/debfactory-gh-runner
+EnvironmentFile=/etc/default/debfactory-runner
+ExecStart=/usr/local/lib/debfactory/dispatch-refresh.sh
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes

@@ -1,0 +1,10 @@
+# Red del runner no confiable (specs/003-ci-pipeline, research D14): el
+# usuario dfci (y con Docker rootless, sus contenedores) no puede alcanzar la
+# red local. Internet y el DNS del sistema (127.0.0.53) siguen disponibles.
+table inet debfactory_ci {
+  chain out {
+    type filter hook output priority 0; policy accept;
+    meta skuid "dfci" ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 100.64.0.0/10 } reject
+    meta skuid "dfci" ip6 daddr { fc00::/7, fe80::/10 } reject
+  }
+}

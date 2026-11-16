@@ -33,6 +33,16 @@ const (
 	Swap       Stage = "swap"
 	Sync       Stage = "sync"
 	LockRepo   Stage = "lock-repo"
+
+	// Etapas del pipeline (specs/003-ci-pipeline/data-model.md §1).
+	Plan       Stage = "plan"
+	Audit      Stage = "audit"
+	Notify     Stage = "notify"
+	Expiry     Stage = "expiry"
+	StatePRAge Stage = "state-pr-age"
+	Config     Stage = "config"
+	Code       Stage = "code"
+	Compare    Stage = "compare"
 )
 
 // Stages lista las etapas en orden.
@@ -136,8 +146,9 @@ func (es Errors) Err() error {
 }
 
 // EnvError indica un entorno incompleto (falta Docker, binfmt, aptly, gpg,
-// rclone, el llavero de firma o sus permisos). main lo traduce al código de
-// salida 3.
+// rclone, el llavero de firma o sus permisos), un entorno de GitHub incompleto
+// o un nivel de confianza equivocado (debfactory ci). main lo traduce al
+// código de salida 3.
 type EnvError struct {
 	Cause string
 }

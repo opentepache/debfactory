@@ -21,7 +21,7 @@ las ejecuciones del nivel `pub`. Los PR muestran sus fallos en el propio check.
 | Etiqueta | `ci.failure_label` (`pipeline-failure`) |
 | Marcador | Primera línea del cuerpo; clave de deduplicación `(package, version, stage)` |
 | `package` | nombre del paquete; `pipeline` si el fallo no es de un paquete |
-| `version` | versión completa; `-` en `pipeline`, `state`, `audit` y `expiry` |
+| `version` | versión completa; `-` cuando `package` es `pipeline` (fallos de `state`, `audit`, `expiry`, `state-pr-age`, `code`, `compare` globales y del propio pipeline) |
 | `stage` | etapa de debfactory ([data-model](../data-model.md#1-ejecución-run)) o el paso del workflow |
 
 Los textos de motivo pasan por `internal/redact` antes de enviarse.

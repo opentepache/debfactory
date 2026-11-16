@@ -6,9 +6,13 @@ El repositorio APT se firma con una llave GPG dedicada que tiene dos partes:
   que se publica en la [guía de usuario](usuario.md) y en `repo.signing.masters`. Vive **solo**
   en el respaldo cifrado fuera de línea; nunca en la PC de build.
 - **Subllave de firma** (ed25519 `[S]`, caduca a los 2 años). Firma los índices. Vive en la PC
-  de build, en `~/.local/share/debfactory/gnupg/` (permisos `700`), protegida con una frase de
-  paso propia guardada en `gnupg/passphrase` (permisos `600`), para que `debfactory publish`
-  firme sin pedir nada.
+  de build, en `<data>/gnupg/` (permisos `700`), protegida con una frase de paso propia guardada
+  en `gnupg/passphrase` (permisos `600`), para que `debfactory publish` firme sin pedir nada.
+  Con el pipeline (fase 003), `<data>` es `/srv/debfactory/data`, propiedad del usuario `dfpub`,
+  y solo la ven los jobs de `main` ([operación del pipeline](operacion-ci.md)); antes era
+  `~/.local/share/debfactory`. En las órdenes de este documento, sustituye
+  `~/.local/share/debfactory` por `/srv/debfactory/data` y ejecútalas con
+  `sudo -u dfpub` si ya migraste.
 
 **Nunca van al repositorio git ni a la salida de ninguna orden:** la llave maestra, la
 subllave, la frase de paso de la maestra, la de build ni el certificado de revocación. Solo los

@@ -85,7 +85,7 @@ func TestPublish(t *testing.T) {
 	if strings.Contains(string(pk), "Package: bar") {
 		t.Error("bar está en bookworm")
 	}
-	if err := VerifyTree(ctx, e.Cfg, st, cur.Dir(e.DataDir)); err != nil {
+	if err := VerifyTree(ctx, e.Cfg, st, cur.Dir(e.DataDir), time.Now()); err != nil {
 		t.Fatalf("verify: %v", err)
 	}
 	if err := CheckConsistent(e.Root, e.DataDir, st); err != nil {
