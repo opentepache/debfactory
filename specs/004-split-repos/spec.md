@@ -18,10 +18,12 @@ empaquetar debfactory como .deb en su propio repositorio APT."
 
 ### Session 2026-11-16
 
-- Q: ¿Qué valida un cambio de la herramienta antes de que llegue a la imagen del runner? → A: la
-  compilación de la imagen ejecuta todas las pruebas de la herramienta en la PC y se niega si
-  alguna falla. No hay CI propio en el repositorio privado ni runners de la PC registrados en
-  él. La segunda barrera es el check del PR que fija la versión en el repositorio de paquetes.
+- Q: ¿Qué valida un cambio de la herramienta antes de que llegue al runner? → A: la instalación
+  de una versión en la PC ejecuta todas las pruebas de la herramienta y se niega si alguna
+  falla. No hay CI propio en el repositorio privado ni runners de la PC registrados en él. La
+  segunda barrera es el check del PR que fija la versión en el repositorio de paquetes. (La
+  pregunta se formuló cuando la herramienta iba a ir dentro de la imagen; el plan la instala
+  aparte, research D3.)
 - Q: Al migrar, ¿qué identidad de autor queda en la historia pública del repositorio de
   paquetes? → A: la de siempre, con el correo personal del mantenedor: le sirve como referencia
   pública de su trabajo, y el correo ya es público en el campo `Maintainer` de cada paquete.
@@ -118,7 +120,7 @@ sí cambia un `.deb` y comprobar que el check falla nombrando el paquete.
 
 Un contribuyente externo hace fork del repositorio de paquetes y abre un PR. Su código corre,
 tras la aprobación del mantenedor, en el runner no confiable, con la herramienta ya instalada en
-la imagen. Ningún job tiene credenciales para leer el repositorio de la herramienta ni descarga
+la PC y visible de solo lectura. Ningún job tiene credenciales para leer el repositorio de la herramienta ni descarga
 su código.
 
 **Why this priority**: la herramienta es privada. Si un job pudiera leerla, un PR malicioso
@@ -186,9 +188,9 @@ ejecutar todas las pruebas y comprobar que pasan.
 1. **Given** un clon limpio del repositorio de la herramienta, **When** se ejecutan todas sus
    pruebas, **Then** pasan sin acceder al repositorio de paquetes.
 2. **Given** un cambio en la herramienta, **When** el mantenedor quiere llevarlo al runner,
-   **Then** la compilación de la imagen del runner ejecuta antes todas las pruebas de la
-   herramienta en la PC y se niega a compilar si alguna falla.
-3. **Given** una imagen compilada con una versión nueva, **When** se abre el PR que la fija en
+   **Then** instalar esa versión en la PC ejecuta antes todas las pruebas de la herramienta y
+   se niega si alguna falla.
+3. **Given** una versión nueva instalada en la PC, **When** se abre el PR que la fija en
    el repositorio de paquetes, **Then** ese check es la segunda barrera: reconstruye y compara
    todo lo publicado (US2).
 
@@ -198,12 +200,13 @@ ejecutar todas las pruebas y comprobar que pasan.
 
 - **Versión de la herramienta fijada que no existe en su repositorio**: el check falla nombrando
   la versión; no se intenta construir.
-- **Herramienta compilada desde un árbol con cambios sin commit**: la compilación de la imagen se
-  niega, porque la versión no identificaría el código.
+- **Herramienta compilada desde un árbol con cambios sin commit**: la instalación se niega, porque
+  la versión no identificaría el código.
 - **El runner tiene una versión que ningún commit de la rama principal de paquetes fija**: no
-  se usa; se puede retirar de la imagen cuando no la fije ni la rama principal ni un PR abierto.
+  se usa; se puede desinstalar cuando no la fije ni la rama principal ni un PR abierto.
 - **Reconstruir una versión publicada con una herramienta distinta de la que la construyó**: se
-  usa la versión que fija hoy la rama principal. Si el `.deb` resultante difiere, falla sin
+  usa la versión que fija hoy la rama principal, aunque el commit que declaró la versión fije
+  otra herramienta. Si el `.deb` resultante difiere, falla sin
   publicar (FR-026 de la fase 003), y la auditoría dice con qué versión se construyó el original.
 - **Un PR de paquetes cambia a la vez la versión de la herramienta y un manifiesto**: se permite.
   El check compara todo lo publicado con la versión nueva y además construye el manifiesto
@@ -248,9 +251,9 @@ ejecutar todas las pruebas y comprobar que pasan.
   disponibles y la orden para añadirla.
 - **FR-006**: El runner MUST poder tener disponibles varias versiones de la herramienta a la vez,
   para que actualizarla no haga fallar las ejecuciones que todavía fijan la anterior.
-- **FR-007**: La herramienta MUST conocer su propia versión, y la compilación de la imagen MUST
-  negarse si el código tiene cambios sin commit.
-- **FR-007a**: La compilación de la imagen MUST ejecutar antes todas las pruebas de la
+- **FR-007**: La herramienta MUST conocer su propia versión, e instalar una versión en la PC
+  MUST negarse si el código tiene cambios sin commit.
+- **FR-007a**: Instalar una versión en la PC MUST ejecutar antes todas las pruebas de la
   herramienta en la PC y negarse si alguna falla. El repositorio de la herramienta no tiene CI
   propio ni runners registrados: el runner de la PC solo atiende al repositorio de paquetes.
 - **FR-008**: Un cambio de la versión fijada MUST tratarse como un cambio de código compartido
@@ -301,7 +304,8 @@ ejecutar todas las pruebas y comprobar que pasan.
 - **Versión fijada de la herramienta**: el commit del repositorio de la herramienta que declara
   el repositorio de paquetes. Una por commit de paquetes. Cambia solo por PR.
 - **Versión disponible en el runner**: una herramienta compilada por el mantenedor desde un
-  commit sin cambios pendientes e incluida en la imagen del runner. Puede haber varias.
+  commit sin cambios pendientes, instalada en la PC y visible de solo lectura en los dos
+  runners. Puede haber varias.
 - **Entrada de auditoría**: la de la fase 003 más la versión de la herramienta.
 
 ## Success Criteria *(mandatory)*

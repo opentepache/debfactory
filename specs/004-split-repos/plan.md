@@ -53,7 +53,7 @@ como la de `trusted-gate_test.sh`).
 **Project Type**: CLI y pipeline de CI.
 
 **Performance Goals**: un PR que fija una versión no instalada falla en < 1 min (SC-004). Sin
-Go en la imagen, los jobs dejan de descargar módulos y compilar (≈ 30–60 s menos por job).
+Go en la imagen, los jobs dejan de descargar módulos y compilar (estimación: ≈ 30–60 s menos por job; se mide en T026).
 
 **Constraints**: ningún job con credenciales para el repositorio privado (FR-010); sin plan de
 pago (FR-003); el estado publicado no cambia al migrar (FR-017).
@@ -70,12 +70,14 @@ pago (FR-003); el estado publicado no cambia al migrar (FR-017).
 | II | Dos niveles | Sin cambios. | ✅ |
 | III | Cadena de suministro | **Herramienta**: fijada por commit en un archivo revisado por PR, compilada por el mantenedor desde un árbol limpio con las pruebas en verde, instalada como root y montada de solo lectura; doble comprobación (lanzador y autocomprobación). **Secretos**: sin cambios; ningún job recibe credenciales del repositorio privado. **Llave**: no está en ningún repositorio. | ✅ |
 | IV | Licencias | `config/licenses.yaml` va al repositorio público y solo cambia por PR revisado. | ✅ |
-| V | No duplicar | Sin cambios. | ✅ |
+| V | No duplicar | La lista `community_repos` (constitución 1.7.0: solo repositorios gratuitos, sin registro y al día) vive en `packages/config`, y el README de `packages` (T031) la explica. | ✅ |
 | VI | Versionado | Sin cambios. | ✅ |
 | VII | Reproducible | La auditoría registra commit de `packages` y de la herramienta: todo `.deb` se puede reconstruir. Subir la herramienta compara todo lo publicado antes de publicar. | ✅ |
 | VIII | Automatización | El camino feliz no cambia. Subir la herramienta añade un PR (como cualquier cambio de código en 003). | ✅ |
 | IX | Simplicidad | Sin servicios nuevos. Piezas nuevas explicables en un párrafo y operables con una orden: `just tool-install`, el lanzador (≈ 20 líneas de `sh`). `git-filter-repo` es de Debian. | ✅ |
 | X | La IA propone | Sin cambios: las mismas validaciones para todo PR. | ✅ |
+
+| — | Alcance: solo versiones estables (1.7.0) | El README de `packages` (T031) lo exige a los contribuyentes; la validación automática queda para una fase futura. | ✅ |
 
 **Re-check tras el diseño**: sin violaciones. Complexity Tracking vacío.
 
@@ -106,7 +108,7 @@ cmd/debfactory/              # + orden version; autocomprobación en ci
 internal/version/            # nuevo: Commit (ldflags)
 internal/ci/                 # sin etapa code; etapa tool; campo tool en la auditoría; enlace de diferencias; doctor
 internal/config/             # ci.tool_repository; ci.code_paths por defecto nuevo
-internal/testroot/           # nuevo: constante con la ruta a testdata/project para las pruebas
+internal/testutil/project.go # nuevo: ProjectRoot(t), ruta a testdata/project para las pruebas
 ci/runner/                   # Dockerfile sin Go y con el lanzador; launcher.sh (+ prueba); embed.go (runner.env)
 ci/host/                     # run-runner.sh con el montaje de tools; setup.sh crea /srv/debfactory/tools
 testdata/project/            # nuevo: copia congelada de config/, packages/, repo/, docs/usuario.md
