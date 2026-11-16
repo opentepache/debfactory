@@ -5,6 +5,12 @@ para Debian y Ubuntu (amd64 y arm64). Cada herramienta es un archivo de datos; n
 paquete. Las reglas del proyecto están en la [constitución](.specify/memory/constitution.md) y
 el diseño de esta fase en [specs/001-manifest-deb-builder/](specs/001-manifest-deb-builder/).
 
+**Dos repositorios** ([specs/004-split-repos](specs/004-split-repos/spec.md)). Este,
+`opentepache/debfactory` (privado), tiene la herramienta. Los manifiestos, la configuración, el
+estado publicado y los workflows viven en `opentepache/packages` (público), que se clona al lado
+en `../packages`: las recetas `just` trabajan sobre él (`DEBFACTORY_ROOT` lo cambia). Las
+pruebas usan la copia congelada `testdata/project/`.
+
 ## Requisitos
 
 Debian trixie con `trixie-backports`, `golang-1.26`, `just`, `qemu-user-binfmt` y Docker; para
@@ -72,8 +78,11 @@ sin secretos ni red local) prueba cada pull request con los gates 1–6, y `debf
 publicado, construye y prueba solo lo que falta, publica, sincroniza, verifica, deja la entrada
 en `repo/audit.jsonl` y abre un PR de estado que integra el mantenedor. Los fallos abren issues;
 cada semana se vuelven a firmar los índices (`Valid-Until` de 30 días). Desde que está en marcha
-es el único que escribe en el repositorio público.
-Órdenes: `debfactory ci main|pr|rebuild|retire|refresh|restore-state-pr|doctor`
+es el único que escribe en el repositorio público. Los jobs no compilan: un lanzador de la
+imagen ejecuta la versión de la herramienta que fija `debfactory.version` en `packages`, que el
+mantenedor instala con `just tool-install` (pruebas en verde, commit embebido).
+Órdenes: `debfactory ci main|pr|rebuild|retire|refresh|restore-state-pr|doctor` y
+`debfactory version`
 ([cli.md](specs/003-ci-pipeline/contracts/cli.md); [operación](docs/operacion-ci.md)).
 
 ## Atajos
@@ -83,7 +92,8 @@ just lock fnm        # genera el lockfile
 just build fnm       # construye amd64 y arm64
 just test fnm        # prueba en las 5 suites × 2 arquitecturas
 just build-all       # todos los paquetes
-just check           # gofmt, vet, tests, validate, build reproducible y pruebas de todo
+just check           # gofmt, vet, tests y build reproducible y pruebas de testdata/project
+just tool-install    # instala esta versión para los runners (árbol limpio y todas las pruebas)
 just publish fnm     # publica en el repositorio APT local
 just sync r2         # sube el repositorio al hosting y lo verifica
 ```

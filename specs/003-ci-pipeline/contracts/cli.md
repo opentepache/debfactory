@@ -1,5 +1,7 @@
 # Contrato: órdenes `debfactory ci`
 
+> **Fase 004** ([cambios-003.md](../../004-split-repos/contracts/cambios-003.md)): las órdenes `ci` comprueban en CI que el binario es la versión que fija `debfactory.version` (etapa `tool`); `debfactory version` imprime el commit; `ci doctor` lleva embebida la versión del runner y comprueba `/srv/debfactory/tools`.
+
 Amplía la CLI de las fases 001 y 002 ([002 cli.md](../../002-signed-apt-repo/contracts/cli.md)).
 Las opciones globales (`--data`, `--cache`, `--root`, `--json`), el formato de errores y los
 códigos de salida son los mismos. Las opciones globales van **después** de la orden.
@@ -28,8 +30,8 @@ sale con código 3 antes de tocar nada. Es una segunda barrera después del hook
 | Orden | Nivel | Efecto | Escribe |
 |---|---|---|---|
 | `ci plan [--mode main\|pr\|rebuild] [--base REF] [--package P --version V]` | ambos | Calcula el [Plan](../data-model.md#2-plan-plan) y lo imprime (`--json`: un objeto). No construye nada. | nada |
-| `ci pr --base REF [--jobs N]` | `ci` | Comprueba el código (`gofmt`, `go vet`, `go test`, `validate`) si cambió. Luego aplica los gates 1–6 a `plan.test[]` y reconstruye y compara `plan.compare[]` (FR-010). Escribe el resumen por paquete, suite y arquitectura en `GITHUB_STEP_SUMMARY`. | `dist/` del espacio de trabajo |
-| `ci main [--jobs N]` | `pub` | Ejecución de `main`, en este orden: (1) comprueba si está superada (D6); (2) concilia el PR de estado (D8) y completa lo pendiente de una ejecución interrumpida: si el destino tiene un `serial` sincronizado menor que el local, `sync` + `verify`; si la rama va por detrás, push (FR-029); (3) plan; (3b) si `<last_main_sha>..HEAD` toca `ci.code_paths`, comprobaciones de código (etapa `code`) y comparación de FR-010 (etapa `compare`): si fallan, no publica (FR-005); (4) gates 1–6 por paquete, en paralelo; (5) `publish` de los que pasaron, en una generación, y justo después del swap escribe la auditoría y la copia en `<data>/ci/`; (6) `repo sync` al destino `ci.destination` y `repo verify --dest`; (7) push del PR de estado; (8) notificaciones. | `<data>`, destino público, rama de estado, issues |
+| `ci pr --base REF [--jobs N]` | `ci` | Si cambió `ci.code_paths` (desde la fase 004, `config/` y `debfactory.version`), valida todos los manifiestos y añade al resumen el enlace a las diferencias de la herramienta. Luego aplica los gates 1–6 a `plan.test[]` y reconstruye y compara `plan.compare[]` (FR-010). Escribe el resumen por paquete, suite y arquitectura en `GITHUB_STEP_SUMMARY`. | `dist/` del espacio de trabajo |
+| `ci main [--jobs N]` | `pub` | Ejecución de `main`, en este orden: (1) comprueba si está superada (D6); (2) concilia el PR de estado (D8) y completa lo pendiente de una ejecución interrumpida: si el destino tiene un `serial` sincronizado menor que el local, `sync` + `verify`; si la rama va por detrás, push (FR-029); (3) plan; (3b) si `<last_main_sha>..HEAD` toca `ci.code_paths`, validación de los manifiestos y comparación de FR-010 (etapa `compare`; la etapa `code` desapareció en la fase 004): si fallan, no publica (FR-005); (4) gates 1–6 por paquete, en paralelo; (5) `publish` de los que pasaron, en una generación, y justo después del swap escribe la auditoría y la copia en `<data>/ci/`; (6) `repo sync` al destino `ci.destination` y `repo verify --dest`; (7) push del PR de estado; (8) notificaciones. | `<data>`, destino público, rama de estado, issues |
 | `ci rebuild --package P --version V [--jobs N]` | `pub` | Igual que `ci main`, pero solo para `P V`, con el manifiesto y el lockfile del commit que la declaró (`restore.FindCommit`). Si `V` ya está publicada, compara los sha256 y no publica (FR-026). | ídem |
 | `ci retire --package P --version V --reason TEXTO [--last]` | `pub` | Concilia el estado y ejecuta `retire`, `sync` y `verify`. Después añade la auditoría y actualiza el PR de estado (FR-027). | ídem |
 | `ci refresh` | `pub` | Concilia el estado. Después ejecuta `repo rebuild` (vuelve a firmar con `Valid-Until` nuevo), `sync` y `verify`. No toca `state.yaml` ni la auditoría (FR-031). Comprueba también la antigüedad del PR de estado (FR-007c). | `<data>`, destino |
@@ -84,5 +86,6 @@ Con `--json` se emiten los eventos de las fases 001 y 002 más `plan`, `state`, 
 | Receta | Ejecuta |
 |---|---|
 | `just runner-image` | construye `debfactory-runner:<versión>` para los dos niveles con `ci/runner/Dockerfile` |
-| `just ci-doctor` | `debfactory ci doctor` |
+| `just ci-doctor` | `debfactory ci doctor --root {{root}}` |
+| `just tool-install` | instala la versión de la herramienta para los runners (fase 004, [herramienta.md](../../004-split-repos/contracts/herramienta.md)) |
 | `just ci-local-pr` | `debfactory ci pr --base origin/main` en local, para probar antes de abrir un PR |

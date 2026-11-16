@@ -24,6 +24,12 @@ GitHub siempre se simula con `httptest`; ningún test habla con github.com. Los 
 quickstart contra el repositorio real de GitHub son tareas manuales del mantenedor, marcadas
 como **(manual)**.
 
+> **Fase 004 (separación en dos repositorios).** Las tareas pendientes de esta fase (T020, T021,
+> T033, T039, T045–T047, T053, T058, T064, T068–T070) se ejecutan contra `opentepache/packages`
+> una vez hecha la 004. Algunas las sustituye la 004: T020 y T045 → T036 de 004; T047 → T030 de
+> 004; T021 y T046 se completan dentro de T038 de 004 (con `migrate-data.sh --root`). Ver
+> [specs/004-split-repos/tasks.md](../004-split-repos/tasks.md).
+
 **Organization**: por historia de usuario. Cada fase deja algo comprobable por sí solo.
 
 ## Format: `[ID] [P?] [Story] Description`

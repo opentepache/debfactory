@@ -1,3 +1,4 @@
 *
 !hooks/trusted-gate.sh
 !entrypoint.sh
+!launcher.sh

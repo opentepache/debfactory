@@ -25,7 +25,8 @@ import (
 	"debfactory/internal/testutil"
 )
 
-// realRoot es la raíz del repositorio git.
+// realRoot es la raíz del repositorio git de la herramienta (búsqueda de
+// secretos). Los datos del repositorio APT vienen de testdata/project.
 const realRoot = "../.."
 
 // captured guarda toda la salida de las órdenes de los E2E, para la
@@ -45,7 +46,8 @@ func (c captureWriter) Write(p []byte) (int, error) {
 }
 
 // e2eEnv prepara una raíz temporal con config/, packages/ y docs/ copiados
-// y dist/ enlazado al real, un <data> temporal con una llave de prueba y la
+// de testdata/project y dist/ enlazado al de testdata/project (lo llena
+// `just e2e` con build --all --root testdata/project), un <data> temporal con una llave de prueba y la
 // configuración ajustada a esa llave.
 func e2eEnv(t *testing.T) *repo.Env {
 	t.Helper()
@@ -54,11 +56,11 @@ func e2eEnv(t *testing.T) *repo.Env {
 	}
 	root := t.TempDir()
 	for _, d := range []string{"config", "packages", "docs"} {
-		copyDir(t, filepath.Join(realRoot, d), filepath.Join(root, d))
+		copyDir(t, filepath.Join(testutil.ProjectRoot(), d), filepath.Join(root, d))
 	}
 	// dist/ es un directorio de enlaces a los archivos reales: los tests
 	// pueden añadir, quitar o reescribir (writeFile) sin tocar dist/ real.
-	abs, _ := filepath.Abs(filepath.Join(realRoot, "dist"))
+	abs := filepath.Join(testutil.ProjectRoot(), "dist")
 	os.MkdirAll(filepath.Join(root, "dist"), 0o755)
 	entries, _ := os.ReadDir(abs)
 	for _, en := range entries {

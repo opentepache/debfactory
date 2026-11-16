@@ -50,7 +50,7 @@ func fixtureDeb(t *testing.T, root string) *manifest.Manifest {
 // resultado global es fail, se nombra la suite y el stage version, y la orden
 // devuelve un error de etapa test (código de salida 1).
 func TestForcedFailure(t *testing.T) {
-	cfg, err := config.Load("../..")
+	cfg, err := config.Load(testutil.ProjectRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -33,6 +33,7 @@ set -- \
     --mount "type=bind,src=$XDG_RUNTIME_DIR/docker.sock,dst=/var/run/docker.sock" \
     --mount "type=bind,src=$RUNTIME_DIRECTORY/config,dst=/run/jit/config,readonly" \
     --mount "type=bind,src=/proc/sys/fs/binfmt_misc,dst=/run/binfmt_misc,readonly" \
+    --mount "type=bind,src=/srv/debfactory/tools,dst=/opt/debfactory/tools,readonly" \
     -e DEBFACTORY_BINFMT_DIR=/run/binfmt_misc \
     -e "DEBFACTORY_REPOSITORY=$DEBFACTORY_REPOSITORY" \
     -e "TMPDIR=$work/tmp" \

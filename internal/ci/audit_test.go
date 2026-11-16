@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"debfactory/internal/repo"
+	"debfactory/internal/testutil"
+	"debfactory/internal/version"
 )
 
 var (
@@ -100,7 +102,7 @@ func TestCheckAudit(t *testing.T) {
 // TestImportEntries: con el estado real (4 paquetes, serial 1) salen 4
 // entradas import con el commit dado y que cubren state.yaml.
 func TestImportEntries(t *testing.T) {
-	st, err := repo.ReadState("../..")
+	st, err := repo.ReadState(testutil.ProjectRoot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,5 +115,43 @@ func TestImportEntries(t *testing.T) {
 	}
 	if err := CheckAudit(MarshalEntries(entries), nil, st); err != nil {
 		t.Errorf("las entradas import no cubren el estado: %v", err)
+	}
+}
+
+// TestAuditTool: campo tool de la fase 004 (data-model.md §3): va justo
+// después de commit, AppendAudit lo rellena con la versión instalada, las
+// entradas antiguas sin él siguen siendo válidas y uno inválido se rechaza.
+func TestAuditTool(t *testing.T) {
+	old := version.Commit
+	t.Cleanup(func() { version.Commit = old })
+	ts := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
+	tool := strings.Repeat("d", 40)
+
+	root := t.TempDir()
+	version.Commit = "dev"
+	if _, err := AppendAudit(root, Entry{Time: ts, Op: OpImport, Package: "aqua", Version: "2.66.1-0~tepache1",
+		Commit: c40, Debs: map[string]string{"amd64": sha1}, Serial: 1}); err != nil {
+		t.Fatal(err)
+	}
+	version.Commit = tool
+	if _, err := AppendAudit(root, Entry{Time: ts, Op: OpRetire, Package: "aqua", Version: "2.66.1-0~tepache1",
+		Commit: c40, Serial: 2, Run: runURL("u"), Reason: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(root, AuditFile))
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if strings.Contains(lines[0], `"tool"`) {
+		t.Errorf("una compilación dev no registra tool: %s", lines[0])
+	}
+	if !strings.Contains(lines[1], `"commit":"`+c40+`","tool":"`+tool+`","serial"`) {
+		t.Errorf("tool no va justo después de commit: %s", lines[1])
+	}
+	entries, err := ParseAudit(data)
+	if err != nil || entries[1].Tool != tool {
+		t.Fatalf("parse: %v %+v", err, entries)
+	}
+	bad := strings.Replace(lines[1], tool, "v1.2.3", 1)
+	if _, err := ParseAudit([]byte(lines[0] + "\n" + bad + "\n")); err == nil || !strings.Contains(err.Error(), "tool") {
+		t.Errorf("tool inválido aceptado: %v", err)
 	}
 }

@@ -13,6 +13,7 @@ import (
 
 	"debfactory/internal/build"
 	"debfactory/internal/fetch"
+	"debfactory/internal/version"
 )
 
 // prRunner prepara un PR: una rama pr en el checkout con los cambios de edit.
@@ -107,5 +108,53 @@ func TestCIPRBadChecksum(t *testing.T) {
 	}
 	if !dirEmpty(t, r.Repo.DataDir) {
 		t.Error("el PR escribió en <data>")
+	}
+}
+
+// toolBumpPR publica todo, integra el PR de estado y prepara un PR que solo
+// cambia debfactory.version a una versión nueva, que finge ser el binario.
+func toolBumpPR(t *testing.T) (*mainFixture, *Runner, string, string) {
+	t.Helper()
+	f := newMainFixture(t)
+	if err := f.main(); err != nil {
+		t.Fatal(err)
+	}
+	f.mergeStatePR()
+	f.checkout()
+	next := strings.Repeat("9", 40)
+	r, summary := f.prRunner(t, func(dir string) {
+		os.WriteFile(filepath.Join(dir, ToolFile), []byte(next+"\n"), 0o644)
+	})
+	version.Commit = next
+	f.built = nil
+	return f, r, summary, next
+}
+
+// TestCIPRToolBump: subir la herramienta reconstruye y compara todo lo
+// publicado y enlaza las diferencias (004 US2 escenario 1, FR-008, FR-009).
+func TestCIPRToolBump(t *testing.T) {
+	f, r, summary, next := toolBumpPR(t)
+	if err := r.PR(context.Background(), Options{Base: "origin/main", Jobs: 2}); err != nil {
+		t.Fatalf("ci pr: %v\n%s", err, f.out.String())
+	}
+	if len(f.built) != 4 {
+		t.Errorf("se esperaban los 4 paquetes publicados reconstruidos: %v", f.built)
+	}
+	md, _ := os.ReadFile(summary)
+	want := "Diferencias: https://github.com/opentepache/debfactory/compare/" + testTool + "..." + next
+	if !strings.Contains(string(md), want) || !strings.HasPrefix(string(md), "Herramienta: ") {
+		t.Errorf("resumen sin el enlace:\n%s", md)
+	}
+}
+
+// TestCIPRToolBumpChanged: si la herramienta nueva cambia el .deb de una
+// versión publicada, el check falla nombrando el paquete (004 US2
+// escenario 2).
+func TestCIPRToolBumpChanged(t *testing.T) {
+	f, r, _, _ := toolBumpPR(t)
+	f.alter = map[string]bool{"fnm": true}
+	err := r.PR(context.Background(), Options{Base: "origin/main", Jobs: 2})
+	if err == nil || !strings.Contains(err.Error(), "fnm") || !strings.Contains(err.Error(), "no es el publicado") {
+		t.Fatalf("se esperaba el fallo de fnm: %v", err)
 	}
 }

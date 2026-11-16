@@ -4,9 +4,11 @@
 # checkout, con el runner pub parado:
 #
 #   sudo systemctl stop debfactory-runner@pub
-#   sudo ci/host/migrate-data.sh [--from DIR] [--rclone ARCHIVO]
+#   sudo ci/host/migrate-data.sh [--from DIR] [--rclone ARCHIVO] [--root DIR]
 #
 #   --from    datos actuales (por defecto ~$SUDO_USER/.local/share/debfactory)
+#   --root    checkout del repositorio de paquetes (por defecto ../packages junto
+#             a este checkout, o este mismo si no existe; specs/004-split-repos)
 #   --rclone  configuración de rclone con el remote r2
 #             (por defecto ~$SUDO_USER/.config/rclone/rclone.conf)
 #
@@ -27,15 +29,22 @@ say() { echo "migrate-data: $*"; }
 home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
 from="$home/.local/share/debfactory"
 rclone_src="$home/.config/rclone/rclone.conf"
+root=
 while [ $# -gt 0 ]; do
     case "$1" in
         --from) from=${2:?}; shift 2 ;;
         --rclone) rclone_src=${2:?}; shift 2 ;;
+        --root) root=${2:?}; shift 2 ;;
         *) die "opción desconocida $1" ;;
     esac
 done
 
 repo_root=$(cd "$(dirname "$0")/../.." && pwd)
+if [ -z "$root" ]; then
+    if [ -d "$repo_root/../packages" ]; then root="$repo_root/../packages"; else root=$repo_root; fi
+fi
+root=$(cd "$root" && pwd)
+[ -f "$root/repo/state.yaml" ] || die "$root no es el repositorio de paquetes (falta repo/state.yaml)"
 data=/srv/debfactory/data
 rclone_dst=/srv/debfactory/rclone/rclone.conf
 
@@ -62,7 +71,7 @@ install -o dfpub -g dfpub -m 600 "$rclone_src" "$rclone_dst"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 chmod 755 "$tmp"
-(cd "$repo_root" && git archive HEAD) | tar -x -C "$tmp"
+(cd "$root" && git archive HEAD) | tar -x -C "$tmp"
 (cd "$repo_root" && GOTOOLCHAIN=local PATH="/usr/lib/go-1.26/bin:$PATH" \
     runuser -u "$SUDO_USER" -- go build -o "$tmp/debfactory.bin" ./cmd/debfactory) 2>/dev/null ||
     install -m 755 "$repo_root/bin/debfactory" "$tmp/debfactory.bin"

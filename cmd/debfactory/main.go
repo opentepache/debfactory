@@ -26,6 +26,7 @@ import (
 	"debfactory/internal/lint"
 	"debfactory/internal/manifest"
 	"debfactory/internal/report"
+	"debfactory/internal/version"
 )
 
 const usage = `uso: debfactory <orden> [opciones]
@@ -48,6 +49,7 @@ const usage = `uso: debfactory <orden> [opciones]
   repo status                                  muestra lo publicado y lo sincronizado
   repo serve [--port 8080]                     sirve el destino local por HTTP
   ci <orden> [opciones]                        pipeline de GitHub Actions (debfactory ci help)
+  version                                      imprime el commit de esta compilación
 
 Opciones globales: --root DIR, --workdir DIR, --cache DIR, --data DIR, --json
 Códigos de salida: 0 éxito, 1 fallo de una etapa, 2 uso incorrecto, 3 entorno incompleto.
@@ -100,6 +102,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	cmd, rest := args[0], args[1:]
 	if cmd == "-h" || cmd == "--help" || cmd == "help" {
 		fmt.Fprint(stdout, usage)
+		return 0
+	}
+	if cmd == "version" {
+		if len(rest) != 0 {
+			fmt.Fprintf(stderr, "debfactory: version no admite argumentos\n")
+			return 2
+		}
+		fmt.Fprintln(stdout, version.Commit)
 		return 0
 	}
 	var o options

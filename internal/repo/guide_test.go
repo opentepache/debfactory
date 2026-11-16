@@ -6,13 +6,15 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"debfactory/internal/testutil"
 )
 
 var fprLine = regexp.MustCompile(`(?m)^Fingerprint: .*$`)
 
 func guideRoot(t *testing.T, edit func(string) string) string {
 	t.Helper()
-	data, err := os.ReadFile("../../" + GuideFile)
+	data, err := os.ReadFile(filepath.Join(testutil.ProjectRoot(), GuideFile))
 	if err != nil {
 		t.Fatal(err)
 	}

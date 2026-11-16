@@ -43,15 +43,15 @@ func (r *Runner) PR(ctx context.Context, o Options) error {
 		fail(e)
 	}
 	if len(p.CodeDiff) > 0 {
-		r.Out.Line("código: cambian %s; gofmt, go vet, go test y validate", strings.Join(p.CodeDiff, " "))
-		if err := r.codeChecks(ctx, r.Root); err != nil {
+		r.Out.Line("cambian %s: se validan todos los manifiestos y se compara lo publicado", strings.Join(p.CodeDiff, " "))
+		if err := r.validateAll(r.Root); err != nil {
 			var es report.Errors
 			if errors.As(err, &es) {
 				for _, e := range es {
 					fail(e)
 				}
 			} else {
-				fail(report.Wrap(err, report.Code, "", "", ""))
+				fail(report.Wrap(err, report.Validate, "", "", ""))
 			}
 		}
 	}
@@ -80,11 +80,40 @@ func (r *Runner) PR(ctx context.Context, o Options) error {
 	for _, e := range r.compare(ctx, r.Root, baseState, p.Compare) {
 		fail(e)
 	}
-	r.summary(r.prSummary(p, results, errs))
+	head := r.toolBump(ctx, o.Base)
+	r.summary(head + r.prSummary(p, results, errs))
 	if len(errs) == 0 {
 		r.Out.Event("pr", map[string]any{"result": "pass"}, "ci pr: todo en verde; nada se publica desde un PR")
 	}
 	return errs.Err()
+}
+
+// toolBump devuelve la cabecera del resumen si el PR cambia la herramienta
+// fijada (004 FR-009), o "".
+func (r *Runner) toolBump(ctx context.Context, base string) string {
+	data, err := (&StatePR{Root: r.Root}).show(ctx, base, ToolFile)
+	if err != nil {
+		return ""
+	}
+	head, _ := ReadTool(r.Root)
+	text := toolDiffHeader(strings.TrimSpace(string(data)), head, r.Cfg.CI.ToolRepository)
+	if text != "" {
+		r.Out.Line("%s", strings.TrimSpace(strings.ReplaceAll(text, "\n\n", " · ")))
+	}
+	return text
+}
+
+// toolDiffHeader es la cabecera de contracts/herramienta.md § Enlace de
+// diferencias: vacía si la versión no cambia o falta alguna de las dos.
+func toolDiffHeader(old, new, toolRepo string) string {
+	if !commitRe.MatchString(old) || !commitRe.MatchString(new) || old == new {
+		return ""
+	}
+	s := fmt.Sprintf("Herramienta: %s → %s\n\n", old[:12], new[:12])
+	if toolRepo != "" {
+		s += fmt.Sprintf("Diferencias: https://github.com/%s/compare/%s...%s\n\n", toolRepo, old, new)
+	}
+	return s
 }
 
 // prSummary es la tabla paquete × suite × arquitectura del check (FR-008).

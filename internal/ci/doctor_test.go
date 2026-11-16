@@ -11,9 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"debfactory/ci/runner"
 	"debfactory/internal/ci/citest"
 	"debfactory/internal/forge"
 	"debfactory/internal/report"
+	"debfactory/internal/testutil"
 )
 
 func doctorRunner(t *testing.T) (*Runner, *citest.FakeGitHub, *forge.Client) {
@@ -21,7 +23,7 @@ func doctorRunner(t *testing.T) (*Runner, *citest.FakeGitHub, *forge.Client) {
 	gh := citest.NewFakeGitHub(t)
 	c, _ := forge.New(gh.URL, citest.Repo, secretToken)
 	var out bytes.Buffer
-	return &Runner{Root: "../..", Cfg: testConfig(t), Out: &report.Printer{Out: &out, Err: &out}}, gh, c
+	return &Runner{Root: testutil.ProjectRoot(), Cfg: testConfig(t), Out: &report.Printer{Out: &out, Err: &out}}, gh, c
 }
 
 func goodConfig(gh *citest.FakeGitHub) {
@@ -33,7 +35,7 @@ func goodConfig(gh *citest.FakeGitHub) {
 		"bypass_actors": []any{}, "conditions": map[string]any{"ref_name": map[string]any{"include": []string{"~DEFAULT_BRANCH"}}},
 		"rules": []map[string]string{{"type": "pull_request"}, {"type": "non_fast_forward"}, {"type": "deletion"}}}
 	gh.Labels = []string{"pipeline-failure"}
-	pinned := readEnvFile("../../ci/runner/runner.env")["RUNNER_VERSION"]
+	pinned := parseEnv(runner.Env)["RUNNER_VERSION"]
 	gh.Config["/repos/actions/runner/releases/latest"] = map[string]any{"tag_name": "v" + pinned, "published_at": time.Now().Add(-40 * 24 * time.Hour)}
 }
 
@@ -92,6 +94,14 @@ func TestDoctorPrivate(t *testing.T) {
 	}
 }
 
+// dirEntry es un directorio de /srv/debfactory/tools para ReadDir.
+type dirEntry string
+
+func (d dirEntry) Name() string               { return string(d) }
+func (d dirEntry) IsDir() bool                { return true }
+func (d dirEntry) Type() fs.FileMode          { return fs.ModeDir }
+func (d dirEntry) Info() (fs.FileInfo, error) { return nil, os.ErrNotExist }
+
 type fakeInfo struct {
 	fs.FileInfo
 	mode fs.FileMode
@@ -117,12 +127,29 @@ func TestDoctorHost(t *testing.T) {
 		},
 		GroupNames: func(*user.User) ([]string, error) { return []string{"dfci", "docker"}, nil },
 		Run:        func(string, ...string) error { return errors.New("disabled") },
-		Home:       "/home/x",
+		ReadDir: func(p string) ([]fs.DirEntry, error) {
+			return []fs.DirEntry{dirEntry("bf077e169e7c201a0f300308deb2759ee5ecad02"), dirEntry(strings.Repeat("1", 40))}, nil
+		},
+		Home: "/home/x",
 	}
-	got := strings.Join(failing(r.HostChecks(h)), "; ")
-	for _, want := range []string{"usuario dfci sin los grupos docker", "usuario dfpub", "/home/x con permisos 700", "/srv/debfactory/data", "regla nftables", "debfactory-refresh.timer"} {
+	cs := r.HostChecks(h)
+	got := strings.Join(failing(cs), "; ")
+	for _, want := range []string{"usuario dfci sin los grupos docker", "usuario dfpub", "/home/x con permisos 700", "/srv/debfactory/data",
+		"regla nftables", "debfactory-refresh.timer", "/srv/debfactory/tools", "debfactory bf077e169e7c instalada"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("falta el fallo %q en %s", want, got)
 		}
+	}
+	var warned bool
+	for _, c := range cs {
+		if c.Warn && strings.Contains(c.Info, "111111111111") && strings.Contains(c.Info, "revisa los PRs abiertos") {
+			warned = true
+		}
+		if c.Warn && strings.Contains(c.Info, "bf077e169e7c") {
+			t.Errorf("avisa de la versión fijada como sobrante: %s", c.Info)
+		}
+	}
+	if !warned {
+		t.Errorf("sin aviso de versiones sin fijar: %+v", cs)
 	}
 }

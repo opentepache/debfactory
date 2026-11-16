@@ -19,6 +19,7 @@ alguien lo edita a mano, la siguiente ejecución lo detecta (etapa `audit`).
 | `package` | nombre de manifiesto | ✓ | ✓ | ✓ |
 | `version` | versión Debian completa | ✓ | ✓ | ✓ |
 | `commit` | 40 hex | manifiesto y lockfile construidos | commit de la ejecución | `9306cdd` completo |
+| `tool` | 40 hex | commit de la herramienta (fase 004) | ídem | ídem; ausente en entradas anteriores a la fase 004 o de una compilación `dev` |
 | `debs` | `{amd64, arm64}`, 64 hex | ✓ | — | ✓ |
 | `serial` | `serial` de `state.yaml` tras la operación | ✓ | ✓ | ✓ |
 | `run` | URL de la ejecución | ✓ | ✓ | `null` |

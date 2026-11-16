@@ -16,13 +16,13 @@ la llave ni lo que sirve R2 (FR-017).
 |---|---|---|---|
 | 1 | `debfactory` | `just tool-install` desde `main` | imprime el commit C |
 | 2 | PC | clon nuevo del repositorio actual en `~/Develop/packages` y `git filter-repo --path packages/ --path config/ --path repo/ --path docs/usuario.md --path .github/` | `git log --stat` solo muestra esas rutas; la autoría no cambia |
-| 3 | `packages` | commit con `debfactory.version` = C, `README.md`, `LICENSE`, workflows sin `go build` y `ci.repository`/`ci.code_paths`/`ci.tool_repository` nuevos | `debfactory --root . validate` pasa |
-| 4 | `packages` | `debfactory --root . ci plan` con el estado actual | no hay nada que publicar (SC-002) |
-| 5 | GitHub | crear `opentepache/packages` público, subir `main`, ruleset, aprobación de forks, permisos de Actions | `GH_TOKEN=… debfactory --root ../packages ci doctor` en verde (SC-007) |
+| 3 | `packages` | commit con `debfactory.version` = C, `README.md`, `LICENSE`, workflows sin `go build` y `ci.repository`/`ci.code_paths`/`ci.tool_repository` nuevos | `debfactory validate --root .` pasa |
+| 4 | `packages` | `debfactory ci plan --root .` con el estado actual | no hay nada que publicar (SC-002) |
+| 5 | GitHub | crear `opentepache/packages` público, subir `main`, ruleset, aprobación de forks, permisos de Actions | `GH_TOKEN=… debfactory ci doctor --root ../packages` en verde (SC-007) |
 | 6 | PC | PAT nuevo solo para `packages`; `sudo ci/host/setup.sh --repository opentepache/packages --token-stdin` | `/etc/default/debfactory-runner` con el repositorio nuevo |
 | 7 | `debfactory` | commit que borra `packages/`, `config/`, `repo/`, `docs/usuario.md` y `.github/`, y deja `testdata/project/` | las pruebas pasan en un clon limpio (SC-008) |
 | 8 | PC | arrancar los runners (o completar las tareas pendientes de 003 que lo hacen) | la primera ejecución de `main` en `packages` no publica nada (SC-002) |
-| 9 | PC | `debfactory --root ../packages repo verify --dest r2` y `apt update` en las 5 suites | mismo serial que antes (SC-001) |
+| 9 | PC | `debfactory repo verify --root ../packages --dest r2` y `apt update` en las 5 suites | mismo serial que antes (SC-001) |
 
 ## Si algo falla
 

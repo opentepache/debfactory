@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"debfactory/internal/testutil"
 )
 
 // TestExamplesValidate: los manifiestos de ejemplo del contrato y los de
@@ -14,7 +16,7 @@ import (
 func TestExamplesValidate(t *testing.T) {
 	cfg := repoConfig(t)
 	var files []string
-	for _, pattern := range []string{examples + "*.yaml", "../../packages/*.yaml"} {
+	for _, pattern := range []string{examples + "*.yaml", filepath.Join(testutil.ProjectRoot(), "packages", "*.yaml")} {
 		matches, _ := filepath.Glob(pattern)
 		for _, f := range matches {
 			if !strings.HasSuffix(f, ".lock.yaml") {

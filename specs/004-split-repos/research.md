@@ -208,3 +208,18 @@ El PAT fine-grained de los runners pasa a tener acceso solo a `opentepache/packa
    mensaje se conserva en los dos. Se revisa el `git log` resultante antes de subirlo.
 3. **Primer `ci main` en `packages`**: debe reconocer que todo está publicado (SC-002). Se
    prueba antes con `ci plan` sobre el clon de `packages`.
+
+### Resultados (2026-11-16, `/speckit-implement`)
+
+- **Riesgo 1, cerrado (T010).** En una copia del árbol sin `config/`, `packages/`, `repo/`,
+  `docs/usuario.md` ni `.github/` (como quedará el repositorio de la herramienta tras T037):
+  `go vet` con los tres tags, `go test ./...`, `go test -tags integration ./...` (38 paquetes) y
+  `just check` pasan. `just check` (413 s) construye los 4 paquetes de `testdata/project` de forma
+  reproducible y los prueba en las 5 suites y las dos arquitecturas; los 8 `.deb` tienen los
+  mismos sha256 que los publicados (`repo/state.yaml`). Se hizo con una copia del árbol de
+  trabajo, no con un `git clone`, porque los cambios aún no tienen commit; T040 lo repite con un
+  clon desde GitHub. La e2e (`just e2e`) no se ejecutó en esta pasada; la ejecuta
+  `just tool-install` (T035).
+- **Riesgos 2 y 3**: pendientes de T021 (spike del lanzador con `dfci`) y T035 (`ci plan` sobre
+  el clon filtrado).
+

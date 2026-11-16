@@ -128,6 +128,7 @@ Una línea de `repo/audit.jsonl`. El contrato completo está en
 | `op` | `publish` \| `retire` \| `import` | `import`: las versiones publicadas a mano antes de esta fase |
 | `package`, `version` | texto | |
 | `commit` | sha de 40 hex | Commit cuyo manifiesto y lockfile se construyeron. En `retire`, el commit de la ejecución |
+| `tool` | sha de 40 hex | Commit de la herramienta que produjo la entrada (fase 004, data-model §3); ausente en las anteriores |
 | `debs` | `{amd64, arm64}` | sha256. Obligatorio en `publish` e `import` |
 | `serial` | entero | Serial del estado tras la operación |
 | `run` | URL | Ejecución de GitHub. En `import`, `null` |

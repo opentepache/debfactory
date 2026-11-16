@@ -14,6 +14,7 @@ import (
 	"debfactory/internal/fetch"
 	"debfactory/internal/repo"
 	"debfactory/internal/restore"
+	"debfactory/internal/testutil"
 )
 
 // TestE2ERebuildFromGit (SC-009): desde un clon limpio, sin dist/ ni caché,
@@ -25,8 +26,23 @@ func TestE2ERebuildFromGit(t *testing.T) {
 	publishAll(t, ctx, e)
 	orig, _ := repo.Current(e.DataDir)
 
+	// Un repositorio git temporal con testdata/project hace de packages: el
+	// rebuild busca en su historial el commit que declaró cada versión.
+	src := filepath.Join(t.TempDir(), "packages")
+	for _, d := range []string{"config", "packages", "docs"} {
+		copyDir(t, filepath.Join(testutil.ProjectRoot(), d), filepath.Join(src, d))
+	}
+	for _, args := range [][]string{
+		{"init", "-q", "-b", "main"},
+		{"add", "."},
+		{"-c", "user.name=debfactory test", "-c", "user.email=test@example.invalid", "commit", "-q", "-m", "fixture"},
+	} {
+		if out, err := exec.Command("git", append([]string{"-C", src}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
 	clone := filepath.Join(t.TempDir(), "clone")
-	if out, err := exec.Command("git", "clone", "--quiet", realRoot, clone).CombinedOutput(); err != nil {
+	if out, err := exec.Command("git", "clone", "--quiet", src, clone).CombinedOutput(); err != nil {
 		t.Fatalf("git clone: %v\n%s", err, out)
 	}
 	state, _ := os.ReadFile(filepath.Join(e.Root, repo.StateFile))

@@ -45,7 +45,7 @@ func newHarness(t *testing.T) *harness {
 	t.Helper()
 	h := &harness{t: t, root: t.TempDir(), files: map[string][]byte{}}
 	for _, f := range []string{config.MainFile, config.LicensesFile} {
-		data, err := os.ReadFile(filepath.Join(repo, f))
+		data, err := os.ReadFile(filepath.Join(testutil.ProjectRoot(), f))
 		if err != nil {
 			t.Fatal(err)
 		}

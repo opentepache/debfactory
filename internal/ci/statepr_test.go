@@ -13,6 +13,7 @@ import (
 	"debfactory/internal/ci/citest"
 	"debfactory/internal/forge"
 	"debfactory/internal/report"
+	"debfactory/internal/testutil"
 )
 
 type stateFixture struct {
@@ -26,7 +27,7 @@ type stateFixture struct {
 
 func newStateFixture(t *testing.T) *stateFixture {
 	t.Helper()
-	data, err := os.ReadFile("../../repo/state.yaml")
+	data, err := os.ReadFile(filepath.Join(testutil.ProjectRoot(), "repo/state.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}

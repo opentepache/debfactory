@@ -106,6 +106,9 @@ type CI struct {
 	FailureLabel  string   `yaml:"failure_label"`
 	Labels        CILabels `yaml:"labels"`
 	CodePaths     []string `yaml:"code_paths"`
+	// ToolRepository es el repositorio de la herramienta, solo para el
+	// enlace de diferencias al subir debfactory.version (004 research D6).
+	ToolRepository string `yaml:"tool_repository"`
 }
 
 // CILabels son las etiquetas de los runners de cada nivel de confianza.
@@ -214,6 +217,9 @@ var repositoryRe = regexp.MustCompile(`^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$`)
 func (c *CI) validate(r *RepoConfig) error {
 	if c.Repository != "" && !repositoryRe.MatchString(c.Repository) {
 		return errors.New("ci.repository inválido")
+	}
+	if c.ToolRepository != "" && !repositoryRe.MatchString(c.ToolRepository) {
+		return errors.New("ci.tool_repository inválido")
 	}
 	if c.Destination == "" {
 		c.Destination = "r2"

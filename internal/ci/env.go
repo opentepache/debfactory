@@ -29,6 +29,7 @@ type Env struct {
 	StepSummary string // GITHUB_STEP_SUMMARY
 	RunnerTemp  string // RUNNER_TEMP
 	Trust       string // "ci", "pub" o "" según RUNNER_LABELS
+	Actions     bool   // GITHUB_ACTIONS=true: corre dentro de un job
 
 	Token string // GITHUB_TOKEN
 
@@ -39,7 +40,7 @@ type Env struct {
 var envKeys = []string{
 	"GITHUB_EVENT_NAME", "GITHUB_REF", "GITHUB_SHA", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
 	"GITHUB_SERVER_URL", "GITHUB_API_URL", "GITHUB_STEP_SUMMARY", "RUNNER_TEMP", "RUNNER_LABELS",
-	"GITHUB_TOKEN", "INPUT_ACTION", "INPUT_PACKAGE", "INPUT_VERSION", "INPUT_REASON", "INPUT_LAST",
+	"GITHUB_TOKEN", "GITHUB_ACTIONS", "INPUT_ACTION", "INPUT_PACKAGE", "INPUT_VERSION", "INPUT_REASON", "INPUT_LAST",
 }
 
 // LoadEnv lee el contexto del entorno del proceso y, si envFile no está
@@ -88,6 +89,7 @@ func newEnv(cfg *config.Config, vars map[string]string) *Env {
 		StepSummary: vars["GITHUB_STEP_SUMMARY"],
 		RunnerTemp:  vars["RUNNER_TEMP"],
 		Token:       vars["GITHUB_TOKEN"],
+		Actions:     vars["GITHUB_ACTIONS"] == "true",
 		vars:        vars,
 	}
 	if e.ServerURL == "" {

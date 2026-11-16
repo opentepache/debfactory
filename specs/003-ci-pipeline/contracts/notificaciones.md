@@ -1,5 +1,7 @@
 # Contrato: notificaciones de fallo (issues)
 
+> **Fase 004** ([cambios-003.md](../../004-split-repos/contracts/cambios-003.md)): los issues y el PR de estado viven en `opentepache/packages`, que es público; su contenido no cambia. Etapa nueva `tool`.
+
 Las abre y cierra `debfactory ci` con la API REST de GitHub, usando el `GITHUB_TOKEN` del job
 (`issues: write`) y `User-Agent: debfactory` (FR-020 a FR-022, research D10). Solo las generan
 las ejecuciones del nivel `pub`. Los PR muestran sus fallos en el propio check.
@@ -21,7 +23,7 @@ las ejecuciones del nivel `pub`. Los PR muestran sus fallos en el propio check.
 | Etiqueta | `ci.failure_label` (`pipeline-failure`) |
 | Marcador | Primera línea del cuerpo; clave de deduplicación `(package, version, stage)` |
 | `package` | nombre del paquete; `pipeline` si el fallo no es de un paquete |
-| `version` | versión completa; `-` cuando `package` es `pipeline` (fallos de `state`, `audit`, `expiry`, `state-pr-age`, `code`, `compare` globales y del propio pipeline) |
+| `version` | versión completa; `-` cuando `package` es `pipeline` (fallos de `state`, `audit`, `expiry`, `state-pr-age`, `tool`, `compare` globales y del propio pipeline; `code` hasta la fase 004) |
 | `stage` | etapa de debfactory ([data-model](../data-model.md#1-ejecución-run)) o el paso del workflow |
 
 Los textos de motivo pasan por `internal/redact` antes de enviarse.

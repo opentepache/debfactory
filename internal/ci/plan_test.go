@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"debfactory/internal/repo"
+	"debfactory/internal/testutil"
 )
 
 func stateWith(pubs map[string][]string, retired ...[2]string) *repo.State {
@@ -59,11 +60,11 @@ func TestClassify(t *testing.T) {
 // TestPlanMainRepo: con el estado real, los 4 paquetes ya están publicados.
 func TestPlanMainRepo(t *testing.T) {
 	cfg := testConfig(t)
-	st, err := repo.ReadState("../..")
+	st, err := repo.ReadState(testutil.ProjectRoot())
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := PlanMain("../..", cfg, st, Reference{Source: "main"}, "HEAD")
+	p, err := PlanMain(testutil.ProjectRoot(), cfg, st, Reference{Source: "main"}, "HEAD")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,8 +77,8 @@ func TestPlanMainRepo(t *testing.T) {
 func fixtureRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	for _, d := range []string{"config", "packages", "repo", "schema"} {
-		if out, err := exec.Command("cp", "-a", filepath.Join("../..", d), root).CombinedOutput(); err != nil {
+	for _, d := range []string{"config", "packages", "repo"} {
+		if out, err := exec.Command("cp", "-a", filepath.Join(testutil.ProjectRoot(), d), root).CombinedOutput(); err != nil {
 			t.Fatalf("cp %s: %v %s", d, err, out)
 		}
 	}
@@ -119,7 +120,8 @@ func TestPlanMainFixture(t *testing.T) {
 	}
 }
 
-// TestPlanPR: solo manifiesto, solo código, código + paquete y nada relevante.
+// TestPlanPR: solo manifiesto, solo código (herramienta o config), código +
+// paquete y nada relevante.
 func TestPlanPR(t *testing.T) {
 	cfg := testConfig(t)
 	ctx := context.Background()
@@ -153,10 +155,10 @@ func TestPlanPR(t *testing.T) {
 	if p := plan(); len(p.Test) != 1 || p.Test[0].Package != "fnm" || len(p.Compare) != 0 {
 		t.Errorf("solo manifiesto: %s", p.Summary())
 	}
-	os.MkdirAll(filepath.Join(root, "internal/x"), 0o755)
-	os.WriteFile(filepath.Join(root, "internal/x/x.go"), []byte("package x\n"), 0o644)
+	// Subir la herramienta fijada es un cambio de código (004 research D6).
+	os.WriteFile(filepath.Join(root, "debfactory.version"), []byte(strings.Repeat("a", 40)+"\n"), 0o644)
 	git("add", ".")
-	git("commit", "-qm", "code")
+	git("commit", "-qm", "tool")
 	p := plan()
 	if len(p.Test) != 1 || len(p.Compare) != 3 || len(p.CodeDiff) != 1 {
 		t.Errorf("código + paquete: %s (%v)", p.Summary(), p.CodeDiff)

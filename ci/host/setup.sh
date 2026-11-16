@@ -112,6 +112,8 @@ fi
 
 # 5. Directorios (contracts/runner-host.md § Usuarios y directorios).
 install -d -m 755 -o root -g root /srv/debfactory
+# Versiones de debfactory que instala `just tool-install` (specs/004-split-repos D3).
+install -d -m 755 -o root -g root /srv/debfactory/tools
 install -d -m 755 -o dfci -g dfci /srv/debfactory/ci
 install -d -m 700 -o dfci -g dfci /srv/debfactory/ci/work
 install -d -m 755 -o dfpub -g dfpub /srv/debfactory/pub

@@ -1,5 +1,7 @@
 # Contrato: workflows de GitHub Actions
 
+> **Fase 004** ([cambios-003.md](../../004-split-repos/contracts/cambios-003.md)): los dos workflows viven en `opentepache/packages`, no compilan nada y llaman a `debfactory`, el lanzador de la imagen que ejecuta la versión fijada en `debfactory.version`.
+
 Hay dos archivos en `.github/workflows/`. Ninguno usa actions de terceros salvo
 `actions/checkout`, fijada por sha de commit (research D16). Ninguno lee secretos de GitHub:
 `secrets.*` no aparece en ningún workflow.
@@ -22,8 +24,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@<sha>     # fetch-depth: 0 (diff contra la base); persist-credentials: false
-      - run: go build -o bin/debfactory ./cmd/debfactory
-      - run: bin/debfactory ci pr --base origin/${{ github.base_ref }}
+      - run: debfactory ci pr --base origin/${{ github.base_ref }}   # el lanzador (fase 004)
 ```
 
 | Requisito | Cómo |
@@ -63,7 +64,6 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@<sha>     # ref: main, fetch-depth: 0
-      - run: go build -o bin/debfactory ./cmd/debfactory
       - env:
           INPUT_ACTION: ${{ inputs.action }}
           INPUT_PACKAGE: ${{ inputs.package }}

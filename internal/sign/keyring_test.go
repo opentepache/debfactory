@@ -20,7 +20,7 @@ import (
 
 func cfgWith(t *testing.T, master, sub string) *config.Config {
 	t.Helper()
-	cfg, err := config.Load("../..")
+	cfg, err := config.Load(testutil.ProjectRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

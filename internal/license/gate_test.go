@@ -6,10 +6,11 @@ import (
 	"testing"
 
 	"debfactory/internal/config"
+	"debfactory/internal/testutil"
 )
 
 func TestGateRealTexts(t *testing.T) {
-	cfg, err := config.Load("../..")
+	cfg, err := config.Load(testutil.ProjectRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

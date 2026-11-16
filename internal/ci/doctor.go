@@ -1,19 +1,18 @@
 package ci
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
 	"os/user"
-	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
 	"time"
 
+	"debfactory/ci/runner"
 	"debfactory/internal/forge"
 	"debfactory/internal/report"
 )
@@ -32,14 +31,20 @@ type Host struct {
 	LookupUser func(name string) (*user.User, error)
 	GroupNames func(u *user.User) ([]string, error)
 	Run        func(name string, args ...string) error
+	ReadDir    func(path string) ([]fs.DirEntry, error)
 	Home       string
 }
+
+// ToolsDir es donde `just tool-install` deja cada versión de la herramienta
+// (specs/004-split-repos, research D3).
+const ToolsDir = "/srv/debfactory/tools"
 
 // RealHost es la PC real.
 func RealHost() Host {
 	home, _ := os.UserHomeDir()
 	return Host{
 		Stat:       os.Stat,
+		ReadDir:    os.ReadDir,
 		LookupUser: user.Lookup,
 		GroupNames: func(u *user.User) ([]string, error) {
 			ids, err := u.GroupIds()
@@ -179,7 +184,7 @@ func (r *Runner) GitHubChecks(ctx context.Context, gh *forge.Client, fix bool) [
 // del último release de actions/runner (GitHub rechaza los atrasados unos 30).
 func (r *Runner) runnerVersionCheck(ctx context.Context, gh *forge.Client) Check {
 	name := "versión del runner (ci/runner/runner.env)"
-	pinned := readEnvFile(filepath.Join(r.Root, "ci/runner/runner.env"))["RUNNER_VERSION"]
+	pinned := parseEnv(runner.Env)["RUNNER_VERSION"]
 	tag, published, err := gh.LatestRelease(ctx, "actions/runner")
 	if err != nil {
 		return Check{Name: name, Warn: true, Info: "no se pudo consultar el último release: " + err.Error()}
@@ -195,16 +200,11 @@ func (r *Runner) runnerVersionCheck(ctx context.Context, gh *forge.Client) Check
 	return Check{Name: name, OK: true, Info: fmt.Sprintf("%s fijada; %s publicada hace %d días", pinned, latest, days)}
 }
 
-func readEnvFile(path string) map[string]string {
+// parseEnv lee líneas CLAVE=valor, ignorando comentarios y líneas vacías.
+func parseEnv(text string) map[string]string {
 	out := map[string]string{}
-	f, err := os.Open(path)
-	if err != nil {
-		return out
-	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
 		if k, v, ok := strings.Cut(line, "="); ok && !strings.HasPrefix(line, "#") {
 			out[k] = v
 		}
@@ -250,6 +250,7 @@ func (r *Runner) HostChecks(h Host) []Check {
 		{"/var/lib/dfci", "dfci", 0o700},
 		{"/var/lib/dfpub", "dfpub", 0o700},
 		{"/etc/credstore", "root", 0o700},
+		{ToolsDir, "root", 0o755},
 	}
 	for _, d := range dirs {
 		fi, err := h.Stat(d.path)
@@ -260,6 +261,7 @@ func (r *Runner) HostChecks(h Host) []Check {
 		add(fmt.Sprintf("%s (%s, %o)", d.path, d.owner, d.perm), owner(fi) == d.owner && fi.Mode().Perm() == d.perm,
 			fmt.Sprintf("%s, %o", owner(fi), fi.Mode().Perm()))
 	}
+	cs = append(cs, r.toolChecks(h, owner)...)
 	if _, err := h.Stat("/etc/credstore/debfactory-gh-runner"); err != nil {
 		cs = append(cs, Check{Name: "PAT en /etc/credstore/debfactory-gh-runner", Warn: true,
 			Info: "no se puede comprobar sin root (el directorio es root:700); sudo ls -l /etc/credstore"})
@@ -272,6 +274,44 @@ func (r *Runner) HostChecks(h Host) []Check {
 	for _, unit := range []string{"debfactory-runner@ci.service", "debfactory-runner@pub.service", "debfactory-refresh.timer"} {
 		err := h.Run("systemctl", "is-enabled", "--quiet", unit)
 		add(unit+" habilitado", err == nil, "")
+	}
+	return cs
+}
+
+// toolChecks comprueba que la versión que fija <root>/debfactory.version está
+// instalada como root y sin escritura para nadie más, y avisa de las
+// instaladas que no fija (004 research D3, D12).
+func (r *Runner) toolChecks(h Host, owner func(fs.FileInfo) string) []Check {
+	var cs []Check
+	pin, err := ReadTool(r.Root)
+	if err != nil {
+		return []Check{{Name: "versión fijada de la herramienta", Warn: true,
+			Info: fmt.Sprintf("no hay %s válido en %s (¿--root apunta al repositorio de paquetes?)", ToolFile, r.Root)}}
+	}
+	name := "debfactory " + pin[:12] + " instalada"
+	bin := ToolsDir + "/" + pin + "/debfactory"
+	switch fi, err := h.Stat(bin); {
+	case err != nil:
+		cs = append(cs, Check{Name: name, Info: "falta " + bin + ": git checkout " + pin + " && just tool-install"})
+	case owner(fi) != "root" || fi.Mode().Perm()&0o022 != 0:
+		cs = append(cs, Check{Name: name, Info: fmt.Sprintf("%s es de %s con permisos %o; debe ser de root y sin escritura para grupo ni otros",
+			bin, owner(fi), fi.Mode().Perm())})
+	default:
+		cs = append(cs, Check{Name: name, OK: true})
+	}
+	if h.ReadDir == nil {
+		return cs
+	}
+	entries, _ := h.ReadDir(ToolsDir)
+	var unused []string
+	for _, e := range entries {
+		if e.IsDir() && e.Name() != pin {
+			unused = append(unused, e.Name()[:min(12, len(e.Name()))])
+		}
+	}
+	if len(unused) > 0 {
+		cs = append(cs, Check{Name: "versiones de la herramienta sin fijar", Warn: true,
+			Info: strings.Join(unused, " ") + ": no fijadas por main; revisa los PRs abiertos antes de borrarlas (sudo rm -r " + ToolsDir + "/<commit>)"})
 	}
 	return cs
 }

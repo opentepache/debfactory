@@ -3,19 +3,21 @@ package main
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"debfactory/internal/report"
+	"debfactory/internal/testutil"
 )
 
 func tempRoot(t *testing.T, manifests ...string) string {
 	t.Helper()
 	root := t.TempDir()
 	for _, f := range []string{"config/debfactory.yaml", "config/licenses.yaml"} {
-		data, err := os.ReadFile(filepath.Join("../..", f))
+		data, err := os.ReadFile(filepath.Join(testutil.ProjectRoot(), f))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -24,7 +26,7 @@ func tempRoot(t *testing.T, manifests ...string) string {
 	}
 	os.MkdirAll(filepath.Join(root, "packages"), 0o755)
 	for _, m := range manifests {
-		data, err := os.ReadFile(filepath.Join("../..", m))
+		data, err := os.ReadFile(filepath.Join(testutil.RepoRoot(), m))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -49,6 +51,7 @@ func TestExitCodes(t *testing.T) {
 		{[]string{"lock", "--root", root}, 2, "lock necesita exactamente un paquete"},
 		{[]string{"validate", "--root", root, "../etc"}, 2, "nombre de paquete inválido"},
 		{[]string{"build", "--bogus"}, 2, "flag provided but not defined"},
+		{[]string{"version", "x"}, 2, "version no admite argumentos"},
 	}
 	for _, c := range cases {
 		var out, errb bytes.Buffer
@@ -56,6 +59,10 @@ func TestExitCodes(t *testing.T) {
 		if code != c.code || !strings.Contains(errb.String(), c.err) {
 			t.Errorf("%v: código %d, stderr %q; se esperaba %d y %q", c.args, code, errb.String(), c.code, c.err)
 		}
+	}
+	var out bytes.Buffer
+	if code := run(context.Background(), []string{"version"}, &out, io.Discard); code != 0 || out.String() != "dev\n" {
+		t.Errorf("version: código %d, salida %q", code, out.String())
 	}
 	if exitCode(&report.EnvError{Cause: "sin docker"}) != 3 {
 		t.Error("un error de entorno debe dar 3")

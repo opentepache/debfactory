@@ -1,18 +1,20 @@
 package repotest
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"debfactory/internal/config"
+	"debfactory/internal/testutil"
 )
 
 func TestGuideBlocks(t *testing.T) {
-	blocks, err := Blocks("../../" + GuideFile)
+	blocks, err := Blocks(filepath.Join(testutil.ProjectRoot(), GuideFile))
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := config.Load("../..")
+	cfg, err := config.Load(testutil.ProjectRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

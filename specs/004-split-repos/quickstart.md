@@ -61,7 +61,7 @@ credenciales. Un workflow que pide `debfactory-main` falla en "Set up runner" (t
 ## 6. Migración invisible para el usuario final (US4, SC-001)
 
 ```bash
-debfactory --root ~/Develop/packages repo verify --dest r2
+debfactory repo verify --root ~/Develop/packages --dest r2
 ```
 
 y `apt update && apt install --reinstall fnm` en contenedores limpios de las 5 suites.

@@ -41,8 +41,10 @@ const (
 	Expiry     Stage = "expiry"
 	StatePRAge Stage = "state-pr-age"
 	Config     Stage = "config"
-	Code       Stage = "code"
 	Compare    Stage = "compare"
+	// Tool: la herramienta en ejecución no es la que fija debfactory.version
+	// (specs/004-split-repos, contracts/herramienta.md).
+	Tool Stage = "tool"
 )
 
 // Stages lista las etapas en orden.

@@ -25,6 +25,7 @@ check 1 "schedule" "$repo" schedule refs/heads/main "$ok_wf"
 check 1 "otro workflow" "$repo" push refs/heads/main "$repo/.github/workflows/evil.yml@refs/heads/main"
 check 1 "otra rama" "$repo" push refs/heads/feature "$repo/.github/workflows/main.yml@refs/heads/feature"
 check 1 "otro repositorio" fork/debfactory push refs/heads/main "fork/debfactory/.github/workflows/main.yml@refs/heads/main"
+check 1 "repositorio de la herramienta" owner/tool push refs/heads/main "owner/tool/.github/workflows/main.yml@refs/heads/main"
 check 1 "variables vacías" "" "" "" ""
 out=$(env -i PATH="$PATH" GITHUB_REPOSITORY="$repo" GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/main \
     GITHUB_WORKFLOW_REF="$ok_wf" sh "$hook" 2>&1) && { echo "FALLA: sin DEBFACTORY_REPOSITORY"; fails=$((fails + 1)); }

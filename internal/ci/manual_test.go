@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"debfactory/internal/repo"
+	"debfactory/internal/version"
 )
 
 func (f *mainFixture) dispatch(action string, o Options, now time.Time) error {
@@ -156,5 +157,28 @@ func TestCIManual(t *testing.T) {
 	}
 	if titles := issueTitles(f); strings.Contains(titles, "fallo: pipeline - en state") || strings.Contains(titles, "fnm 1.39.0-0~tepache1") {
 		t.Errorf("el issue de state no se cerró: %s", titles)
+	}
+}
+
+// TestCIRebuildAfterToolBump: rebuild de una versión declarada antes de subir
+// la herramienta usa la de HEAD; el debfactory.version antiguo del worktree
+// del commit que la declaró no cuenta (004 FR-005, caso límite de rebuild).
+func TestCIRebuildAfterToolBump(t *testing.T) {
+	f := newMainFixture(t)
+	if err := f.main(); err != nil {
+		t.Fatal(err)
+	}
+	f.mergeStatePR()
+	next := strings.Repeat("7", 40)
+	c := f.g.Clone()
+	c.Write(ToolFile, next+"\n")
+	c.Commit("subir la herramienta")
+	c.Push()
+	version.Commit = next
+	if err := f.dispatch("rebuild", Options{Package: "fnm", Version: "1.39.0-0~tepache1"}, time.Time{}); err != nil {
+		t.Fatalf("rebuild tras subir la herramienta: %v\n%s", err, f.out.String())
+	}
+	if !strings.Contains(f.out.String(), "sha256 iguales; nada que publicar") {
+		t.Errorf("rebuild:\n%s", f.out.String())
 	}
 }

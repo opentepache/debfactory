@@ -8,11 +8,12 @@ import (
 	"testing"
 
 	"debfactory/internal/config"
+	"debfactory/internal/testutil"
 )
 
 func loadCfg(t *testing.T) *config.Config {
 	t.Helper()
-	cfg, err := config.Load("../..")
+	cfg, err := config.Load(testutil.ProjectRoot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,12 +101,12 @@ func TestEmptyStateMatchesRepo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st, err := ReadState("../..")
+	st, err := ReadState(testutil.ProjectRoot())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if st.Serial == 0 {
-		orig, _ := os.ReadFile("../../" + StateFile)
+		orig, _ := os.ReadFile(filepath.Join(testutil.ProjectRoot(), StateFile))
 		if string(orig) != string(data) {
 			t.Errorf("repo/state.yaml vacío no coincide con Empty():\n%s", data)
 		}

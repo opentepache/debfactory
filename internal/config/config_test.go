@@ -6,10 +6,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"debfactory/internal/testutil"
 )
 
 func TestLoadRepoConfig(t *testing.T) {
-	c, err := Load("../..")
+	c, err := Load(testutil.ProjectRoot())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,11 +43,11 @@ func TestLoadRepoConfig(t *testing.T) {
 }
 
 func TestLoadRejects(t *testing.T) {
-	base, err := os.ReadFile("../../" + MainFile)
+	base, err := os.ReadFile(filepath.Join(testutil.ProjectRoot(), MainFile))
 	if err != nil {
 		t.Fatal(err)
 	}
-	lic, err := os.ReadFile("../../" + LicensesFile)
+	lic, err := os.ReadFile(filepath.Join(testutil.ProjectRoot(), LicensesFile))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,6 +69,7 @@ func TestLoadRejects(t *testing.T) {
 		"validity.days alto":            {`days: 30 `, `days: 91 `, "repo.validity.days debe estar entre 8 y 90"},
 		"validity.warn_days":            {`warn_days: 7 `, `warn_days: 23 `, "repo.validity.warn_days deja menos de una semana entre refirmados"},
 		"ci.repository":                 {`repository: "opentepache/debfactory"`, `repository: "solo-nombre"`, "ci.repository inválido"},
+		"ci.tool_repository":            {`tool_repository: "opentepache/debfactory"`, `tool_repository: "x"`, "ci.tool_repository inválido"},
 		"ci.destination":                {`destination: r2 `, `destination: r3 `, `ci.destination "r3" no existe`},
 		"ci.destination sin public_url": {`destination: r2 `, `destination: local `, `ci.destination "local" no existe`},
 		"ci.labels":                     {`pub: debfactory-main`, `pub: debfactory-pr`, "las etiquetas de los dos niveles deben ser distintas"},

@@ -7,10 +7,11 @@ import (
 
 	"debfactory/internal/config"
 	"debfactory/internal/repo"
+	"debfactory/internal/testutil"
 )
 
 func cfg(t *testing.T) *config.Config {
-	c, err := config.Load("../..")
+	c, err := config.Load(testutil.ProjectRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

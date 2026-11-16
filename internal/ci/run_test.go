@@ -18,7 +18,12 @@ import (
 	"debfactory/internal/repo"
 	"debfactory/internal/report"
 	"debfactory/internal/testutil"
+	"debfactory/internal/version"
 )
+
+// testTool es la versión de la herramienta que fija la fixture
+// (debfactory.version) y que finge ser el binario en ejecución.
+var testTool = strings.Repeat("e", 40)
 
 const emptyState = "# Generado por debfactory publish/retire. No editar a mano.\nschema: 1\nserial: 0\npackages: {}\nretired: []\n"
 
@@ -39,11 +44,14 @@ type mainFixture struct {
 
 func newMainFixture(t *testing.T) *mainFixture {
 	t.Helper()
-	files := map[string]string{"repo/state.yaml": emptyState, "README.md": "x\n"}
-	for _, d := range []string{"config", "packages", "schema"} {
-		filepath.WalkDir(filepath.Join("../..", d), func(p string, de os.DirEntry, err error) error {
+	files := map[string]string{"repo/state.yaml": emptyState, "README.md": "x\n", ToolFile: testTool + "\n"}
+	old := version.Commit
+	version.Commit = testTool
+	t.Cleanup(func() { version.Commit = old })
+	for _, d := range []string{"config", "packages"} {
+		filepath.WalkDir(filepath.Join(testutil.ProjectRoot(), d), func(p string, de os.DirEntry, err error) error {
 			if err == nil && de.Type().IsRegular() {
-				rel, _ := filepath.Rel("../..", p)
+				rel, _ := filepath.Rel(testutil.ProjectRoot(), p)
 				data, _ := os.ReadFile(p)
 				files[rel] = string(data)
 			}
@@ -84,7 +92,7 @@ func (f *mainFixture) runner(sha string) *Runner {
 	vars := map[string]string{
 		"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main", "GITHUB_SHA": sha,
 		"GITHUB_REPOSITORY": citest.Repo, "GITHUB_RUN_ID": "1000", "RUNNER_LABELS": "self-hosted,debfactory-main",
-		"GITHUB_TOKEN": secretToken, "GITHUB_API_URL": f.gh.URL,
+		"GITHUB_TOKEN": secretToken, "GITHUB_API_URL": f.gh.URL, "GITHUB_ACTIONS": "true",
 	}
 	suites := []string{}
 	for _, s := range f.cfg.Suites {
@@ -125,7 +133,7 @@ func (f *mainFixture) main() error {
 	f.out.Reset()
 	f.built = nil
 	sha := f.checkout()
-	return f.runner(sha).Main(context.Background(), Options{Jobs: 4})
+	return f.runner(sha).Dispatch(context.Background(), "main", Options{Jobs: 4})
 }
 
 func (f *mainFixture) state() *repo.State {
@@ -183,7 +191,8 @@ func TestCIMain(t *testing.T) {
 		t.Fatalf("PRs de estado = %d", len(prs))
 	}
 	audit := f.g.RemoteFile("debfactory/state", AuditFile)
-	if strings.Count(audit, `"op":"publish"`) != 4 || !strings.Contains(audit, `"run":"https://github.com/owner/debfactory/actions/runs/1000"`) {
+	if strings.Count(audit, `"op":"publish"`) != 4 || !strings.Contains(audit, `"run":"https://github.com/owner/debfactory/actions/runs/1000"`) ||
+		strings.Count(audit, `"tool":"`+testTool+`"`) != strings.Count(audit, "\n") {
 		t.Fatalf("auditoría en la rama de estado:\n%s", audit)
 	}
 	before := st.Clone()
@@ -270,6 +279,21 @@ func TestCIMain(t *testing.T) {
 // TestCIMainRecovery: matar la ejecución tras el swap o tras el sync; la
 // siguiente completa sync, verify y push sin otra generación ni entradas
 // duplicadas (SC-007, FR-029).
+// TestCIMainWrongTool: si el binario no es la versión que fija
+// debfactory.version, ci main falla en la etapa tool antes de tocar <data> o
+// la forja (004 FR-005, contracts/herramienta.md § Autocomprobación).
+func TestCIMainWrongTool(t *testing.T) {
+	f := newMainFixture(t)
+	version.Commit = strings.Repeat("f", 40)
+	err := f.main()
+	if err == nil || !strings.Contains(err.Error(), "soy "+version.Commit+" y packages fija "+testTool) {
+		t.Fatalf("ci main con otra herramienta: %v", err)
+	}
+	if entries, _ := os.ReadDir(f.data); len(entries) != 1 || len(f.gh.Requests) != 0 {
+		t.Errorf("tocó <data> (%d entradas) o la forja (%v)", len(entries), f.gh.Requests)
+	}
+}
+
 func TestCIMainRecovery(t *testing.T) {
 	for _, when := range []string{"swap", "sync"} {
 		t.Run(when, func(t *testing.T) {
@@ -346,5 +370,35 @@ func (f *mainFixture) checkNoSecrets() {
 				f.t.Errorf("un secreto aparece en %s", where)
 			}
 		}
+	}
+}
+
+// TestCIMainToolBump: tras integrar un cambio de debfactory.version, ci main
+// compara en el paso 3b todo lo publicado y no publica nada; la siguiente
+// ejecución sin cambios no vuelve a comparar (004 FR-008, US2 escenario 5).
+func TestCIMainToolBump(t *testing.T) {
+	f := newMainFixture(t)
+	if err := f.main(); err != nil {
+		t.Fatal(err)
+	}
+	f.mergeStatePR()
+	serial := f.state().Serial
+	next := strings.Repeat("8", 40)
+	c := f.g.Clone()
+	c.Write(ToolFile, next+"\n")
+	c.Commit("subir la herramienta")
+	c.Push()
+	version.Commit = next
+	if err := f.main(); err != nil {
+		t.Fatalf("main tras subir la herramienta: %v\n%s", err, f.out.String())
+	}
+	if len(f.built) != 4 || f.state().Serial != serial {
+		t.Errorf("se esperaba comparar los 4 sin publicar: construidos %v, serial %d → %d", f.built, serial, f.state().Serial)
+	}
+	if err := f.main(); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.built) != 0 {
+		t.Errorf("la ejecución siguiente volvió a comparar: %v", f.built)
 	}
 }

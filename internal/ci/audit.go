@@ -14,6 +14,7 @@ import (
 
 	"debfactory/internal/repo"
 	"debfactory/internal/report"
+	"debfactory/internal/version"
 )
 
 // AuditFile es el registro de auditoría en el repositorio (contracts/audit.md).
@@ -29,16 +30,19 @@ const (
 // Entry es una línea de repo/audit.jsonl. El orden de los campos es el del
 // contrato; Run es un puntero para emitir null en import.
 type Entry struct {
-	Seq     int               `json:"seq"`
-	Time    time.Time         `json:"time"`
-	Op      string            `json:"op"`
-	Package string            `json:"package"`
-	Version string            `json:"version"`
-	Commit  string            `json:"commit"`
-	Debs    map[string]string `json:"debs,omitempty"`
-	Serial  int               `json:"serial"`
-	Run     *string           `json:"run"`
-	Reason  string            `json:"reason,omitempty"`
+	Seq     int       `json:"seq"`
+	Time    time.Time `json:"time"`
+	Op      string    `json:"op"`
+	Package string    `json:"package"`
+	Version string    `json:"version"`
+	Commit  string    `json:"commit"`
+	// Tool es el commit de la herramienta que produjo la entrada
+	// (specs/004-split-repos, data-model.md §3). Las anteriores no lo tienen.
+	Tool   string            `json:"tool,omitempty"`
+	Debs   map[string]string `json:"debs,omitempty"`
+	Serial int               `json:"serial"`
+	Run    *string           `json:"run"`
+	Reason string            `json:"reason,omitempty"`
 }
 
 // MarshalJSON escribe la entrada con las claves en orden fijo, la fecha sin
@@ -61,6 +65,9 @@ func (e Entry) MarshalJSON() ([]byte, error) {
 	field("package", e.Package)
 	field("version", e.Version)
 	field("commit", e.Commit)
+	if e.Tool != "" {
+		field("tool", e.Tool)
+	}
 	if len(e.Debs) > 0 {
 		var d bytes.Buffer
 		keys := make([]string, 0, len(e.Debs))
@@ -153,6 +160,9 @@ func ParseAudit(data []byte) ([]Entry, error) {
 		if e.Package == "" || e.Version == "" || !hex40.MatchString(e.Commit) || e.Serial < 1 {
 			return nil, fail("faltan package, version, commit (40 hex) o serial")
 		}
+		if e.Tool != "" && !hex40.MatchString(e.Tool) {
+			return nil, fail("tool: no es un commit (40 hex)")
+		}
 		out = append(out, e)
 	}
 	return out, sc.Err()
@@ -191,6 +201,11 @@ func AppendAudit(root string, entries ...Entry) ([]Entry, error) {
 	}
 	for i := range entries {
 		entries[i].Seq = len(old) + i + 1
+		// Toda entrada nueva lleva la herramienta que la produjo (FR-014 de
+		// 004). Una compilación "dev" (fuera de tool-install) no la registra.
+		if entries[i].Tool == "" && hex40.MatchString(version.Commit) {
+			entries[i].Tool = version.Commit
+		}
 	}
 	out := append(slices.Clone(data), MarshalEntries(entries)...)
 	if _, err := ParseAudit(out); err != nil {

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -356,18 +355,12 @@ func (r *Runner) compare(ctx context.Context, root string, st *repo.State, list 
 	return errs
 }
 
-// codeChecks son las comprobaciones de código (FR-005, FR-008): gofmt,
-// go vet, go test y validate.
-func (r *Runner) codeChecks(ctx context.Context, root string) error {
+// validateAll valida todos los manifiestos cuando cambia la configuración o
+// la herramienta fijada (FR-005). Las comprobaciones de código Go (gofmt,
+// vet, test) ya no corren aquí: en packages no hay código, y las hace
+// `just tool-install` antes de instalar una versión (004 research D5, D6).
+func (r *Runner) validateAll(root string) error {
 	var errs report.Errors
-	if out, err := runIn(ctx, root, "gofmt", "-l", "."); err != nil || strings.TrimSpace(out) != "" {
-		errs = append(errs, report.Newf(report.Code, "gofmt: archivos sin formatear: %s", strings.Join(strings.Fields(out), " ")))
-	}
-	for _, c := range [][]string{{"go", "vet", "./..."}, {"go", "test", "./..."}} {
-		if out, err := runIn(ctx, root, c[0], c[1:]...); err != nil {
-			errs = append(errs, report.Newf(report.Code, "%s: %s", strings.Join(c, " "), lastLines(out, 5)))
-		}
-	}
 	names, err := build.ListPackages(root)
 	if err != nil {
 		return err
@@ -378,21 +371,6 @@ func (r *Runner) codeChecks(ctx context.Context, root string) error {
 		}
 	}
 	return errs.Err()
-}
-
-func runIn(ctx context.Context, dir, name string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	return string(out), err
-}
-
-func lastLines(s string, n int) string {
-	lines := strings.Split(strings.TrimSpace(s), "\n")
-	if len(lines) > n {
-		lines = lines[len(lines)-n:]
-	}
-	return strings.Join(lines, " | ")
 }
 
 // publish publica los paquetes que pasaron en una sola generación y, justo
@@ -579,7 +557,6 @@ func (r *Runner) Main(ctx context.Context, o Options) error {
 	}
 	if len(x.errs) == 0 {
 		x.sp.SetLastMain(head)
-		x.notify.StagePassed(ctx, report.Code)
 		x.notify.StagePassed(ctx, report.Compare)
 		x.notify.StagePassed(ctx, report.Plan)
 	}
@@ -587,13 +564,14 @@ func (r *Runner) Main(ctx context.Context, o Options) error {
 	return x.errs.Err()
 }
 
-// checkCode es el paso 3b: comprobaciones de código y comparación de las
-// versiones publicadas con el código nuevo (FR-005, FR-010).
+// checkCode es el paso 3b: si cambió la configuración o la herramienta
+// fijada (ci.code_paths), valida los manifiestos y compara las versiones
+// publicadas con lo que produce ahora (FR-005, FR-010; 004 FR-008).
 func (x *run) checkCode(ctx context.Context, st *repo.State) bool {
-	x.setStage(report.Code)
+	x.setStage(report.Validate)
 	ok := true
-	if err := x.codeChecks(ctx, x.Root); err != nil {
-		x.failErr(ctx, err, report.Code, "", "")
+	if err := x.validateAll(x.Root); err != nil {
+		x.failErr(ctx, err, report.Validate, "", "")
 		ok = false
 	}
 	x.setStage(report.Compare)
@@ -652,6 +630,15 @@ func (r *Runner) Dispatch(ctx context.Context, cmd string, o Options) error {
 		if in.Action != "main" {
 			cmd = in.Action
 			o.Package, o.Version, o.Reason, o.Last = in.Package, in.Version, in.Reason, in.Last
+		}
+	}
+	switch cmd {
+	case "main", "pr", "refresh", "rebuild", "retire", "restore-state-pr":
+		// notify, plan, audit check y doctor no: notify tiene que poder avisar
+		// justo de este fallo, y los demás no construyen ni publican.
+		if err := CheckTool(r.Root, r.Env); err != nil {
+			r.setStage(report.Tool)
+			return err
 		}
 	}
 	switch cmd {

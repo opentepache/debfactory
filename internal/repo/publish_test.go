@@ -19,7 +19,7 @@ import (
 // testEnv prepara una raíz y un <data> temporales con una llave de prueba.
 func testEnv(t *testing.T) (*Env, *bytes.Buffer) {
 	t.Helper()
-	cfg, err := config.Load("../..")
+	cfg, err := config.Load(testutil.ProjectRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

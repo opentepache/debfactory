@@ -8,11 +8,12 @@ import (
 
 	"debfactory/internal/config"
 	"debfactory/internal/lock"
+	"debfactory/internal/testutil"
 )
 
 func repoConfig(t *testing.T) *config.Config {
 	t.Helper()
-	cfg, err := config.Load("../..")
+	cfg, err := config.Load(testutil.ProjectRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

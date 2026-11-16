@@ -10,13 +10,14 @@ import (
 
 	"debfactory/internal/config"
 	"debfactory/internal/report"
+	"debfactory/internal/testutil"
 )
 
 const secretToken = "ghs_SECRETO_de_prueba_123"
 
 func testConfig(t *testing.T) *config.Config {
 	t.Helper()
-	cfg, err := config.Load("../..")
+	cfg, err := config.Load(testutil.ProjectRoot())
 	if err != nil {
 		t.Fatal(err)
 	}

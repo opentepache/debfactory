@@ -1,5 +1,7 @@
 # Contrato: configuración de la PC para los runners
 
+> **Fase 004** ([cambios-003.md](../../004-split-repos/contracts/cambios-003.md)): `DEBFACTORY_REPOSITORY=opentepache/packages`; el PAT solo tiene acceso a ese repositorio; `/srv/debfactory/tools` y el lanzador (abajo, § Imagen).
+
 Lo instala `sudo ci/host/setup.sh` (idempotente) y lo comprueba `debfactory ci doctor`. La
 operación diaria se documenta en `docs/operacion-ci.md`. Diseño en research D2, D4, D5, D11, D13
 y D14.
@@ -113,7 +115,7 @@ https://github.com` funcione.
 ## Imagen (`ci/runner/Dockerfile`)
 
 - **Base**: `debian:trixie`, fijada por digest.
-- **Paquetes de trixie y trixie-backports**: `golang-1.26-go`, `git`, `just`, `aptly`, `gnupg`,
+- **Paquetes de trixie**: `git`, `just`, `aptly`, `gnupg`,
   `gpgv`, `rclone`, `curl`, `jq`, `ca-certificates`, `docker-cli` y `docker-buildx`, más las
   bibliotecas que pide el runner (`libicu76`, `libkrb5-3`, `zlib1g`, `liblttng-ust1t64`).
 - **Runner**: `actions-runner-linux-x64-<versión>.tar.gz` de `github.com/actions/runner`, con
@@ -126,6 +128,10 @@ https://github.com` funcione.
   rootless, ese root es `dfci` o `dfpub` en el host, así que los archivos de los montajes quedan
   a nombre del usuario del nivel (research D5).
 - **Hook**: el de arriba, solo en la variante `pub` (`--target pub`).
+- **Lanzador** (fase 004): `/usr/local/bin/debfactory` ejecuta
+  `/opt/debfactory/tools/<commit>/debfactory` según `debfactory.version` del checkout. El
+  directorio es `/srv/debfactory/tools` del host (root, `755`), montado `readonly` en los dos
+  niveles. Sin Go en la imagen: los jobs no compilan.
 
 `just runner-image` construye las dos variantes en el Docker del mantenedor y las etiqueta con la
 versión del runner y el commit. `setup.sh --runner-tag <etiqueta>` las carga en el Docker
