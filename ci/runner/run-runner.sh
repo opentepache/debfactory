@@ -28,6 +28,7 @@ set -- \
     --tmpfs /tmp:rw,exec,size=4g \
     --tmpfs /root:rw,size=1g \
     --security-opt no-new-privileges \
+    --cap-drop ALL \
     --mount "type=bind,src=$work,dst=$work" \
     --mount "type=bind,src=$XDG_RUNTIME_DIR/docker.sock,dst=/var/run/docker.sock" \
     --mount "type=bind,src=$RUNTIME_DIRECTORY/config,dst=/run/jit/config,readonly" \

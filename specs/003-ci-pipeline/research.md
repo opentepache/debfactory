@@ -418,11 +418,24 @@ Los hechos sobre GitHub se verificaron el 2026-11-13 contra docs.github.com y el
   `Release` y firma `InRelease` y `Release.gpg`. `just e2e` (TestE2ELifecycle) pasa en las 5
   suites: apt acepta la generación sin advertencias y rechaza con `is expired` una generación
   firmada 31 días antes (fecha de firma inyectada; el reloj del host no se toca).
-- **Riesgo 1, parcial.** Con el Docker del mantenedor (no rootless), dentro de la imagen
-  `debfactory-runner:2.338.2-…-ci` y con montajes en la misma ruta, `go build` + `debfactory
-  build fnm` + `debfactory test fnm` pasan en las 5 suites y en arm64 (qemu con flag `F`) en
-  1 min 52 s. Hizo falta montar `binfmt_misc` del host (ver runner-host.md § Diferencias). Los
-  `.deb` construidos dentro de la imagen son **idénticos byte a byte** a los publicados en la
-  fase 002 (sha256 de `repo/state.yaml`), lo que valida FR-010 y `rebuild`. Falta repetirlo con
-  Docker rootless como `dfci` (T019).
-- **Riesgos 2 y 4**: pendientes de T021 y T033 (necesitan el repositorio en GitHub).
+- **Riesgo 1, cerrado (2026-11-16, T019).** Como `dfci`, con su Docker rootless (29.9.3,
+  `rootless` + `seccomp`), la imagen `ci` cargada por `setup.sh` y usada por ID, y los montajes y
+  restricciones de `run-runner.sh` (`--read-only`, `no-new-privileges`, socket rootless,
+  `binfmt_misc` del host): `go build` + `debfactory build fnm` + `debfactory test fnm` pasan en
+  las 5 suites y en arm64 en 350 s con cachés vacías (descarga de módulos de Go e imágenes
+  base). Los `.deb` son **idénticos byte a byte** a los publicados (sha256 de
+  `repo/state.yaml`: amd64 `7c7ff9f6…`, arm64 `ad5a7b73…`). Antes, con el Docker del
+  mantenedor (no rootless), ya había pasado en 1 min 52 s con cachés llenas. Ajustes que
+  salieron del spike:
+  - **DNS**: la regla de nftables cierra a `dfci` la red local, donde está el resolvedor del
+    host (aquí el de Tailscale, `100.100.100.100`). Los contenedores usan Quad9 por
+    `daemon.json`, y el propio `dockerd` por `ci/host/dockerd-ci-dns.sh` (runner-host.md § Red).
+  - **Regla de red endurecida**: con IPv6 global en la red local, los equipos de casa tienen
+    direcciones públicas que `fc00::/7` no cubre; se cierra todo IPv6 a `dfci`, además de
+    loopback, multicast y broadcast. Prueba desde un contenedor de `dfci`: router (80 y 53), la
+    propia PC, el DNS de Tailscale e IPv6 cerrados; `github.com` y `proxy.golang.org` abiertos.
+  - **Sin capacidades (T041)**: repetido con `--cap-drop ALL` (`CapEff: 0`) pasa igual, con
+    los mismos sha256, en 78 s con cachés llenas. `entrypoint.sh` copia el runner con
+    `--no-preserve=ownership`.
+- **Riesgos 2 y 4**: pendientes de T021 y T033 (necesitan el repositorio en GitHub; con la
+  separación en dos repositorios, el repositorio público de paquetes).

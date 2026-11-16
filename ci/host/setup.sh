@@ -85,6 +85,31 @@ for level in ci pub; do
     systemctl --user -M "$user@" is-active --quiet docker || die "docker de $user no está activo"
 done
 
+# 4b. DNS de dfci. La regla de nftables le cierra la red local, que es donde
+# suele estar el resolvedor del host (el router, o 100.100.100.100 con
+# Tailscale), así que su Docker usa resolvedores públicos (Quad9): los
+# contenedores por daemon.json y el propio dockerd (descargas de imágenes) por
+# dockerd-ci-dns.sh, que la unidad lanza en lugar de dockerd.
+install -d -m 755 "$libdir"
+install -m 755 "$here/dockerd-ci-dns.sh" "$libdir/dockerd-ci-dns.sh"
+cfg=/var/lib/dfci/.config
+want_json='{"dns":["9.9.9.9","149.112.112.112"]}'
+want_unit=$(printf '[Service]\nEnvironment=DOCKERD=%s\n' "$libdir/dockerd-ci-dns.sh")
+dropin=$cfg/systemd/user/docker.service.d/debfactory-dns.conf
+if [ "$(cat "$cfg/docker/daemon.json" 2>/dev/null)" != "$want_json" ] ||
+    [ "$(cat "$dropin" 2>/dev/null)" != "$want_unit" ]; then
+    install -d -o dfci -g dfci -m 700 "$cfg"
+    install -d -o dfci -g dfci -m 755 "$cfg/docker" "$cfg/systemd" "$cfg/systemd/user" "$(dirname "$dropin")"
+    printf '%s\n' "$want_json" > "$cfg/docker/daemon.json"
+    printf '%s\n' "$want_unit" > "$dropin"
+    chown dfci:dfci "$cfg/docker/daemon.json" "$dropin"
+    chmod 644 "$cfg/docker/daemon.json" "$dropin"
+    systemctl --user -M dfci@ daemon-reload
+    systemctl --user -M dfci@ restart docker
+    systemctl --user -M dfci@ is-active --quiet docker || die "docker de dfci no arranca; journalctl --user -M dfci@ -u docker"
+    say "DNS del Docker de dfci (contenedores y daemon): 9.9.9.9 y 149.112.112.112"
+fi
+
 # 5. Directorios (contracts/runner-host.md § Usuarios y directorios).
 install -d -m 755 -o root -g root /srv/debfactory
 install -d -m 755 -o dfci -g dfci /srv/debfactory/ci

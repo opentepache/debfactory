@@ -60,6 +60,7 @@ Contenedor del runner (`run-runner.sh`):
 - solo en `pub`: `/srv/debfactory/data`, `/srv/debfactory/rclone` y `/srv/debfactory/cache-pub`
   en la misma ruta, más `DEBFACTORY_DATA`, `DEBFACTORY_CACHE` y `RCLONE_CONFIG`;
 - `--read-only` con `tmpfs` para `/tmp` y `HOME`. Nada persiste fuera de los montajes.
+- `--security-opt no-new-privileges` y `--cap-drop ALL`.
 
 ## Hook del runner `pub` (`ci/runner/hooks/trusted-gate.sh`)
 
@@ -89,15 +90,25 @@ con `{"ref":"main","inputs":{"action":"refresh"}}`. El token solo se envía a `a
 ```nft
 table inet debfactory_ci {
   chain out {
-    type filter hook output priority 0;
-    meta skuid "dfci" ip  daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 100.64.0.0/10 } reject
-    meta skuid "dfci" ip6 daddr { fc00::/7, fe80::/10 } reject
+    type filter hook output priority 0; policy accept;
+    meta skuid "dfci" ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 255.255.255.255 } reject
+    meta skuid "dfci" meta nfproto ipv6 reject
   }
 }
 ```
 
-Permite el DNS del sistema (`127.0.0.53`). La prueba de aceptación consiste en que, desde un job
-`ci`, `curl http://192.168.1.1` falle y `curl https://github.com` funcione.
+El resolvedor del host suele estar en una de esas redes (el router, o `100.100.100.100` con
+Tailscale), así que `setup.sh` configura el Docker rootless de `dfci` con DNS públicos (Quad9,
+`9.9.9.9` y `149.112.112.112`) en `~dfci/.config/docker/daemon.json` (contenedores) y lanza su `dockerd` con
+`ci/host/dockerd-ci-dns.sh` (variable `DOCKERD` de `dockerd-rootless.sh`), que escribe ese
+`resolv.conf` en el `/etc` temporal del espacio de nombres de rootlesskit: así las descargas de
+imágenes del propio daemon tampoco dependen del resolvedor del host. Lo encontró el spike T019.
+No es una barrera de seguridad (`dfci` controla su propio Docker); la barrera es esta regla. IPv6 se cierra entero: con IPv6 global (el caso de la PC), los equipos de la red local tienen
+direcciones públicas que ningún rango privado cubre, y GitHub no tiene IPv6. Loopback, multicast y
+broadcast se cierran para que `dfci` no alcance servicios de la PC en `localhost` ni el
+descubrimiento de la red local. La prueba de aceptación consiste en que, desde un job `ci`,
+`curl http://192.168.1.1`, `curl http://127.0.0.1` y cualquier destino IPv6 fallen y `curl
+https://github.com` funcione.
 
 ## Imagen (`ci/runner/Dockerfile`)
 
@@ -133,7 +144,9 @@ todas las imágenes de `dfci` salvo esa.
 - **Unidad**: además de lo de arriba, `NoNewPrivileges=yes`, `ProtectSystem=strict`,
   `ProtectHome=read-only` y `PrivateTmp=yes` para los procesos del host de la unidad.
 - **Contenedor**: `--init`, `--read-only`, `--tmpfs /tmp` y `/root`,
-  `--security-opt no-new-privileges`. Las capacidades se ajustarán tras el spike T019 con
-  Docker rootless (T041).
+  `--security-opt no-new-privileges` y `--cap-drop ALL`: el runner no necesita ninguna
+  capacidad (spike T019 repetido con `CapEff: 0`, 2026-11-16). Por eso `entrypoint.sh` copia el
+  runner sin conservar el dueño (no hay `CAP_CHOWN`). Los contenedores que lanza debfactory
+  (build, lintian, pruebas) no heredan estas restricciones: los crea el daemon rootless.
 - **Serialización**: además del `flock` de `<data>/lock` (publish, retire, sync), `debfactory ci`
   toma `<data>/ci/lock` durante toda la ejecución que escribe.

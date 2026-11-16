@@ -10,6 +10,7 @@ if [ ! -s "$cfg" ]; then
 fi
 jit=$(cat "$cfg")
 # El contenedor es de solo lectura (--read-only) y el runner escribe en su
-# propio directorio (.runner, _diag): se copia a /tmp, que es tmpfs.
-cp -a /opt/runner /tmp/runner
+# propio directorio (.runner, _diag): se copia a /tmp, que es tmpfs. Sin
+# conservar el dueño: con --cap-drop ALL no hay CAP_CHOWN.
+cp -a --no-preserve=ownership /opt/runner /tmp/runner
 exec /tmp/runner/run.sh --jitconfig "$jit"
