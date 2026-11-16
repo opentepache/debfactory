@@ -38,7 +38,8 @@ lock pkg: bin
 validate: bin
     bin/debfactory validate --root {{root}}
 
-# Comprobación completa antes de dar algo por bueno (objetivo orientativo: < 30 min).
+# Comprobación completa de la herramienta (objetivo orientativo: < 30 min). Solo
+# usa testdata/project: no verifica el repositorio publicado real (`repo verify`).
 check: bin
     #!/bin/sh
     set -eu
@@ -51,7 +52,6 @@ check: bin
     bin/debfactory validate --root {{project}}
     bin/debfactory build --root {{project}} --all --check-reproducible
     bin/debfactory test --root {{project}} --all
-    if [ -L "${DEBFACTORY_DATA:-$HOME/.local/share/debfactory}/public/current" ] && [ -d "{{root}}/repo" ]; then bin/debfactory repo verify --root {{root}}; fi
     echo "just check: $(( $(date +%s) - start )) s"
 
 # Publica <pkg> (versión del manifiesto, o la indicada) en el repositorio APT.

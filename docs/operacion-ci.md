@@ -78,12 +78,18 @@ Para una instalación nueva:
    GH_TOKEN=$(gh auth token) just ci-doctor --fix    # además crea la etiqueta pipeline-failure
    ```
 
-7. **Datos.** Con todo en verde, mueve los datos del repositorio a `dfpub`:
+7. **Datos.** Con todo en verde, mueve los datos del repositorio a `dfpub`. Si la generación
+   local es anterior a la fase 003 (sin `Valid-Until`; `repo verify` lo dice), vuelve a firmarla
+   antes:
 
    ```bash
+   bin/debfactory repo rebuild --root ~/Develop/packages     # solo si repo verify pide Valid-Until
    sudo ci/host/migrate-data.sh --root ~/Develop/packages
    sudo systemctl enable --now debfactory-runner@ci debfactory-runner@pub
    ```
+
+   Después lanza `refresh` (Actions → main → Run workflow) para que R2 sirva la generación con
+   `Valid-Until`.
 
 ## 2. Operación diaria
 
