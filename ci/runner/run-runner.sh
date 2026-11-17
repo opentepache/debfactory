@@ -31,7 +31,6 @@ set -- \
     --cap-drop ALL \
     --mount "type=bind,src=$work,dst=$work" \
     --mount "type=bind,src=$XDG_RUNTIME_DIR/docker.sock,dst=/var/run/docker.sock" \
-    --mount "type=bind,src=$RUNTIME_DIRECTORY/config,dst=/run/jit/config,readonly" \
     --mount "type=bind,src=/proc/sys/fs/binfmt_misc,dst=/run/binfmt_misc,readonly" \
     --mount "type=bind,src=/srv/debfactory/tools,dst=/opt/debfactory/tools,readonly" \
     -e DEBFACTORY_BINFMT_DIR=/run/binfmt_misc \
@@ -57,4 +56,9 @@ fi
 
 # Por ID de contenido, no por etiqueta: un job no puede sustituir la imagen.
 if [ "$level" = pub ]; then image=$DEBFACTORY_RUNNER_ID_PUB; else image=$DEBFACTORY_RUNNER_ID_CI; fi
-exec docker run "$@" "$image"
+# La configuración JIT entra por la entrada estándar, no por un montaje: el
+# dockerd rootless vive en el espacio de montaje de rootlesskit, cuyo /run es
+# una copia (--copy-up=/run) hecha al arrancar el daemon, y no ve el
+# RuntimeDirectory que systemd crea después. Tampoco va en una variable de
+# entorno, que quedaría en `docker inspect`.
+exec docker run -i "$@" "$image" < "$RUNTIME_DIRECTORY/config"

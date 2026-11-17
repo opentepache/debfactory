@@ -38,6 +38,8 @@ Requisitos de los usuarios:
 [Unit]
 Description=Runner efímero de debfactory (%i)
 After=network-online.target user@%U.service
+StartLimitIntervalSec=120          # 10 arranques en 2 min: la unidad queda en failed en vez de
+StartLimitBurst=10                 # registrar un runner JIT en GitHub cada 5 s
 
 [Service]
 User=df%i                      # %i=ci → dfci, %i=pub → dfpub
@@ -45,7 +47,7 @@ LoadCredential=gh:/etc/credstore/debfactory-gh-runner
 RuntimeDirectory=debfactory-runner-%i
 RuntimeDirectoryMode=0700          # dfci no puede ni listar el directorio JIT de pub
 ExecStartPre=+/usr/local/lib/debfactory/jitconfig.sh %i     # como root: pide la config JIT y la deja en el RuntimeDirectory, legible solo por el usuario
-ExecStart=/usr/local/lib/debfactory/run-runner.sh %i        # docker run --rm (rootless) debfactory-runner:<versión> --jitconfig …
+ExecStart=/usr/local/lib/debfactory/run-runner.sh %i        # docker run -i --rm (rootless) <imagen> < RuntimeDirectory/config
 ExecStopPost=+/usr/local/lib/debfactory/cleanup.sh %i       # borra work/; en ci, además imágenes y caché
 Restart=always
 RestartSec=5
@@ -121,7 +123,10 @@ https://github.com` funcione.
 - **Runner**: `actions-runner-linux-x64-<versión>.tar.gz` de `github.com/actions/runner`, con
   versión y sha256 fijados en `ci/runner/runner.env` y verificados al construir. Como el
   contenedor es `--read-only`, `entrypoint.sh` copia el runner a `/tmp` (tmpfs) y lo arranca con
-  `run.sh --jitconfig`; nunca ejecuta `config.sh`. El runner no debe actualizarse solo; si la
+  `run.sh --jitconfig`, con la configuración JIT que recibe por la entrada estándar (no por un
+  montaje: el dockerd rootless ve una copia de `/run` hecha al arrancar, `--copy-up=/run`, y no
+  el `RuntimeDirectory` que systemd crea después; ni por una variable, que mostraría
+  `docker inspect`); nunca ejecuta `config.sh`. El runner no debe actualizarse solo; si la
   configuración JIT lo impide se verifica en el spike T021. Actualizarlo es un cambio revisado en
   git, antes de 30 días desde un release nuevo (`ci doctor` avisa a los 14).
 - **Usuario**: root del contenedor, con `RUNNER_ALLOW_RUNASROOT=1` y sin `sudo`. Con Docker

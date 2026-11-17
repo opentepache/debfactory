@@ -5,6 +5,11 @@
 Description=Runner efímero de debfactory (%i)
 Wants=network-online.target
 After=network-online.target
+# Un fallo al arrancar (imagen, Docker) no debe registrar un runner JIT en
+# GitHub cada 5 s: 10 arranques en 2 min es imposible con jobs reales, así que
+# la unidad se queda en failed y `ci doctor` lo muestra.
+StartLimitIntervalSec=120
+StartLimitBurst=10
 
 [Service]
 Type=simple
