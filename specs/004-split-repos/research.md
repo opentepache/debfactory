@@ -220,6 +220,15 @@ El PAT fine-grained de los runners pasa a tener acceso solo a `opentepache/packa
   trabajo, no con un `git clone`, porque los cambios aún no tienen commit; T040 lo repite con un
   clon desde GitHub. La e2e (`just e2e`) no se ejecutó en esta pasada; la ejecuta
   `just tool-install` (T035).
-- **Riesgos 2 y 3**: pendientes de T021 (spike del lanzador con `dfci`) y T035 (`ci plan` sobre
-  el clon filtrado).
+- **Riesgo 3, cerrado (T035, 2026-11-16).** `just tool-install` pasó (`check` y `e2e`) e instaló
+  `4e258deab804…`. `ci/migrate/split.sh` creó `~/Develop/packages`: 9 commits, solo las rutas
+  conservadas, autoría intacta, sin secretos en la historia. `validate` pasa y `ci plan` da
+  "sin cambios: aqua bob buf fnm" (SC-002).
+- **Riesgo 2, cerrado (T021, 2026-11-16).** Imagen `2.338.2-4e258de` cargada por ID con
+  `setup.sh`. Como `dfci`, con su Docker rootless, `--read-only`, `no-new-privileges`,
+  `--cap-drop ALL` y `/srv/debfactory/tools` montado de solo lectura, sobre un `git archive` de
+  `packages`: la imagen no tiene Go; `debfactory version` es el commit fijado; `ci plan` funciona
+  con la herramienta fijada; `touch` en `/opt/debfactory/tools` falla (solo lectura); no hay
+  código fuente de debfactory en el contenedor; con un commit no instalado el lanzador sale con
+  código 2 y su mensaje.
 

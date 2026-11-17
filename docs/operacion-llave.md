@@ -3,7 +3,7 @@
 El repositorio APT se firma con una llave GPG dedicada que tiene dos partes:
 
 - **Llave maestra** (ed25519, solo certificación `[C]`, sin caducidad). Su fingerprint es el
-  que se publica en la [guía de usuario](usuario.md) y en `repo.signing.masters`. Vive **solo**
+  que se publica en la [guía de usuario](https://github.com/opentepache/packages/blob/main/docs/usuario.md) y en `repo.signing.masters`. Vive **solo**
   en el respaldo cifrado fuera de línea; nunca en la PC de build.
 - **Subllave de firma** (ed25519 `[S]`, caduca a los 2 años). Firma los índices. Vive en la PC
   de build, en `<data>/gnupg/` (permisos `700`), protegida con una frase de paso propia guardada
@@ -137,7 +137,7 @@ GNUPGHOME="$D" gpg -K     # debe mostrar "sec#" (maestra ausente) y "ssb" con [S
 ```
 
 **Configurar:** pon `$MASTER` en `repo.signing.masters` y `$SUB` en `repo.signing.subkey`
-(`config/debfactory.yaml`). En la [guía de usuario](usuario.md), sustituye
+(`config/debfactory.yaml` de `packages`). En la [guía de usuario](https://github.com/opentepache/packages/blob/main/docs/usuario.md), sustituye
 `Fingerprint: <pendiente>` por el fingerprint de la maestra en grupos de 4 (como lo muestra
 `gpg --fingerprint`). Comprueba con `debfactory repo verify` y haz commit.
 
