@@ -135,8 +135,8 @@ sin la raíz real), porque valida que la herramienta es separable.
 
 **Independent Test**: quickstart §1 y §2.
 
-- [ ] T039 [US5] **(manual)** Quickstart §2: `tool-install` se niega con un cambio sin commit y con una prueba rota, y no instala nada; con árbol limpio instala con dueño root y permisos 755.
-- [ ] T040 [US5] **(manual)** Quickstart §1 en un clon limpio desde GitHub (SC-008).
+- [X] T039 [US5] **(manual)** Quickstart §2: `tool-install` se niega con un cambio sin commit y con una prueba rota, y no instala nada; con árbol limpio instala con dueño root y permisos 755.
+- [X] T040 [US5] **(manual)** Quickstart §1 en un clon limpio desde GitHub (SC-008).
 
 ---
 
