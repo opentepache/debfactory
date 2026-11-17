@@ -40,7 +40,10 @@ COPY --chmod=755 launcher.sh /usr/local/bin/debfactory
 # Root del contenedor = el usuario sin privilegios del nivel en el host
 # (Docker rootless), así los archivos de los montajes quedan a su nombre.
 # Sin sudo.
+# RUNNER_LABELS dice a debfactory en qué nivel corre (contracts/cli.md); GitHub
+# no la define. Debe coincidir con la etiqueta de jitconfig.sh y ci.labels.
 ENV RUNNER_ALLOW_RUNASROOT=1 \
+    RUNNER_LABELS=self-hosted,debfactory-pr \
     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 WORKDIR /opt/runner
@@ -49,4 +52,5 @@ ENTRYPOINT ["/usr/local/bin/debfactory-runner-entrypoint"]
 # Nivel pub: añade el filtro previo al job (research D3).
 FROM ci AS pub
 COPY hooks/trusted-gate.sh /usr/local/lib/debfactory/trusted-gate.sh
-ENV ACTIONS_RUNNER_HOOK_JOB_STARTED=/usr/local/lib/debfactory/trusted-gate.sh
+ENV ACTIONS_RUNNER_HOOK_JOB_STARTED=/usr/local/lib/debfactory/trusted-gate.sh \
+    RUNNER_LABELS=self-hosted,debfactory-main
