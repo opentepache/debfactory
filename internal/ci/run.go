@@ -54,7 +54,7 @@ func (r *Runner) forge() (*forge.Client, error) {
 }
 
 func (r *Runner) statePR(gh *forge.Client) *StatePR {
-	return &StatePR{Root: r.Root, Cfg: r.Cfg, Dir: filepath.Join(r.dataDir(), "ci"), GH: gh, Out: r.Out, Now: r.Repo.Now}
+	return &StatePR{Root: r.Root, Cfg: r.Cfg, Dir: filepath.Join(r.dataDir(), "ci"), GH: gh, Out: r.Out, Now: r.Repo.Now, RunURL: r.Env.RunURL()}
 }
 
 // setStage escribe la etapa en curso en $RUNNER_TEMP/debfactory-stage para

@@ -68,7 +68,10 @@ Para una instalación nueva:
    - Actions → General → Workflow permissions: **Read repository contents** y marca **Allow
      GitHub Actions to create and approve pull requests**.
    - Rules → Rulesets → New branch ruleset sobre la rama por defecto: *Require a pull request
-     before merging*, *Block force pushes*, *Restrict deletions*, **sin bypass**.
+     before merging*, *Require status checks to pass* con el check **`verify`** (fuente GitHub
+     Actions), *Block force pushes*, *Restrict deletions*, **sin bypass**. Sin el check
+     obligatorio, un PR integrado mientras su check está en cola llega a `main` sin probar; los
+     PR de estado lo reciben de la propia ejecución de `main`.
    - Notifications (tu cuenta) → Actions: correo para ejecuciones fallidas. Cubre los jobs que
      GitHub cancela tras 24 h en cola si la PC está apagada.
 6. **Comprobar.** Con un token tuyo de lectura de la administración del repositorio:

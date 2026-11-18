@@ -58,7 +58,8 @@ type FakeGitHub struct {
 	Bodies   []string // cuerpos recibidos (para buscar secretos)
 	Config   map[string]any
 	Dispatch []map[string]any
-	Fail     bool // si es true, todas las respuestas son 500
+	Statuses map[string]map[string]string // sha → context → state
+	Fail     bool                         // si es true, todas las respuestas son 500
 }
 
 var (
@@ -66,12 +67,14 @@ var (
 	commentRe = regexp.MustCompile(`^/repos/[^/]+/[^/]+/issues/(\d+)/comments$`)
 	pullRe    = regexp.MustCompile(`^/repos/[^/]+/[^/]+/pulls/(\d+)$`)
 	labelRe   = regexp.MustCompile(`^/repos/[^/]+/[^/]+/labels/([^/]+)$`)
+	statusRe  = regexp.MustCompile(`^/repos/[^/]+/[^/]+/statuses/([0-9a-f]{40})$`)
 )
 
 // NewFakeGitHub arranca el servidor; se cierra al terminar el test.
 func NewFakeGitHub(t *testing.T) *FakeGitHub {
 	t.Helper()
-	f := &FakeGitHub{next: 1, Issues: map[int]*Issue{}, PRs: map[int]*PR{}, Config: map[string]any{}}
+	f := &FakeGitHub{next: 1, Issues: map[int]*Issue{}, PRs: map[int]*PR{}, Config: map[string]any{},
+		Statuses: map[string]map[string]string{}}
 	f.Server = httptest.NewServer(http.HandlerFunc(f.handle))
 	t.Cleanup(f.Close)
 	return f
@@ -205,6 +208,13 @@ func (f *FakeGitHub) handle(w http.ResponseWriter, r *http.Request) {
 	case r.Method == "POST" && p == base+"/labels":
 		f.Labels = append(f.Labels, str("name"))
 		reply(201, map[string]string{"name": str("name")})
+	case r.Method == "POST" && statusRe.MatchString(p):
+		sha := statusRe.FindStringSubmatch(p)[1]
+		if f.Statuses[sha] == nil {
+			f.Statuses[sha] = map[string]string{}
+		}
+		f.Statuses[sha][str("context")] = str("state")
+		reply(201, map[string]string{"state": str("state"), "context": str("context")})
 	case r.Method == "POST" && strings.HasSuffix(p, "/dispatches"):
 		f.Dispatch = append(f.Dispatch, in)
 		reply(204, nil)

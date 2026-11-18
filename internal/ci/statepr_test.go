@@ -107,6 +107,12 @@ func TestStatePRLifecycle(t *testing.T) {
 	if prs := f.gh.OpenPRs(); len(prs) != 1 || !strings.HasPrefix(prs[0].Title, "repo: estado tras serial 2 (fnm 1.40.0-0~tepache2)") {
 		t.Fatalf("PRs = %+v", prs)
 	}
+	// pr.yml no corre en un PR del GITHUB_TOKEN: la ejecución marca verify
+	// sobre la punta de la rama para que el ruleset deje integrarlo.
+	tip := f.g.RemoteBranch("debfactory/state")
+	if got := f.gh.Statuses[tip]["verify"]; got != "success" {
+		t.Fatalf("verify sobre %s = %q; estados %v", tip, got, f.gh.Statuses)
+	}
 	// La rama coincide con la copia: la referencia es el PR (FR-007a).
 	ref := f.mustReconcile("state-pr")
 	if !strings.Contains(string(ref.State), "serial: 2") || ref.PR == nil {
@@ -120,6 +126,16 @@ func TestStatePRLifecycle(t *testing.T) {
 	}
 	if prs := f.gh.OpenPRs(); len(prs) != 1 || !strings.Contains(prs[0].Title, "serial 3") {
 		t.Fatalf("nunca dos PR de estado: %+v", prs)
+	}
+	if tip := f.g.RemoteBranch("debfactory/state"); f.gh.Statuses[tip]["verify"] != "success" {
+		t.Fatalf("el PR actualizado no tiene verify en su punta %s", tip)
+	}
+	// Un estado que no llegó (fallo de la API) se completa en la siguiente
+	// conciliación con el PR abierto.
+	delete(f.gh.Statuses, f.g.RemoteBranch("debfactory/state"))
+	f.mustReconcile("state-pr")
+	if tip := f.g.RemoteBranch("debfactory/state"); f.gh.Statuses[tip]["verify"] != "success" {
+		t.Fatal("la conciliación no repuso verify")
 	}
 
 	// Push interrumpido: la copia va por delante de la rama; se completa (FR-029).

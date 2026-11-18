@@ -11,8 +11,7 @@ Hay dos archivos en `.github/workflows/`. Ninguno usa actions de terceros salvo
 ```yaml
 name: pr
 on:
-  pull_request:
-    paths-ignore: ['docs/**', 'specs/**', '**.md', 'repo/state.yaml', 'repo/audit.jsonl']
+  pull_request:                     # sin paths-ignore: verify es un check obligatorio del ruleset
 permissions:
   contents: read
 concurrency:
@@ -24,16 +23,26 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@<sha>     # fetch-depth: 0 (diff contra la base); persist-credentials: false
-      - run: debfactory ci pr --base origin/${{ github.base_ref }}   # el lanzador (fase 004)
+      - env: {BASE_SHA: ${{ github.event.pull_request.base.sha }}}
+        run: debfactory ci pr --base "$BASE_SHA"   # el lanzador (fase 004)
 ```
+
+La base es el commit fijo del evento, no `origin/<rama>`: si `main` avanza
+antes de que corra el check (p. ej. el PR se integra con el check en cola), el
+diff contra `origin/main` sale vacío y el check pasaría sin probar nada
+(hallazgo de T026, fase 004).
+
+Sin `paths-ignore`: el ruleset exige `verify` y un workflow que no corre deja
+el check pendiente para siempre. `ci pr` decide por sí mismo que no hay nada
+que hacer (`plan: nada que hacer`) en pocos segundos.
 
 | Requisito | Cómo |
 |---|---|
 | FR-008 | `ci pr` escribe el resumen; el check del PR refleja el código de salida |
 | FR-009 y FR-017 | `permissions: contents: read`; el runner `ci` no tiene ningún secreto montado |
-| FR-011 | `paths-ignore` |
+| FR-011 | `ci pr` no construye si el diff no toca paquetes ni rutas de código (`plan: nada que hacer`) |
 | FR-013 | ajuste "Require approval for all external contributors" (research D12) |
-| PR de estado | `paths-ignore` de `repo/state.yaml` y `repo/audit.jsonl` (research D8) |
+| PR de estado | GitHub no lanza `pr.yml` en un PR que abre el `GITHUB_TOKEN`; `ci main` publica `verify=success` sobre la punta de la rama de estado al abrirlo o actualizarlo, y lo repone al conciliar (research D8) |
 
 ## `main.yml`: rama principal, ejecuciones manuales y refirmado (nivel `pub`)
 
@@ -54,6 +63,7 @@ permissions:
   contents: write          # solo la rama de estado; el ruleset de main lo bloquea allí
   pull-requests: write
   issues: write
+  statuses: write          # verify sobre la punta de la rama de estado (ruleset de main)
 concurrency:
   group: publish
   cancel-in-progress: false
@@ -105,6 +115,6 @@ Reglas:
 | Repositorio | público, en la cuenta personal del mantenedor |
 | Actions → Fork pull request workflows | Require approval for all external contributors |
 | Actions → Workflow permissions | Read repository contents (por defecto); Allow GitHub Actions to create and approve pull requests: **sí** |
-| Ruleset `main` | objetivo: rama por defecto; require a pull request before merging; block force pushes; restrict deletions; **sin bypass actors** |
+| Ruleset `main` | objetivo: rama por defecto; require a pull request before merging; **require status checks to pass: `verify`** (fuente GitHub Actions); block force pushes; restrict deletions; **sin bypass actors** |
 | Etiquetas | `pipeline-failure` |
 | Runners | ninguno persistente. Los JIT aparecen y desaparecen con cada job (research D4) |

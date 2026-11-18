@@ -122,7 +122,7 @@ func (e *Env) Format(f fmt.State, _ rune) { fmt.Fprint(f, e.String()) }
 
 // RunURL es el enlace a la ejecución.
 func (e *Env) RunURL() string {
-	if e.Repository == "" || e.RunID == "" {
+	if e == nil || e.Repository == "" || e.RunID == "" {
 		return ""
 	}
 	return fmt.Sprintf("%s/%s/actions/runs/%s", e.ServerURL, e.Repository, e.RunID)

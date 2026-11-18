@@ -48,6 +48,7 @@ type StatePR struct {
 	Out    *report.Printer
 	Now    func() time.Time
 	Remote string // "origin" por defecto
+	RunURL string // enlace de la ejecución, para el estado verify
 
 	branchSHA string // punta remota de la rama al conciliar ("" si no existe)
 }
@@ -284,6 +285,9 @@ func (s *StatePR) Reconcile(ctx context.Context) (*Ref, error) {
 			if pr, err = s.openPR(ctx, copyState, copyAudit, mainAudit, pushed); err != nil {
 				return nil, s.stateErr("%v", err)
 			}
+		} else if err := s.markVerified(ctx); err != nil {
+			// Idempotente: completa un estado que no llegó a publicarse.
+			return nil, s.stateErr("%v", err)
 		}
 		copyRef.PR = pr
 		return copyRef, nil
@@ -401,11 +405,29 @@ func (s *StatePR) openPR(ctx context.Context, state, audit, mainAudit []byte, pu
 	} else if pr, err = s.GH.CreatePR(ctx, br, "main", title, body); err != nil {
 		return nil, err
 	}
+	if err := s.markVerified(ctx); err != nil {
+		return nil, err
+	}
 	pushed.PRNumber = pr.Number
 	if err := s.writePushed(pushed); err != nil {
 		return nil, err
 	}
 	return pr, nil
+}
+
+// VerifyContext es el check que el ruleset de main exige (pr.yml, job verify).
+const VerifyContext = "verify"
+
+// markVerified publica verify=success sobre la punta de la rama de estado.
+// GitHub no lanza workflows en los PR que abre el GITHUB_TOKEN, así que pr.yml
+// nunca corre en el PR de estado; el contenido ya lo validó esta ejecución de
+// confianza, que es la única que escribe la rama (contracts/workflows.md).
+func (s *StatePR) markVerified(ctx context.Context) error {
+	if s.branchSHA == "" {
+		return fmt.Errorf("sin punta de la rama de estado para el estado %s", VerifyContext)
+	}
+	return s.GH.SetStatus(ctx, s.branchSHA, "success", VerifyContext,
+		"PR de estado: lo escribió la ejecución de main", s.RunURL)
 }
 
 // pendingEntries son las entradas de audit que aún no están en main.

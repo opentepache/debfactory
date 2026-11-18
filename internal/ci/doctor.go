@@ -144,7 +144,7 @@ func (r *Runner) GitHubChecks(ctx context.Context, gh *forge.Client, fix bool) [
 	if rs, err := gh.ListRulesets(ctx); err != nil {
 		add("ruleset de main", false, err.Error())
 	} else {
-		ok, info := false, "no hay un ruleset activo sobre main que exija PR, bloquee force push y borrado y no tenga bypass"
+		ok, info := false, "no hay un ruleset activo sobre main que exija PR y el check "+VerifyContext+", bloquee force push y borrado y no tenga bypass"
 		for _, s := range rs {
 			if s.Target != "branch" || s.Enforcement != "active" || len(s.BypassActors) > 0 {
 				continue
@@ -154,10 +154,14 @@ func (r *Runner) GitHubChecks(ctx context.Context, gh *forge.Client, fix bool) [
 				continue
 			}
 			var types []string
+			verify := false
 			for _, rule := range s.Rules {
 				types = append(types, rule.Type)
+				for _, c := range rule.Parameters.RequiredStatusChecks {
+					verify = verify || (rule.Type == "required_status_checks" && c.Context == VerifyContext)
+				}
 			}
-			if slices.Contains(types, "pull_request") && slices.Contains(types, "non_fast_forward") && slices.Contains(types, "deletion") {
+			if verify && slices.Contains(types, "pull_request") && slices.Contains(types, "non_fast_forward") && slices.Contains(types, "deletion") {
 				ok, info = true, "ruleset "+s.Name
 				break
 			}

@@ -278,6 +278,17 @@ func (c *Client) UpdatePR(ctx context.Context, number int, title, body string) e
 	return err
 }
 
+// SetStatus publica un estado de commit (context, p. ej. "verify") sobre sha.
+// state es success, failure, error o pending.
+func (c *Client) SetStatus(ctx context.Context, sha, state, context_, description, targetURL string) error {
+	body := map[string]string{"state": state, "context": context_, "description": description}
+	if targetURL != "" {
+		body["target_url"] = targetURL
+	}
+	_, err := c.do(ctx, http.MethodPost, c.repoPath("/statuses/%s", sha), body, nil)
+	return err
+}
+
 // --- Refs ---
 
 // Ref es una referencia git.
@@ -374,7 +385,12 @@ type Ruleset struct {
 		} `json:"ref_name"`
 	} `json:"conditions"`
 	Rules []struct {
-		Type string `json:"type"`
+		Type       string `json:"type"`
+		Parameters struct {
+			RequiredStatusChecks []struct {
+				Context string `json:"context"`
+			} `json:"required_status_checks"`
+		} `json:"parameters"`
 	} `json:"rules"`
 }
 

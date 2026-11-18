@@ -33,7 +33,9 @@ func goodConfig(gh *citest.FakeGitHub) {
 	gh.Config["/rulesets"] = []map[string]any{{"id": 1}}
 	gh.Config["/rulesets/1"] = map[string]any{"id": 1, "name": "main", "target": "branch", "enforcement": "active",
 		"bypass_actors": []any{}, "conditions": map[string]any{"ref_name": map[string]any{"include": []string{"~DEFAULT_BRANCH"}}},
-		"rules": []map[string]string{{"type": "pull_request"}, {"type": "non_fast_forward"}, {"type": "deletion"}}}
+		"rules": []map[string]any{{"type": "pull_request"}, {"type": "non_fast_forward"}, {"type": "deletion"},
+			{"type": "required_status_checks", "parameters": map[string]any{
+				"required_status_checks": []map[string]any{{"context": "verify", "integration_id": 15368}}}}}}
 	gh.Labels = []string{"pipeline-failure"}
 	pinned := parseEnv(runner.Env)["RUNNER_VERSION"]
 	gh.Config["/repos/actions/runner/releases/latest"] = map[string]any{"tag_name": "v" + pinned, "published_at": time.Now().Add(-40 * 24 * time.Hour)}
@@ -72,6 +74,19 @@ func TestDoctorGitHub(t *testing.T) {
 	r.GitHubChecks(ctx, c, true)
 	if len(gh.Labels) != 1 {
 		t.Error("--fix no creó la etiqueta")
+	}
+}
+
+// TestDoctorRulesetVerify: un ruleset sin el check verify obligatorio no
+// basta; sin él, un PR integrado antes de su check llega a main sin probar.
+func TestDoctorRulesetVerify(t *testing.T) {
+	ctx := context.Background()
+	r, gh, c := doctorRunner(t)
+	goodConfig(gh)
+	rs := gh.Config["/rulesets/1"].(map[string]any)
+	rs["rules"] = rs["rules"].([]map[string]any)[:3]
+	if got := strings.Join(failing(r.GitHubChecks(ctx, c, false)), "; "); !strings.Contains(got, "ruleset") {
+		t.Errorf("no detecta la falta del check verify: %q", got)
 	}
 }
 
