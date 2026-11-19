@@ -1,0 +1,10 @@
+[Unit]
+Description=debfactory: detector de versiones upstream (cada hora; ciclo completo según watch.interval)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

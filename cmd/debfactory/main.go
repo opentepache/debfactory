@@ -160,6 +160,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fs.BoolVar(&o.last, "last", false, "")
 		fs.BoolVar(&o.fix, "fix", false, "")
 		fs.IntVar(&o.jobs, "jobs", defaultJobs(), "")
+		fs.BoolVar(&o.force, "force", false, "")
+		fs.BoolVar(&o.dryRun, "dry-run", false, "")
 	default:
 		fmt.Fprintf(stderr, "debfactory: orden desconocida %q\n\n%s", cmd, usage)
 		return 2

@@ -20,6 +20,7 @@ const ciUsage = `uso: debfactory ci <orden> [opciones]
   notify --package P --version V (--stage S | --stage-file F) --reason TEXTO
   audit check [--against REF]                  invariantes de repo/audit.jsonl
   doctor [--fix]                               configuración de GitHub y de la PC
+  watch [--package P] [--force] [--dry-run]    detector de versiones upstream (nivel ci; specs/005)
 
 Opciones: --env-file F (variables GITHUB_* para pruebas locales) y las globales.
 Sin --package ni la acción en la línea de órdenes, main lee INPUT_ACTION, etc.
@@ -53,7 +54,7 @@ func (a *app) ci(ctx context.Context, pos []string) error {
 		return err
 	}
 	switch sub {
-	case "plan", "pr", "main", "rebuild", "retire", "refresh", "restore-state-pr", "notify", "audit check", "doctor":
+	case "plan", "pr", "main", "rebuild", "retire", "refresh", "restore-state-pr", "notify", "audit check", "doctor", "watch":
 		return r.Dispatch(ctx, sub, a.ciOptions())
 	}
 	return usageError{fmt.Sprintf("orden de ci desconocida %q", sub)}
@@ -64,6 +65,7 @@ func (a *app) ciOptions() ci.Options {
 		Mode: a.opts.mode, Base: a.opts.base, Package: a.opts.pkg, Version: a.opts.version,
 		Reason: a.opts.reason, Last: a.opts.last, Stage: a.opts.stage, StageFile: a.opts.stageFile,
 		Against: a.opts.against, Fix: a.opts.fix, Jobs: a.opts.jobs,
+		Force: a.opts.force, DryRun: a.opts.dryRun,
 	}
 }
 

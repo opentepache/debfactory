@@ -16,6 +16,8 @@ type Options struct {
 	Stage, StageFile, Against            string
 	Last, Fix                            bool
 	Jobs                                 int
+	// Force y DryRun son de ci watch (specs/005-upstream-release-watch).
+	Force, DryRun bool
 }
 
 // Runner reúne lo que necesitan las órdenes ci.

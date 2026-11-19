@@ -27,3 +27,5 @@ completions:
 exclude:
   suites:
     bookworm: Upstream builds on Ubuntu 24.04 and requires glibc >= 2.39; bookworm has 2.36.
+watch:                     # detector de versiones (specs/005-upstream-release-watch)
+  auto_merge: true         # las versiones menores y parches se integran solos tras verify

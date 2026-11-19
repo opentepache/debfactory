@@ -30,6 +30,10 @@ type Env struct {
 	Lint func(ctx context.Context, cfg *config.Config, deb string) (*lint.Result, error)
 	// Generate ejecuta las órdenes de completions (por defecto en contenedor).
 	Generate assemble.Generator
+	// LicenseCheck es el gate de licencias que aplica Lock (por defecto
+	// license.Gate). El detector de versiones (fase 005) lo sustituye para
+	// clasificar un cambio de licencia en lugar de solo rechazarlo.
+	LicenseCheck func(text []byte, declared string, cfg *config.Config) error
 }
 
 // Defaults completa Lint y Generate con las implementaciones en contenedor.

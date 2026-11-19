@@ -145,3 +145,4 @@ ci-lint:
     if command -v checkbashisms >/dev/null; then checkbashisms $(find ci -name '*.sh'); else echo "ci-lint: falta checkbashisms (devscripts)"; exit 1; fi
     sh ci/runner/hooks/trusted-gate_test.sh
     sh ci/runner/launcher_test.sh
+    sh ci/runner/dispatch_test.sh

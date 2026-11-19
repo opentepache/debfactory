@@ -7,13 +7,16 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
 	"time"
 
 	"debfactory/ci/runner"
+	"debfactory/internal/build"
 	"debfactory/internal/forge"
+	"debfactory/internal/manifest"
 	"debfactory/internal/report"
 )
 
@@ -114,6 +117,7 @@ func (r *Runner) GitHubChecks(ctx context.Context, gh *forge.Client, fix bool) [
 	// Un repositorio privado no tiene aprobación de forks (GitHub responde
 	// 422); en su lugar, los forks MUST NOT ejecutar workflows.
 	repo, err := gh.GetRepo(ctx)
+	repoOK := err == nil
 	switch {
 	case err != nil:
 		add("visibilidad del repositorio", false, err.Error())
@@ -181,7 +185,88 @@ func (r *Runner) GitHubChecks(ctx context.Context, gh *forge.Client, fix bool) [
 		add("etiqueta "+label, false, "no existe; ci doctor --fix la crea")
 	}
 	cs = append(cs, r.runnerVersionCheck(ctx, gh))
+	if !repoOK {
+		repo = nil
+	}
+	cs = append(cs, r.watchChecks(ctx, gh, repo)...)
 	return cs
+}
+
+// WatchWorkflow es el workflow del detector de versiones en el repositorio de
+// paquetes (specs/005-upstream-release-watch, contracts/workflows.md).
+const WatchWorkflow = ".github/workflows/watch.yml"
+
+// watchInstalled indica si el repositorio de paquetes tiene el detector.
+func (r *Runner) watchInstalled() bool {
+	_, err := os.Stat(filepath.Join(r.Root, WatchWorkflow))
+	return err == nil
+}
+
+// watchChecks comprueba la configuración que necesita el detector (contracts/
+// cli.md § ci doctor): el environment watch limitado a main con la llave de
+// la App, y "Allow auto-merge" si algún paquete lo usa. La instalación y los
+// permisos de la App no se pueden leer con el token del mantenedor.
+func (r *Runner) watchChecks(ctx context.Context, gh *forge.Client, repo *forge.RepoInfo) []Check {
+	if !r.watchInstalled() {
+		return nil
+	}
+	var cs []Check
+	add := func(name string, ok bool, info string) { cs = append(cs, Check{Name: name, OK: ok, Info: info}) }
+	env, err := gh.GetEnvironment(ctx, "watch")
+	switch {
+	case forge.IsNotFound(err):
+		add("environment watch", false, "no existe: Settings → Environments → New environment (docs/operacion-ci.md)")
+	case err != nil:
+		add("environment watch", false, err.Error())
+	default:
+		p := env.DeploymentBranchPolicy
+		ok, info := false, "Deployment branches: elige Selected branches con solo main"
+		if p != nil && p.CustomBranchPolicies {
+			branches, err := gh.EnvironmentBranches(ctx, "watch")
+			switch {
+			case err != nil:
+				info = err.Error()
+			case slices.Equal(branches, []string{"branch:main"}):
+				ok, info = true, ""
+			default:
+				info = "ramas permitidas " + strings.Join(branches, ", ") + "; debe ser solo main"
+			}
+		}
+		add("environment watch limitado a main", ok, info)
+		secrets, err := gh.EnvironmentSecrets(ctx, "watch")
+		if err != nil {
+			add("secretos de la App en el environment watch", false, err.Error())
+		} else {
+			var missing []string
+			for _, want := range []string{"DEBFACTORY_APP_CLIENT_ID", "DEBFACTORY_APP_KEY"} {
+				if !slices.Contains(secrets, want) {
+					missing = append(missing, want)
+				}
+			}
+			info := ""
+			if len(missing) > 0 {
+				info = "faltan " + strings.Join(missing, ", ") + " (docs/operacion-ci.md)"
+			}
+			add("secretos de la App en el environment watch", len(missing) == 0, info)
+		}
+	}
+	if pkgs := r.autoMergePackages(); len(pkgs) > 0 && repo != nil {
+		add("Allow auto-merge (lo usan "+strings.Join(pkgs, ", ")+")", repo.AllowAutoMerge,
+			map[bool]string{true: "", false: "Settings → General → Allow auto-merge"}[repo.AllowAutoMerge])
+	}
+	return cs
+}
+
+// autoMergePackages lista los paquetes con watch.auto_merge: true.
+func (r *Runner) autoMergePackages() []string {
+	names, _ := build.ListPackages(r.Root)
+	var out []string
+	for _, n := range names {
+		if m, err := manifest.Load(r.Root, n); err == nil && m.Watch.AutoMerge && m.Watch.Watched() {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // runnerVersionCheck avisa si RUNNER_VERSION lleva más de 14 días por detrás
@@ -275,7 +360,11 @@ func (r *Runner) HostChecks(h Host) []Check {
 	} else {
 		add("regla nftables de dfci instalada", true, "comprueba que está cargada: sudo nft list table inet debfactory_ci")
 	}
-	for _, unit := range []string{"debfactory-runner@ci.service", "debfactory-runner@pub.service", "debfactory-refresh.timer"} {
+	units := []string{"debfactory-runner@ci.service", "debfactory-runner@pub.service", "debfactory-refresh.timer"}
+	if r.watchInstalled() {
+		units = append(units, "debfactory-watch.timer")
+	}
+	for _, unit := range units {
 		err := h.Run("systemctl", "is-enabled", "--quiet", unit)
 		add(unit+" habilitado", err == nil, "")
 	}

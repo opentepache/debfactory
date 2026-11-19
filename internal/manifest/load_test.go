@@ -34,6 +34,22 @@ func TestParseExampleDefaults(t *testing.T) {
 	if m.License.File.Repo != "LICENSE" || len(m.Completions.List()) != 3 || len(m.LintianOverrides) != 2 {
 		t.Errorf("decodificación incompleta: %+v", m)
 	}
+	// Sin bloque watch: el detector lo revisa, sin auto-merge y confiando en
+	// la marca de pre-release (specs/005-upstream-release-watch, data-model.md §1).
+	if !m.Watch.Watched() || m.Watch.AutoMerge || m.Watch.PrereleaseFlag != "trust" || m.Watch.IgnorePrereleaseFlag() {
+		t.Errorf("watch por defecto = %+v", m.Watch)
+	}
+}
+
+func TestParseWatch(t *testing.T) {
+	src := readExample(t, "fnm") + "watch:\n  enabled: false\n  auto_merge: true\n  prerelease_flag: ignore\n"
+	m, err := Parse([]byte(src), "packages/fnm.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Watch.Watched() || !m.Watch.AutoMerge || !m.Watch.IgnorePrereleaseFlag() {
+		t.Errorf("watch = %+v", m.Watch)
+	}
 }
 
 // TestParseErrors comprueba la traducción al español de cada tipo de error
@@ -55,6 +71,9 @@ func TestParseErrors(t *testing.T) {
 		"duplicada":    {"revision: 1\n", "revision: 1\nrevision: 2\n", `clave duplicada "revision"`},
 		"YAML roto":    {"revision: 1\n", "revision: [1\n", "YAML inválido"},
 		"completions1": {"bash: {generate: fnm completions --shell bash}", "bash: {}", "packages/fnm.yaml: completions.bash: debe tener exactamente una de: file, generate"},
+		"watch enum":   {"revision: 1\n", "revision: 1\nwatch: {prerelease_flag: maybe}\n", "packages/fnm.yaml: watch.prerelease_flag: valor no permitido (se admite: trust, ignore)"},
+		"watch tipo":   {"revision: 1\n", "revision: 1\nwatch: {auto_merge: si}\n", "packages/fnm.yaml: watch.auto_merge: tipo incorrecto (se esperaba boolean, hay string)"},
+		"watch campo":  {"revision: 1\n", "revision: 1\nwatch: {automerge: true}\n", `packages/fnm.yaml: watch: propiedad desconocida "automerge"`},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

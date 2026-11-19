@@ -4,7 +4,12 @@
 
 Hay dos archivos en `.github/workflows/`. Ninguno usa actions de terceros salvo
 `actions/checkout`, fijada por sha de commit (research D16). Ninguno lee secretos de GitHub:
-`secrets.*` no aparece en ningún workflow.
+`secrets.*` no aparece en `pr.yml` ni en `main.yml`.
+
+> **Fase 005**: `watch.yml` (el detector de versiones) es el único workflow que lee secretos: la
+> llave de la GitHub App, desde el environment `watch`, que solo admite la rama `main`. Corre en el
+> runner `ci`, sin `<data>` ni la llave de firma. Ver
+> `specs/005-upstream-release-watch/contracts/workflows.md` y su research D1–D2.
 
 ## `pr.yml`: pull requests (nivel `ci`)
 

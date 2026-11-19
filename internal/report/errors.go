@@ -45,6 +45,15 @@ const (
 	// Tool: la herramienta en ejecución no es la que fija debfactory.version
 	// (specs/004-split-repos, contracts/herramienta.md).
 	Tool Stage = "tool"
+
+	// Etapas del detector de versiones (specs/005-upstream-release-watch,
+	// data-model.md §6). Watch es un fallo del propio ciclo.
+	Watch          Stage = "watch"
+	WatchLicense   Stage = "watch-license"
+	WatchAssets    Stage = "watch-assets"
+	WatchChecksums Stage = "watch-checksums"
+	WatchTampered  Stage = "watch-tampered"
+	WatchRateLimit Stage = "watch-ratelimit"
 )
 
 // Stages lista las etapas en orden.

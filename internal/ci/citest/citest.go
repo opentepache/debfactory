@@ -3,21 +3,27 @@
 package citest
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	neturl "net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"debfactory/internal/testutil"
 )
 
 // Repo es el repositorio que simula FakeGitHub.
@@ -25,12 +31,13 @@ const Repo = "owner/debfactory"
 
 // Issue es un issue del servidor falso.
 type Issue struct {
-	Number   int
-	Title    string
-	Body     string
-	State    string
-	Labels   []string
-	Comments []string
+	Number    int
+	Title     string
+	Body      string
+	State     string
+	Labels    []string
+	Comments  []string
+	CreatedAt time.Time
 }
 
 // PR es un pull request del servidor falso.
@@ -43,6 +50,18 @@ type PR struct {
 	State     string // open | closed
 	Merged    bool
 	CreatedAt time.Time
+	Comments  []string
+	AutoMerge bool // auto-merge activado por GraphQL (fase 005)
+}
+
+// Release es un release de un repositorio upstream simulado (fase 005).
+type Release struct {
+	Tag         string
+	Draft       bool
+	Prerelease  bool
+	PublishedAt time.Time
+	Assets      []string
+	Digests     map[string]string // asset -> sha256 (campo digest de la API)
 }
 
 // FakeGitHub es un servidor con estado en memoria para issues, PRs, labels,
@@ -60,6 +79,20 @@ type FakeGitHub struct {
 	Dispatch []map[string]any
 	Statuses map[string]map[string]string // sha → context → state
 	Fail     bool                         // si es true, todas las respuestas son 500
+
+	// Releases de repositorios upstream ("owner/repo"), para el detector de
+	// versiones (fase 005). NotModified cuenta las respuestas 304.
+	Releases    map[string][]Release
+	NotModified int
+	// Límite de peticiones simulado: solo para las peticiones con RateToken;
+	// cada una (salvo los 304) gasta una de RateRemaining y, a 0, la API
+	// responde 403 de límite. RateToken vacío = sin límite.
+	RateToken     string
+	RateRemaining int
+	// AutoMergeDisallowed simula "Allow auto-merge" desactivado.
+	AutoMergeDisallowed bool
+	// FailPrefix: las peticiones cuya ruta empieza así responden 500.
+	FailPrefix string
 }
 
 var (
@@ -68,13 +101,17 @@ var (
 	pullRe    = regexp.MustCompile(`^/repos/[^/]+/[^/]+/pulls/(\d+)$`)
 	labelRe   = regexp.MustCompile(`^/repos/[^/]+/[^/]+/labels/([^/]+)$`)
 	statusRe  = regexp.MustCompile(`^/repos/[^/]+/[^/]+/statuses/([0-9a-f]{40})$`)
+	// Fase 005.
+	releasesRe   = regexp.MustCompile(`^/repos/([^/]+/[^/]+)/releases$`)
+	releaseTagRe = regexp.MustCompile(`^/repos/([^/]+/[^/]+)/releases/tags/([^/]+)$`)
+	userRe       = regexp.MustCompile(`^/users/([^/]+)$`)
 )
 
 // NewFakeGitHub arranca el servidor; se cierra al terminar el test.
 func NewFakeGitHub(t *testing.T) *FakeGitHub {
 	t.Helper()
 	f := &FakeGitHub{next: 1, Issues: map[int]*Issue{}, PRs: map[int]*PR{}, Config: map[string]any{},
-		Statuses: map[string]map[string]string{}}
+		Statuses: map[string]map[string]string{}, Releases: map[string][]Release{}}
 	f.Server = httptest.NewServer(http.HandlerFunc(f.handle))
 	t.Cleanup(f.Close)
 	return f
@@ -90,7 +127,7 @@ func (f *FakeGitHub) handle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"falta User-Agent: debfactory"}`, 400)
 		return
 	}
-	if f.Fail {
+	if f.Fail || (f.FailPrefix != "" && strings.HasPrefix(r.URL.Path, f.FailPrefix)) {
 		http.Error(w, `{"message":"fallo simulado"}`, 500)
 		return
 	}
@@ -106,7 +143,77 @@ func (f *FakeGitHub) handle(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(v)
 		}
 	}
+	var relBody []byte
+	notModified := false
+	if m := releasesRe.FindStringSubmatch(p); m != nil && r.Method == "GET" && m[1] != Repo {
+		var etag string
+		relBody, etag = f.releasesJSON(m[1])
+		w.Header().Set("ETag", etag)
+		notModified = r.Header.Get("If-None-Match") == etag
+	}
+	if f.RateToken != "" && r.Header.Get("Authorization") == "Bearer "+f.RateToken {
+		w.Header().Set("X-RateLimit-Limit", "5000")
+		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10))
+		if f.RateRemaining <= 0 {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			reply(403, map[string]string{"message": "API rate limit exceeded for installation"})
+			return
+		}
+		if !notModified {
+			f.RateRemaining--
+		}
+		w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(f.RateRemaining))
+	}
 	switch {
+	case relBody != nil:
+		if notModified {
+			f.NotModified++
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(relBody)
+	case r.Method == "GET" && releaseTagRe.MatchString(p):
+		m := releaseTagRe.FindStringSubmatch(p)
+		tag, _ := neturl.PathUnescape(m[2])
+		for _, rel := range f.Releases[m[1]] {
+			if rel.Tag == tag {
+				reply(200, releaseJSON(m[1], rel))
+				return
+			}
+		}
+		reply(404, map[string]string{"message": "Not Found"})
+	case r.Method == "GET" && userRe.MatchString(p):
+		reply(200, map[string]any{"login": userRe.FindStringSubmatch(p)[1], "id": 4242})
+	case r.Method == "POST" && p == "/graphql":
+		q, _ := in["query"].(string)
+		vars, _ := in["variables"].(map[string]any)
+		id, _ := vars["id"].(string)
+		if f.AutoMergeDisallowed {
+			reply(200, map[string]any{"errors": []map[string]string{{"message": "Pull request Auto merge is not allowed for this repository"}}})
+			return
+		}
+		for _, pr := range f.PRs {
+			if fmt.Sprintf("PR_%d", pr.Number) == id {
+				pr.AutoMerge = strings.Contains(q, "enablePullRequestAutoMerge")
+				reply(200, map[string]any{"data": map[string]any{}})
+				return
+			}
+		}
+		reply(200, map[string]any{"errors": []map[string]string{{"message": "Could not resolve to a node with the global id of '" + id + "'"}}})
+	case r.Method == "GET" && commentRe.MatchString(p):
+		n, _ := strconv.Atoi(commentRe.FindStringSubmatch(p)[1])
+		var bodies []string
+		if is, ok := f.Issues[n]; ok {
+			bodies = is.Comments
+		} else if pr, ok := f.PRs[n]; ok {
+			bodies = pr.Comments
+		}
+		out := []map[string]any{}
+		for _, b := range bodies {
+			out = append(out, map[string]any{"body": b, "user": map[string]string{"login": "bot"}})
+		}
+		reply(200, out)
 	case r.Method == "GET" && p == base+"/issues":
 		label := r.URL.Query().Get("labels")
 		var all []map[string]any
@@ -129,7 +236,7 @@ func (f *FakeGitHub) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		reply(200, all[lo:hi])
 	case r.Method == "POST" && p == base+"/issues":
-		is := &Issue{Number: f.next, Title: str("title"), Body: str("body"), State: "open"}
+		is := &Issue{Number: f.next, Title: str("title"), Body: str("body"), State: "open", CreatedAt: time.Now().UTC()}
 		if ls, ok := in["labels"].([]any); ok {
 			for _, l := range ls {
 				is.Labels = append(is.Labels, l.(string))
@@ -143,7 +250,7 @@ func (f *FakeGitHub) handle(w http.ResponseWriter, r *http.Request) {
 		if is, ok := f.Issues[n]; ok {
 			is.Comments = append(is.Comments, str("body"))
 		} else if pr, ok := f.PRs[n]; ok {
-			_ = pr
+			pr.Comments = append(pr.Comments, str("body"))
 		} else {
 			reply(404, map[string]string{"message": "Not Found"})
 			return
@@ -195,6 +302,9 @@ func (f *FakeGitHub) handle(w http.ResponseWriter, r *http.Request) {
 			}
 			if s := str("body"); s != "" {
 				pr.Body = s
+			}
+			if str("state") == "closed" {
+				pr.State, pr.AutoMerge = "closed", false
 			}
 		}
 		reply(200, prJSON(pr))
@@ -255,15 +365,158 @@ func (f *FakeGitHub) issueJSON(is *Issue) map[string]any {
 		labels = append(labels, map[string]string{"name": l})
 	}
 	return map[string]any{"number": is.Number, "title": is.Title, "body": is.Body, "state": is.State,
-		"labels": labels, "html_url": fmt.Sprintf("https://github.com/%s/issues/%d", Repo, is.Number)}
+		"labels": labels, "html_url": fmt.Sprintf("https://github.com/%s/issues/%d", Repo, is.Number),
+		"created_at": is.CreatedAt.Format(time.RFC3339)}
 }
 
 func prJSON(pr *PR) map[string]any {
-	return map[string]any{"number": pr.Number, "state": pr.State, "title": pr.Title, "body": pr.Body,
+	out := map[string]any{"number": pr.Number, "state": pr.State, "title": pr.Title, "body": pr.Body,
 		"merged": pr.Merged, "created_at": pr.CreatedAt.Format(time.RFC3339),
 		"html_url": fmt.Sprintf("https://github.com/%s/pull/%d", Repo, pr.Number),
-		"head":     map[string]string{"ref": pr.Head}}
+		"head":     map[string]string{"ref": pr.Head}, "node_id": fmt.Sprintf("PR_%d", pr.Number)}
+	if pr.AutoMerge {
+		out["auto_merge"] = map[string]string{"merge_method": "merge"}
+	}
+	return out
 }
+
+func releaseJSON(repo string, r Release) map[string]any {
+	assets := []map[string]string{}
+	for _, a := range r.Assets {
+		asset := map[string]string{"name": a}
+		if d := r.Digests[a]; d != "" {
+			asset["digest"] = "sha256:" + d
+		}
+		assets = append(assets, asset)
+	}
+	return map[string]any{"tag_name": r.Tag, "draft": r.Draft, "prerelease": r.Prerelease,
+		"published_at": r.PublishedAt.UTC().Format(time.RFC3339),
+		"html_url":     "https://github.com/" + repo + "/releases/tag/" + r.Tag, "assets": assets}
+}
+
+// releasesJSON es la respuesta de /releases (más reciente primero) y su ETag.
+func (f *FakeGitHub) releasesJSON(repo string) ([]byte, string) {
+	rs := slices.Clone(f.Releases[repo])
+	sort.SliceStable(rs, func(i, j int) bool { return rs[i].PublishedAt.After(rs[j].PublishedAt) })
+	out := []map[string]any{}
+	for _, r := range rs {
+		out = append(out, releaseJSON(repo, r))
+	}
+	b, _ := json.Marshal(out)
+	sum := sha256.Sum256(b)
+	return b, `"` + hex.EncodeToString(sum[:8]) + `"`
+}
+
+// SetReleases sustituye los releases de un repositorio upstream.
+func (f *FakeGitHub) SetReleases(repo string, rs ...Release) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Releases[repo] = rs
+}
+
+// SetRate fija el límite de peticiones simulado para un token.
+func (f *FakeGitHub) SetRate(token string, remaining int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.RateToken, f.RateRemaining = token, remaining
+}
+
+// GetPR devuelve una copia de un PR por número.
+func (f *FakeGitHub) GetPR(n int) PR {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return *f.PRs[n]
+}
+
+// SetIssueCreated cambia la fecha de creación de un issue.
+func (f *FakeGitHub) SetIssueCreated(n int, t time.Time) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Issues[n].CreatedAt = t
+}
+
+// CountRequests cuenta las peticiones registradas que empiezan por prefix
+// (p. ej. "GET /repos/o/r/releases").
+func (f *FakeGitHub) CountRequests(prefix string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	for _, r := range f.Requests {
+		if strings.HasPrefix(r, prefix) {
+			n++
+		}
+	}
+	return n
+}
+
+// ResetRequests vacía el registro de peticiones.
+func (f *FakeGitHub) ResetRequests() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Requests, f.Bodies, f.NotModified = nil, nil, 0
+}
+
+// Upstream es un servidor HTTPS que sirve los archivos de releases
+// simulados (assets en github.com/<repo>/releases/download/<tag>/ y textos en
+// raw.githubusercontent.com/<repo>/<tag>/) a través de Transport.
+type Upstream struct {
+	*httptest.Server
+	mu    sync.Mutex
+	files map[string][]byte // host+ruta -> contenido
+	hits  map[string]int
+}
+
+// NewUpstream arranca el servidor; se cierra al terminar el test.
+func NewUpstream(t *testing.T) *Upstream {
+	t.Helper()
+	u := &Upstream{files: map[string][]byte{}, hits: map[string]int{}}
+	u.Server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u.mu.Lock()
+		b, ok := u.files[r.Host+r.URL.Path]
+		u.hits[r.Host+r.URL.Path]++
+		u.mu.Unlock()
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		w.Write(b)
+	}))
+	t.Cleanup(u.Close)
+	return u
+}
+
+// Serve publica data en una URL https.
+func (u *Upstream) Serve(url string, data []byte) {
+	p, err := neturl.Parse(url)
+	if err != nil {
+		panic(err)
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.files[p.Host+p.Path] = data
+}
+
+// Remove deja de servir una URL.
+func (u *Upstream) Remove(url string) {
+	p, _ := neturl.Parse(url)
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	delete(u.files, p.Host+p.Path)
+}
+
+// Downloads es el número total de descargas servidas.
+func (u *Upstream) Downloads() int {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	n := 0
+	for _, h := range u.hits {
+		n += h
+	}
+	return n
+}
+
+// Transport envía al servidor de prueba las peticiones a cualquier host.
+func (u *Upstream) Transport() http.RoundTripper { return testutil.Redirect{Server: u.Server} }
 
 // OpenIssues devuelve los issues abiertos.
 func (f *FakeGitHub) OpenIssues() []*Issue {

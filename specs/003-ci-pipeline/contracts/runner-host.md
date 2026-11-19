@@ -89,6 +89,12 @@ lanza `debfactory-refresh.service`. Ese servicio corre como root, con `DynamicUs
 `LoadCredential=`, y hace un `POST /repos/{owner}/{repo}/actions/workflows/main.yml/dispatches`
 con `{"ref":"main","inputs":{"action":"refresh"}}`. El token solo se envía a `api.github.com`.
 
+**Fase 005** (specs/005-upstream-release-watch, contracts/workflows.md): `debfactory-watch.timer`
+(`OnCalendar=hourly`, `Persistent=true`, `RandomizedDelaySec=10m`) lanza
+`debfactory-watch.service`, igual que el de refirmado, que hace el mismo `POST` sobre `watch.yml`
+con `{"ref":"main","inputs":{}}`. El ciclo decide si ya venció `watch.interval`. `setup.sh` lo
+instala pero no lo habilita: se habilita a mano cuando `watch.yml` está en `main`.
+
 ## Red (`/etc/nftables.d/debfactory-ci.nft`)
 
 ```nft
@@ -150,8 +156,9 @@ todas las imágenes de `dfci` salvo esa.
 - **binfmt**: dentro del contenedor `/proc/sys/fs/binfmt_misc` no está montado. `run-runner.sh`
   monta el del host en `/run/binfmt_misc` (solo lectura) y fija `DEBFACTORY_BINFMT_DIR`, que usa
   la comprobación previa de Docker y qemu.
-- **Refirmado**: el temporizador ejecuta `/usr/local/lib/debfactory/dispatch-refresh.sh`
-  (`curl` con el token por la entrada estándar).
+- **Refirmado y detector**: los temporizadores ejecutan `/usr/local/lib/debfactory/dispatch.sh
+  <workflow> <entradas>` (`curl` con el token por la entrada estándar; fase 005, antes
+  `dispatch-refresh.sh`). Lo prueba `ci/runner/dispatch_test.sh`.
 - **Unidad**: además de lo de arriba, `NoNewPrivileges=yes`, `ProtectSystem=strict`,
   `ProtectHome=read-only` y `PrivateTmp=yes` para los procesos del host de la unidad.
 - **Contenedor**: `--init`, `--read-only`, `--tmpfs /tmp` y `/root`,

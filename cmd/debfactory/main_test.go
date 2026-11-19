@@ -52,6 +52,16 @@ func TestExitCodes(t *testing.T) {
 		{[]string{"validate", "--root", root, "../etc"}, 2, "nombre de paquete inválido"},
 		{[]string{"build", "--bogus"}, 2, "flag provided but not defined"},
 		{[]string{"version", "x"}, 2, "version no admite argumentos"},
+		// ci watch (specs/005-upstream-release-watch, contracts/cli.md).
+		{[]string{"ci", "watch", "--root", root, "--package", "../etc"}, 2, "nombre de paquete inválido"},
+		{[]string{"ci", "watch", "extra", "--root", root}, 2, "ci watch no admite argumentos posicionales"},
+	}
+	if os.Getenv("GITHUB_ACTIONS") != "true" {
+		cases = append(cases, struct {
+			args []string
+			code int
+			err  string
+		}{[]string{"ci", "watch", "--root", root}, 3, "en local usa --dry-run"})
 	}
 	for _, c := range cases {
 		var out, errb bytes.Buffer

@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"os"
 	"os/user"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -87,6 +89,59 @@ func TestDoctorRulesetVerify(t *testing.T) {
 	rs["rules"] = rs["rules"].([]map[string]any)[:3]
 	if got := strings.Join(failing(r.GitHubChecks(ctx, c, false)), "; "); !strings.Contains(got, "ruleset") {
 		t.Errorf("no detecta la falta del check verify: %q", got)
+	}
+}
+
+// TestDoctorWatch: con watch.yml en el repositorio de paquetes, ci doctor
+// comprueba el environment watch, sus secretos (por nombre), "Allow
+// auto-merge" si algún paquete lo usa y el timer (specs/005, contracts/cli.md).
+func TestDoctorWatch(t *testing.T) {
+	ctx := context.Background()
+	r, gh, c := doctorRunner(t)
+	goodConfig(gh)
+	if f := failing(r.GitHubChecks(ctx, c, false)); len(f) != 0 {
+		t.Fatalf("sin watch.yml no debería comprobar el detector: %v", f)
+	}
+	root := t.TempDir()
+	if err := os.CopyFS(root, os.DirFS(testutil.ProjectRoot())); err != nil {
+		t.Fatal(err)
+	}
+	os.MkdirAll(filepath.Join(root, ".github/workflows"), 0o755)
+	os.WriteFile(filepath.Join(root, WatchWorkflow), []byte("name: watch\n"), 0o644)
+	r.Root = root
+	got := strings.Join(failing(r.GitHubChecks(ctx, c, false)), "; ")
+	if !strings.Contains(got, "environment watch") || !strings.Contains(got, "Allow auto-merge (lo usan bob)") {
+		t.Errorf("fallos = %s", got)
+	}
+	gh.Config[""] = map[string]any{"private": false, "allow_auto_merge": true}
+	gh.Config["/environments/watch"] = map[string]any{"name": "watch",
+		"deployment_branch_policy": map[string]bool{"protected_branches": false, "custom_branch_policies": true}}
+	gh.Config["/environments/watch/deployment-branch-policies"] = map[string]any{
+		"branch_policies": []map[string]string{{"name": "main", "type": "branch"}}}
+	gh.Config["/environments/watch/secrets"] = map[string]any{"secrets": []map[string]string{{"name": "DEBFACTORY_APP_CLIENT_ID"}}}
+	if got := strings.Join(failing(r.GitHubChecks(ctx, c, false)), "; "); !strings.Contains(got, "secretos de la App") {
+		t.Errorf("falta el secreto DEBFACTORY_APP_KEY sin fallo: %s", got)
+	}
+	gh.Config["/environments/watch/secrets"] = map[string]any{"secrets": []map[string]string{{"name": "DEBFACTORY_APP_CLIENT_ID"}, {"name": "DEBFACTORY_APP_KEY"}}}
+	if f := failing(r.GitHubChecks(ctx, c, false)); len(f) != 0 {
+		t.Errorf("configuración correcta con fallos: %v", f)
+	}
+	gh.Config["/environments/watch/deployment-branch-policies"] = map[string]any{
+		"branch_policies": []map[string]string{{"name": "*", "type": "branch"}}}
+	if got := strings.Join(failing(r.GitHubChecks(ctx, c, false)), "; "); !strings.Contains(got, "environment watch limitado a main") {
+		t.Errorf("acepta un environment abierto a todas las ramas: %s", got)
+	}
+	var units []string
+	h := Host{Stat: func(string) (fs.FileInfo, error) { return nil, os.ErrNotExist },
+		LookupUser: func(string) (*user.User, error) { return nil, errors.New("no") },
+		GroupNames: func(*user.User) ([]string, error) { return nil, nil },
+		Run: func(_ string, args ...string) error {
+			units = append(units, args[len(args)-1])
+			return nil
+		}}
+	r.HostChecks(h)
+	if !slices.Contains(units, "debfactory-watch.timer") {
+		t.Errorf("no comprueba el timer del detector: %v", units)
 	}
 }
 

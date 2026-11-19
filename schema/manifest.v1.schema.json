@@ -247,6 +247,31 @@
         }
       }
     },
+    "watch": {
+      "description": "Detector de versiones upstream (specs/005-upstream-release-watch, data-model.md §1).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "description": "false excluye el paquete del detector (se lista como omitido).",
+          "type": "boolean",
+          "default": true
+        },
+        "auto_merge": {
+          "description": "Los PR de versión nueva se integran solos si pasan verify; nunca con un cambio de versión mayor, de licencia o de otros campos (FR-013–FR-015a).",
+          "type": "boolean",
+          "default": false
+        },
+        "prerelease_flag": {
+          "description": "trust: se descarta lo que upstream marca como pre-release. ignore: esa marca no es fiable para este paquete. Nunca desactiva el filtro de marcadores preliminares en la versión (FR-003a).",
+          "enum": [
+            "trust",
+            "ignore"
+          ],
+          "default": "trust"
+        }
+      }
+    },
     "lintian_overrides": {
       "type": "array",
       "items": {

@@ -7,15 +7,16 @@
 
 - Fase 004 terminada: `ci doctor` en verde, herramienta fijada en `packages`.
 - La GitHub App `opentepache-updates` creada e instalada solo en `packages` (contracts/workflows.md).
-- Environment `watch` con `DEBFACTORY_APP_ID` y `DEBFACTORY_APP_KEY`, limitado a `main`.
+- Environment `watch` con `DEBFACTORY_APP_CLIENT_ID` y `DEBFACTORY_APP_KEY`, limitado a `main`.
 - "Allow auto-merge" activado en `packages`.
 - La herramienta con `ci watch` instalada (`just tool-install`) y fijada en `packages`.
 
 ## 1. Pruebas de la herramienta (sin red, sin GitHub real)
 
 ```bash
-just check            # incluye las pruebas de internal/watch e internal/ci con el GitHub falso
-just e2e              # recorrido: release simulado de bob → PR → auto-merge → publicación local
+just check            # internal/watch, internal/ci (GitHub falso + upstream simulado) y, con
+                      # -tags integration, TestWatchToPublish: release simulado de bob → PR con
+                      # auto-merge → merge → ci main publica bob 4.4.0-0~tepache1
 ```
 
 Esperado (SC-001 a SC-007 contra el upstream simulado):
@@ -34,8 +35,9 @@ Esperado (SC-001 a SC-007 contra el upstream simulado):
 ## 2. Barrera de confianza
 
 ```bash
-bin/debfactory ci watch            # fuera de CI → código 3
-bin/debfactory ci watch --dry-run  # con GH_TOKEN de lectura: imprime decisiones, no escribe nada
+bin/debfactory ci watch --root ../packages            # fuera de CI → código 3
+GH_TOKEN=$(gh auth token) bin/debfactory ci watch --dry-run --root ../packages
+                      # decisiones y, por paquete, por qué se descarta cada release reciente
 ```
 
 ## 3. Primer ciclo real (sin auto-merge en ningún paquete)

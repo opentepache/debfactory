@@ -27,8 +27,10 @@ La plantilla `tag` (existente, `v{{version}}` por defecto) es el patrón de etiq
 | `watch.interval` | duración | `24h` | FR-001; mínimo `1h` |
 | `watch.cooldown` | duración | `48h` | FR-004a; mínimo `0h`, global |
 | `watch.rate_reserve` | entero | `500` | FR-021; peticiones que el ciclo deja sin usar |
-| `watch.branch_prefix` | texto | `debfactory/update/` | ramas del detector |
-| `watch.app_slug` | texto | — | slug de la GitHub App; identifica sus commits (FR-009) |
+| `watch.branch_prefix` | texto | `debfactory/update/` | ramas del detector; termina en `/`; no puede chocar con `main` ni con `ci.state_branch` |
+
+El slug de la App no se configura: lo entrega `actions/create-github-app-token` (salida
+`app-slug`) en `DEBFACTORY_APP_SLUG` (contracts/cli.md).
 
 ## 3. Release upstream (leído, no guardado)
 
@@ -87,8 +89,20 @@ paquete:
 
 | Campo | Valores |
 |---|---|
-| decisión | `sin-cambios`, `en-espera (elegible <fecha>)`, `pr-abierto`, `pr-actualizado`, `pr-cerrado`, `comentado`, `notificado`, `ya-notificado`, `omitido` (`watch.enabled: false`, sin `upstream`), `pendiente-límite` |
+| decisión | `sin-cambios`, `en-espera (elegible <fecha>)`, `pr-abierto #n [(auto-merge)]`, `pr-actualizado #n`, `pr-al-día #n`, `pr-cerrado #n`, `comentado #n`, `notificado <etapa> #n`, `ya-notificado #n (<etapa>)`, `omitido (watch.enabled: false)`, `pendiente-límite`, `error …` (fallo del ciclo, código 1) |
 | publicada / upstream | versión en `main` y última estable de upstream |
-| peticiones | consumidas por el paquete (incluye `304`) |
+Más una línea final con las consultas de releases (y cuántas fueron `304`) y
+`X-RateLimit-Remaining`.
 
-Más una línea final con el total de peticiones y `X-RateLimit-Remaining`.
+## 8. Estado entre ciclos (caché de Actions)
+
+`$RUNNER_TEMP/debfactory-watch/state.json`, que restaura y guarda `actions/cache` en `watch.yml`:
+
+| Campo | Uso |
+|---|---|
+| `last_cycle` | inicio del último ciclo completo (FR-001) |
+| `pending` | paquetes que el límite dejó sin revisar; van primero en el ciclo siguiente |
+| `stopped` | ciclos completos seguidos detenidos por el límite (3 → `watch-ratelimit`) |
+| `releases` | por upstream, el ETag y el cuerpo de la última respuesta (FR-021) |
+
+Perderlo no rompe nada: el ciclo siguiente es completo y sin ETag.

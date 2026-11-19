@@ -122,10 +122,12 @@ install -d -m 700 -o dfpub -g dfpub /srv/debfactory/data /srv/debfactory/rclone 
 
 # 6. Scripts y unidades.
 install -d -m 755 "$libdir"
-for f in jitconfig.sh run-runner.sh cleanup.sh dispatch-refresh.sh; do
+for f in jitconfig.sh run-runner.sh cleanup.sh dispatch.sh; do
     install -m 755 "$repo_root/ci/runner/$f" "$libdir/$f"
 done
-for f in debfactory-runner@.service debfactory-refresh.service debfactory-refresh.timer; do
+rm -f "$libdir/dispatch-refresh.sh"   # sustituido por dispatch.sh (fase 005)
+for f in debfactory-runner@.service debfactory-refresh.service debfactory-refresh.timer \
+    debfactory-watch.service debfactory-watch.timer; do
     install -m 644 "$here/$f" "/etc/systemd/system/$f"
 done
 
@@ -207,6 +209,13 @@ systemctl daemon-reload
 if [ -n "$repository" ] && [ -s "$credstore" ]; then
     systemctl enable --now debfactory-refresh.timer >/dev/null
     say "temporizador de refirmado activo"
+fi
+# El detector de versiones (fase 005) se activa a mano cuando watch.yml ya está
+# en main de packages; antes, cada disparo daría HTTP 404.
+if systemctl is-enabled --quiet debfactory-watch.timer 2>/dev/null; then
+    say "temporizador del detector de versiones activo"
+else
+    say "detector de versiones: cuando watch.yml esté en main, sudo systemctl enable --now debfactory-watch.timer"
 fi
 
 say "listo."

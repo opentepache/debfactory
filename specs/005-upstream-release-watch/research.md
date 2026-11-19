@@ -12,7 +12,10 @@ documentación de GitHub se consultaron el 2026-11-19 (docs.github.com, "GITHUB_
 instalación de una GitHub App de la organización (`opentepache-updates`, gratuita), con permisos
 de repositorio **Contents: write** y **Pull requests: write** sobre `opentepache/packages`
 únicamente. El token se emite en cada ejecución (dura 1 hora) con
-`actions/create-github-app-token` fijada por sha, y se reduce a esos dos permisos.
+`actions/create-github-app-token` fijada por sha, y se reduce a esos dos permisos. La acción
+recibe el **Client ID** de la App (`client-id`; en la v3 `app-id` está obsoleta) y entrega
+también el slug (`app-slug`), que `ci watch` usa como autor de sus commits; así el nombre de la
+App no se repite en la configuración.
 
 **Motivo**: lo vimos en la fase 004 (PR de estado #8) y lo confirma la documentación:
 
@@ -59,10 +62,20 @@ añade código de debfactory con red y credenciales fuera de los contenedores, c
 
 **Decisión**: `debfactory-watch.timer` (cada hora, `Persistent=true`) lanza `workflow_dispatch`
 de `watch.yml` con el mismo script y la misma credencial que el refirmado
-(`dispatch-refresh.sh` se generaliza a `dispatch.sh <workflow> <inputs>`). `ci watch` consulta
-la hora de inicio del último ciclo completado con éxito (API de ejecuciones de `watch.yml`) y, si
-no han pasado `watch.interval` (por defecto 24 h, en `config/debfactory.yaml`), termina con "ciclo
-no vencido" sin consultar upstream. El mantenedor lanza un ciclo con `watch.yml` → "Run workflow"
+(`dispatch-refresh.sh` se generaliza a `dispatch.sh <workflow> <inputs>`). `ci watch` guarda la
+hora de inicio del último ciclo completo en su estado de la caché de Actions
+(`$RUNNER_TEMP/debfactory-watch/state.json`) y, si no han pasado `watch.interval` (por defecto 24
+h, en `config/debfactory.yaml`), termina con "ciclo no vencido" sin ninguna petición.
+
+*Cambio al implementar*: la primera idea era leer la última ejecución con éxito de `watch.yml` en
+la API, pero los disparos horarios que terminan en "ciclo no vencido" también son ejecuciones con
+éxito: el ciclo nunca vencería. Si la caché se pierde (7 días sin uso), el siguiente ciclo es
+completo, que es inofensivo.
+
+Un ciclo cuenta como completo aunque algún paquete falle (p. ej. su upstream da 404): el fallo
+se notifica (`fallo: pipeline - en watch`) y se reintenta al vencer el intervalo, no cada hora.
+Si falla algo global antes de revisar paquetes (git, la lista de PRs), no cuenta y se repite en
+el disparo siguiente. El mantenedor lanza un ciclo con `watch.yml` → "Run workflow"
 (entradas `package` y `force`).
 
 **Motivo**: `on: schedule` se desactiva tras 60 días sin actividad en repos públicos (research
@@ -91,9 +104,15 @@ intervalo de D3 lo convierte en "ciclo no vencido" (FR-005).
    defecto, `release-{{version}}`, etc.). Si la etiqueta no encaja, el release no es de este
    paquete y se descarta sin notificar.
 4. Descartar si la versión contiene, sin distinguir mayúsculas, alguno de `alpha`, `beta`, `rc`,
-   `pre`, `preview`, `nightly`, `tip`, `canary`, `dev`, `snapshot` como componente (separado por
+   `pre`, `prerelease`, `preview`, `nightly`, `tip`, `canary`, `dev`, `snapshot` como componente (separado por
    `-`, `.`, `_`, `+` o pegado a un número: `1.2.0rc1`). Este filtro **no** se puede desactivar.
-5. Exigir que la versión empiece por un dígito.
+5. Exigir que la versión cumpla el patrón de `version` del esquema del manifiesto
+   (`^[0-9][A-Za-z0-9.+]*$`): empieza por un dígito y no tiene `-` ni `~`. Lo que no cabe en un
+   manifiesto (p. ej. `2.67.0-lock.0` de aqua) se descarta sin notificar.
+
+*Comprobado con datos reales* (`ci watch --dry-run` sobre los 5 paquetes, 2026-11-19): aqua marca
+como pre-release `v2.67.0-lock.0` y `v2.65.2-0`; bob publica una etiqueta `nightly` marcada como
+pre-release que tampoco encaja con `v{{version}}`. Ninguna llega a candidata.
 
 El "patrón propio de etiquetas" de FR-003a es la plantilla `tag` que ya existe; no se añade otro
 campo.
@@ -129,8 +148,8 @@ No hay base de datos del detector. Lo que debe recordarse entre ciclos ya está 
 |---|---|
 | propuesta en curso | el PR abierto de la rama `debfactory/update/<pkg>` |
 | problema ya notificado | el issue de notificación abierto (marcador de 003) |
-| último ciclo | las ejecuciones de `watch.yml` |
-| respuestas no modificadas | caché de Actions (D9) |
+| último ciclo, pendientes, ciclos detenidos | caché de Actions (D3, D9) |
+| respuestas no modificadas (ETag y cuerpo) | caché de Actions (D9) |
 
 ## D8. Cambio de licencia (FR-015, FR-016 a)
 
@@ -155,9 +174,13 @@ declarada:
   `packages`, pueda leer releases de repositorios públicos ajenos y con qué límite se comprueba
   en el spike (tasks T003); si no puede, las lecturas de upstream usan el `GITHUB_TOKEN` y la
   reserva se recalcula sobre 1 000/h.
-- Antes de cada paquete se mira `X-RateLimit-Remaining`; por debajo de `watch.rate_reserve`
+- Antes de cada paquete se mira `X-RateLimit-Remaining`; si ya no supera `watch.rate_reserve`
   (por defecto 500) el ciclo se detiene, lista los paquetes pendientes en el resumen y termina en
-  verde. El orden de revisión empieza por los que no se revisaron en el ciclo anterior.
+  verde. Los pendientes se guardan en el estado de la caché y el ciclo siguiente empieza por ellos.
+- Además del ETag, la API publica el sha256 de cada asset (`digest`): con un PR abierto, el ciclo
+  compara esos sha256 con su lockfile sin descargar nada; un asset resubido con la misma etiqueta
+  es `watch-tampered` (FR-016 d). Si el release no trae `digest`, la comparación se hace al
+  regenerar la rama.
 - Ante `403/429` con `Retry-After` o `X-RateLimit-Reset`, se detiene igual (no reintenta).
 
 Con 100 paquetes, un ciclo sin novedades cuesta ≤ 100 peticiones (casi todas `304`).

@@ -633,7 +633,7 @@ func (r *Runner) Dispatch(ctx context.Context, cmd string, o Options) error {
 		}
 	}
 	switch cmd {
-	case "main", "pr", "refresh", "rebuild", "retire", "restore-state-pr":
+	case "main", "pr", "refresh", "rebuild", "retire", "restore-state-pr", "watch":
 		// notify, plan, audit check y doctor no: notify tiene que poder avisar
 		// justo de este fallo, y los demás no construyen ni publican.
 		if err := CheckTool(r.Root, r.Env); err != nil {
@@ -662,6 +662,8 @@ func (r *Runner) Dispatch(ctx context.Context, cmd string, o Options) error {
 		return r.AuditCheck(ctx, o)
 	case "doctor":
 		return r.Doctor(ctx, o)
+	case "watch":
+		return r.Watch(ctx, o)
 	}
 	return &InputError{fmt.Sprintf("ci %s: orden desconocida", cmd)}
 }

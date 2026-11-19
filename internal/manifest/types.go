@@ -37,6 +37,7 @@ type Manifest struct {
 	Exclude          Exclude           `yaml:"exclude"`
 	Test             Test              `yaml:"test"`
 	LintianOverrides []LintianOverride `yaml:"lintian_overrides"`
+	Watch            Watch             `yaml:"watch"`
 
 	// File es la ruta del manifiesto relativa a la raíz (packages/<name>.yaml).
 	File string `yaml:"-"`
@@ -114,6 +115,22 @@ type Test struct {
 	Command string `yaml:"command"`
 	Expect  string `yaml:"expect"`
 }
+
+// Watch configura el detector de versiones para este paquete
+// (specs/005-upstream-release-watch, data-model.md §1).
+type Watch struct {
+	Enabled        *bool  `yaml:"enabled"`         // false excluye el paquete (por defecto true)
+	AutoMerge      bool   `yaml:"auto_merge"`      // FR-013; por defecto false
+	PrereleaseFlag string `yaml:"prerelease_flag"` // trust | ignore (FR-003a); por defecto trust
+}
+
+// Watched indica si el detector revisa el paquete.
+func (w Watch) Watched() bool { return w.Enabled == nil || *w.Enabled }
+
+// IgnorePrereleaseFlag indica que la marca de pre-release de upstream no es
+// fiable para este paquete. Nunca desactiva el filtro de marcadores
+// preliminares en la versión (constitución, Alcance).
+func (w Watch) IgnorePrereleaseFlag() bool { return w.PrereleaseFlag == "ignore" }
 
 // LintianOverride silencia una etiqueta con motivo (constitución VII).
 type LintianOverride struct {

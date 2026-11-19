@@ -103,7 +103,11 @@ func (e *Env) Lock(ctx context.Context, name string, force bool) error {
 		return err
 	}
 	entry.LicenseSHA256 = fetch.SHA256(text)
-	if err := license.Gate(text, m.License.SPDX, e.Cfg); err != nil {
+	check := e.LicenseCheck
+	if check == nil {
+		check = license.Gate
+	}
+	if err := check(text, m.License.SPDX, e.Cfg); err != nil {
 		return fail(report.License, "", err)
 	}
 

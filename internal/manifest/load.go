@@ -121,6 +121,9 @@ func applyDefaults(m *Manifest) {
 	if m.Test.Expect == "" {
 		m.Test.Expect = "{{version}}"
 	}
+	if m.Watch.PrereleaseFlag == "" {
+		m.Watch.PrereleaseFlag = "trust"
+	}
 }
 
 // toJSON convierte un nodo YAML en valores compatibles con JSON. Las claves

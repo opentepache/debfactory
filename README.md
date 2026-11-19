@@ -85,6 +85,12 @@ mantenedor instala con `just tool-install` (pruebas en verde, commit embebido).
 `debfactory version`
 ([cli.md](specs/003-ci-pipeline/contracts/cli.md); [operación](docs/operacion-ci.md)).
 
+El **detector de versiones** (`debfactory ci watch`, fase 005) revisa cada día los releases de
+cada paquete y propone las versiones estables nuevas (48 h después de publicarse) como PR, con
+una GitHub App propia; el auto-merge es opcional por paquete y nunca cubre saltos de versión
+mayor ni cambios de licencia
+([specs/005](specs/005-upstream-release-watch/spec.md); [operación](docs/operacion-ci.md#6-detector-de-versiones-fase-005)).
+
 ## Atajos
 
 ```bash

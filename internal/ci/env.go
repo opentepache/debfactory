@@ -33,6 +33,12 @@ type Env struct {
 
 	Token string // GITHUB_TOKEN
 
+	// Detector de versiones (specs/005-upstream-release-watch): token de
+	// instalación de la GitHub App (nunca se imprime) y su slug, salidas de
+	// actions/create-github-app-token en watch.yml.
+	AppToken string // DEBFACTORY_APP_TOKEN
+	AppSlug  string // DEBFACTORY_APP_SLUG
+
 	vars map[string]string
 }
 
@@ -41,6 +47,7 @@ var envKeys = []string{
 	"GITHUB_EVENT_NAME", "GITHUB_REF", "GITHUB_SHA", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
 	"GITHUB_SERVER_URL", "GITHUB_API_URL", "GITHUB_STEP_SUMMARY", "RUNNER_TEMP", "RUNNER_LABELS",
 	"GITHUB_TOKEN", "GITHUB_ACTIONS", "INPUT_ACTION", "INPUT_PACKAGE", "INPUT_VERSION", "INPUT_REASON", "INPUT_LAST",
+	"INPUT_FORCE", "DEBFACTORY_APP_TOKEN", "DEBFACTORY_APP_SLUG",
 }
 
 // LoadEnv lee el contexto del entorno del proceso y, si envFile no está
@@ -89,6 +96,8 @@ func newEnv(cfg *config.Config, vars map[string]string) *Env {
 		StepSummary: vars["GITHUB_STEP_SUMMARY"],
 		RunnerTemp:  vars["RUNNER_TEMP"],
 		Token:       vars["GITHUB_TOKEN"],
+		AppToken:    vars["DEBFACTORY_APP_TOKEN"],
+		AppSlug:     vars["DEBFACTORY_APP_SLUG"],
 		Actions:     vars["GITHUB_ACTIONS"] == "true",
 		vars:        vars,
 	}
@@ -148,6 +157,44 @@ func (e *Env) RequireWriter(cfg *config.Config) error {
 		return &report.EnvError{Cause: "falta GITHUB_TOKEN"}
 	}
 	return nil
+}
+
+// RequireWatcher es la barrera de `ci watch` (specs/005-upstream-release-watch,
+// contracts/cli.md): solo en un job del runner ci (nunca en el pub, que tiene
+// <data> y la llave: FR-012), con workflow_dispatch sobre main del
+// repositorio configurado y con el token de la App. Si no, código 3.
+func (e *Env) RequireWatcher(cfg *config.Config) error {
+	if cfg.CI.Repository == "" {
+		return &report.EnvError{Cause: "ci.repository está vacío en " + config.MainFile}
+	}
+	switch {
+	case !e.Actions:
+		return &report.EnvError{Cause: "ci watch solo escribe dentro de un job de GitHub Actions; en local usa --dry-run"}
+	case e.Trust != "ci":
+		return &report.EnvError{Cause: fmt.Sprintf("ci watch solo corre en el runner %s (nivel ci), nunca en el que tiene la llave (FR-012); RUNNER_LABELS no lo cumple", cfg.CI.Labels.CI)}
+	case e.EventName != "workflow_dispatch":
+		return &report.EnvError{Cause: fmt.Sprintf("evento %q: ci watch solo corre con workflow_dispatch", e.EventName)}
+	case e.Ref != "refs/heads/main":
+		return &report.EnvError{Cause: fmt.Sprintf("ref %q: ci watch solo corre sobre refs/heads/main", e.Ref)}
+	case e.Repository != cfg.CI.Repository:
+		return &report.EnvError{Cause: fmt.Sprintf("repositorio %q: se esperaba %q (ci.repository)", e.Repository, cfg.CI.Repository)}
+	case e.AppToken == "":
+		return &report.EnvError{Cause: "falta DEBFACTORY_APP_TOKEN (token de la GitHub App; specs/005-upstream-release-watch/contracts/workflows.md)"}
+	case e.AppSlug == "":
+		return &report.EnvError{Cause: "falta DEBFACTORY_APP_SLUG (salida app-slug de actions/create-github-app-token)"}
+	case e.Token == "":
+		return &report.EnvError{Cause: "falta GITHUB_TOKEN"}
+	}
+	return nil
+}
+
+// WatchInputs lee INPUT_PACKAGE e INPUT_FORCE de watch.yml.
+func (e *Env) WatchInputs() (pkg string, force bool, err error) {
+	pkg, force = e.vars["INPUT_PACKAGE"], e.vars["INPUT_FORCE"] == "true"
+	if pkg != "" && !pkgNameRe.MatchString(pkg) {
+		return "", false, &InputError{fmt.Sprintf("package %q: nombre de paquete inválido", pkg)}
+	}
+	return pkg, force, nil
 }
 
 // Inputs son los parámetros de workflow_dispatch (contracts/workflows.md).

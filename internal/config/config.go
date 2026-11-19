@@ -38,6 +38,7 @@ type Config struct {
 	CompletionsImage string            `yaml:"completions_image"`
 	Repo             RepoConfig        `yaml:"repo"`
 	CI               CI                `yaml:"ci"`
+	Watch            Watch             `yaml:"watch"`
 
 	// Licenses es la allowlist de config/licenses.yaml (constitución IV).
 	Licenses []string `yaml:"-"`
@@ -109,6 +110,78 @@ type CI struct {
 	// ToolRepository es el repositorio de la herramienta, solo para el
 	// enlace de diferencias al subir debfactory.version (004 research D6).
 	ToolRepository string `yaml:"tool_repository"`
+}
+
+// Watch configura el detector de versiones upstream
+// (specs/005-upstream-release-watch, data-model.md §2). Todos los campos son
+// opcionales; los métodos devuelven el valor por defecto si faltan.
+type Watch struct {
+	Interval     Duration  `yaml:"interval"`      // entre ciclos; mínimo 1h; 24h
+	Cooldown     *Duration `yaml:"cooldown"`      // espera desde el release; global; 48h
+	RateReserve  *int      `yaml:"rate_reserve"`  // peticiones que el ciclo deja sin usar; 500
+	BranchPrefix string    `yaml:"branch_prefix"` // ramas del detector; debfactory/update/
+}
+
+// Valores por defecto del bloque watch.
+const (
+	DefaultWatchInterval = 24 * time.Hour
+	DefaultWatchCooldown = 48 * time.Hour
+	DefaultRateReserve   = 500
+	DefaultBranchPrefix  = "debfactory/update/"
+)
+
+// IntervalDuration es watch.interval.
+func (w Watch) IntervalDuration() time.Duration {
+	if w.Interval == 0 {
+		return DefaultWatchInterval
+	}
+	return time.Duration(w.Interval)
+}
+
+// CooldownDuration es watch.cooldown (0h es un valor válido).
+func (w Watch) CooldownDuration() time.Duration {
+	if w.Cooldown == nil {
+		return DefaultWatchCooldown
+	}
+	return time.Duration(*w.Cooldown)
+}
+
+// Reserve es watch.rate_reserve.
+func (w Watch) Reserve() int {
+	if w.RateReserve == nil {
+		return DefaultRateReserve
+	}
+	return *w.RateReserve
+}
+
+// Prefix es watch.branch_prefix.
+func (w Watch) Prefix() string {
+	if w.BranchPrefix == "" {
+		return DefaultBranchPrefix
+	}
+	return w.BranchPrefix
+}
+
+var branchPrefixRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*/$`)
+
+func (w Watch) validate(stateBranch string) error {
+	if w.Interval != 0 && time.Duration(w.Interval) < time.Hour {
+		return errors.New("watch.interval: mínimo 1h")
+	}
+	if w.Cooldown != nil && *w.Cooldown < 0 {
+		return errors.New("watch.cooldown: no puede ser negativo")
+	}
+	if w.RateReserve != nil && *w.RateReserve < 0 {
+		return errors.New("watch.rate_reserve: no puede ser negativo")
+	}
+	p := w.Prefix()
+	if !branchPrefixRe.MatchString(p) || strings.Contains(p, "..") || strings.HasSuffix(p, ".lock/") {
+		return fmt.Errorf("watch.branch_prefix: %q no es un prefijo de rama válido (termina en /)", p)
+	}
+	if strings.HasPrefix(stateBranch+"/", p) || p == "main/" {
+		return fmt.Errorf("watch.branch_prefix: %q choca con main o con ci.state_branch", p)
+	}
+	return nil
 }
 
 // CILabels son las etiquetas de los runners de cada nivel de confianza.
@@ -366,7 +439,10 @@ func (c *Config) validate() error {
 	if err := c.Repo.validate(); err != nil {
 		return err
 	}
-	return c.CI.validate(&c.Repo)
+	if err := c.CI.validate(&c.Repo); err != nil {
+		return err
+	}
+	return c.Watch.validate(c.CI.StateBranch)
 }
 
 // UnmarshalYAML lee el mapa de suites conservando su orden y rechazando

@@ -43,6 +43,13 @@ func Read(root, name string) (*File, error) {
 	if err != nil {
 		return nil, err
 	}
+	return Parse(data, rel)
+}
+
+// Parse decodifica y valida el contenido de un lockfile; rel solo se usa para
+// los mensajes. El detector de versiones lo usa con el lockfile de la rama de
+// un PR (git show).
+func Parse(data []byte, rel string) (*File, error) {
 	var f File
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)

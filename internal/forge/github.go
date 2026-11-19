@@ -30,6 +30,7 @@ type Client struct {
 	repo  string // owner/name
 	token string
 	http  *http.Client
+	rate  Rate // según la última respuesta (fase 005, FR-021)
 }
 
 // New crea un cliente. baseURL es https://api.github.com en producción; un
@@ -71,11 +72,35 @@ func IsNotFound(err error) bool {
 // do envía la petición y decodifica la respuesta en out (si no es nil).
 // Devuelve el siguiente enlace de paginación, si lo hay.
 func (c *Client) do(ctx context.Context, method, path string, body, out any) (next string, err error) {
+	resp, err := c.send(ctx, method, path, body, nil)
+	if err != nil {
+		return "", err
+	}
+	if out != nil && len(resp.data) > 0 {
+		if err := json.Unmarshal(resp.data, out); err != nil {
+			return "", fmt.Errorf("forge: %s %s: respuesta inválida: %v", method, cleanPath(path), err)
+		}
+	}
+	return nextLink(resp.header.Get("Link")), nil
+}
+
+// response es una respuesta 2xx o 304 ya leída.
+type response struct {
+	status int
+	header http.Header
+	data   []byte
+}
+
+// send envía la petición con las cabeceras extra dadas y devuelve la
+// respuesta si es 2xx o 304. Anota el límite de peticiones de cada respuesta;
+// un rechazo por límite es un *RateLimitError y cualquier otro error HTTP un
+// *APIError.
+func (c *Client) send(ctx context.Context, method, path string, body any, extra map[string]string) (*response, error) {
 	var rd io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		rd = bytes.NewReader(b)
 	}
@@ -83,11 +108,11 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) (ne
 	if !strings.HasPrefix(path, "http") {
 		target = c.base.String() + path
 	} else if u, err := url.Parse(path); err != nil || u.Host != c.base.Host {
-		return "", fmt.Errorf("forge: enlace de paginación a otro host")
+		return nil, fmt.Errorf("forge: enlace de paginación a otro host")
 	}
 	req, err := http.NewRequestWithContext(ctx, method, target, rd)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
@@ -98,16 +123,20 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) (ne
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	for k, v := range extra {
+		req.Header.Set(k, v)
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("forge: %s %s: %s", method, cleanPath(path), redact.String(err.Error(), c.token))
+		return nil, fmt.Errorf("forge: %s %s: %s", method, cleanPath(path), redact.String(err.Error(), c.token))
 	}
 	defer resp.Body.Close()
+	c.noteRate(resp.Header)
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	if resp.StatusCode >= 300 {
+	if resp.StatusCode >= 300 && resp.StatusCode != http.StatusNotModified {
 		var msg struct {
 			Message string `json:"message"`
 		}
@@ -118,15 +147,14 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) (ne
 				msg.Message = msg.Message[:200]
 			}
 		}
-		return "", &APIError{Method: method, Path: cleanPath(path), Status: resp.StatusCode,
+		if rl := rateLimited(resp, msg.Message, c.rate); rl != nil {
+			rl.Method, rl.Path = method, cleanPath(path)
+			return nil, rl
+		}
+		return nil, &APIError{Method: method, Path: cleanPath(path), Status: resp.StatusCode,
 			Message: redact.String(msg.Message, c.token)}
 	}
-	if out != nil && len(data) > 0 {
-		if err := json.Unmarshal(data, out); err != nil {
-			return "", fmt.Errorf("forge: %s %s: respuesta inválida: %v", method, cleanPath(path), err)
-		}
-	}
-	return nextLink(resp.Header.Get("Link")), nil
+	return &response{status: resp.StatusCode, header: resp.Header, data: data}, nil
 }
 
 var nextRe = regexp.MustCompile(`<([^>]+)>;\s*rel="next"`)
@@ -154,12 +182,15 @@ func (c *Client) repoPath(format string, args ...any) string {
 
 // Issue es un issue (sin los campos que no usa debfactory).
 type Issue struct {
-	Number      int     `json:"number"`
-	Title       string  `json:"title"`
-	Body        string  `json:"body"`
-	State       string  `json:"state"`
-	HTMLURL     string  `json:"html_url"`
-	Labels      []Label `json:"labels"`
+	Number  int     `json:"number"`
+	Title   string  `json:"title"`
+	Body    string  `json:"body"`
+	State   string  `json:"state"`
+	HTMLURL string  `json:"html_url"`
+	Labels  []Label `json:"labels"`
+	// CreatedAt sirve al detector para saber si el manifiesto cambió después
+	// de notificar (FR-018 de la fase 005).
+	CreatedAt   time.Time `json:"created_at"`
 	PullRequest *struct {
 		URL string `json:"url"`
 	} `json:"pull_request,omitempty"`
@@ -242,6 +273,12 @@ type PR struct {
 		Ref string `json:"ref"`
 		SHA string `json:"sha"`
 	} `json:"head"`
+	// NodeID identifica el PR en la API GraphQL (auto-merge, fase 005).
+	NodeID string `json:"node_id"`
+	// AutoMerge no es nil si el PR tiene el auto-merge activado.
+	AutoMerge *struct {
+		MergeMethod string `json:"merge_method"`
+	} `json:"auto_merge"`
 }
 
 // FindOpenPR devuelve el PR abierto de head hacia base, o nil.
@@ -323,6 +360,8 @@ func (c *Client) DeleteRef(ctx context.Context, branch string) error {
 // RepoInfo son los datos del repositorio que interesan a ci doctor.
 type RepoInfo struct {
 	Private bool `json:"private"`
+	// AllowAutoMerge es "Allow auto-merge" (fase 005, research D10).
+	AllowAutoMerge bool `json:"allow_auto_merge"`
 }
 
 // GetRepo lee los datos del repositorio.

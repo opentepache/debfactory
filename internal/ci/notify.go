@@ -122,6 +122,22 @@ func (n *GitHubNotifier) body(k Key, e *report.Error) string {
 	return b.String()
 }
 
+// find devuelve el primer issue abierto cuya clave cumple match. Lo usa el
+// detector de versiones para no reintentar ni volver a notificar lo que ya
+// está notificado (specs/005-upstream-release-watch, FR-018).
+func (n *GitHubNotifier) find(ctx context.Context, match func(Key) bool) (*forge.Issue, Key, bool) {
+	if !n.load(ctx) {
+		return nil, Key{}, false
+	}
+	for i := range n.open {
+		if k, ok := keyOfBody(n.open[i].Body); ok && match(k) {
+			is := n.open[i]
+			return &is, k, true
+		}
+	}
+	return nil, Key{}, false
+}
+
 // close cierra los issues abiertos que cumplen match, con un comentario.
 func (n *GitHubNotifier) close(ctx context.Context, match func(Key) bool, comment string) {
 	if !n.load(ctx) {
