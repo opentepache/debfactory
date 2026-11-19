@@ -11,7 +11,8 @@ Hay dos archivos en `.github/workflows/`. Ninguno usa actions de terceros salvo
 ```yaml
 name: pr
 on:
-  pull_request:                     # sin paths-ignore: verify es un check obligatorio del ruleset
+  pull_request:
+    paths-ignore: ['repo/state.yaml', 'repo/audit.jsonl']   # solo el estado: verify es obligatorio
 permissions:
   contents: read
 concurrency:
@@ -32,9 +33,14 @@ antes de que corra el check (p. ej. el PR se integra con el check en cola), el
 diff contra `origin/main` sale vacío y el check pasaría sin probar nada
 (hallazgo de T026, fase 004).
 
-Sin `paths-ignore`: el ruleset exige `verify` y un workflow que no corre deja
-el check pendiente para siempre. `ci pr` decide por sí mismo que no hay nada
-que hacer (`plan: nada que hacer`) en pocos segundos.
+`paths-ignore` solo lista el estado del repositorio: el ruleset exige `verify`
+y un workflow que no corre deja el check pendiente para siempre. Un PR de solo
+documentación sí corre y `ci pr` decide en segundos que no hay nada que hacer
+(`plan: nada que hacer`). El PR de estado solo cambia esos dos archivos: sin el
+`paths-ignore`, GitHub crea una ejecución a nombre de `github-actions[bot]` que
+espera aprobación sin jobs y termina en `failure` al integrar el PR (visto en el
+PR de estado de k9s, fase 004). Un PR humano que solo toque el estado se queda
+sin `verify` y no se puede integrar, que es lo deseado.
 
 | Requisito | Cómo |
 |---|---|
@@ -42,7 +48,7 @@ que hacer (`plan: nada que hacer`) en pocos segundos.
 | FR-009 y FR-017 | `permissions: contents: read`; el runner `ci` no tiene ningún secreto montado |
 | FR-011 | `ci pr` no construye si el diff no toca paquetes ni rutas de código (`plan: nada que hacer`) |
 | FR-013 | ajuste "Require approval for all external contributors" (research D12) |
-| PR de estado | GitHub no lanza `pr.yml` en un PR que abre el `GITHUB_TOKEN`; `ci main` publica `verify=success` sobre la punta de la rama de estado al abrirlo o actualizarlo, y lo repone al conciliar (research D8) |
+| PR de estado | `paths-ignore` del estado: `pr.yml` no corre; `ci main` publica `verify=success` sobre la punta de la rama de estado al abrirlo o actualizarlo, y lo repone al conciliar (research D8) |
 
 ## `main.yml`: rama principal, ejecuciones manuales y refirmado (nivel `pub`)
 

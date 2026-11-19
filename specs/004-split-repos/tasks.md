@@ -93,6 +93,7 @@ sin la raíz real), porque valida que la herramienta es separable.
   - Resultado (2026-11-17, packages #2–#5): versión no instalada → falla en 9 s con «no está instalada» (#2); H2 `4f1fb36` sin cambios de Go → pasa en 5 min 34 s, enlace de diferencias correcto (#3); push a `main` con #3 abierto reconstruye con `4e258de` y no publica (SC-005); H3 `da15ea8` (comentario en `debian/copyright`) → falla en 5 min 40 s nombrando los 8 `.deb` con «sube revision» (#5). Duración: sin medición equivalente de 003 en este runner; queda 5½ min como referencia (`main` con cachés calientes: 1 min 53 s).
   - Hallazgo: el check del #4 dio verde sin probar nada porque se integró antes de que corriera y `pr.yml` compara contra `origin/main` en vez de `pull_request.base.sha`; además el ruleset no exige `verify` (y exigirlo hoy bloquearía los PR de estado y de solo docs). Arreglo en T026a.
 - [ ] T026a [US2] Check `verify` obligatorio sin bloqueos: `pr.yml` compara contra `github.event.pull_request.base.sha` y sin `paths-ignore`; `ci main` publica `verify=success` en la punta de la rama de estado (`internal/ci/statepr.go`, `statuses: write` en `main.yml`); `ci doctor` exige la regla en el ruleset; `docs/operacion-ci.md` y `specs/003-ci-pipeline/contracts/workflows.md`. Cierra al fijar la nueva herramienta en `packages` y ver un PR de solo docs en verde.
+  - Avance (2026-11-19): herramienta `9cd4a9b` fijada (packages #6); el PR de estado de k9s (#8) recibió `verify=success` de la ejecución de `main` y se integró. Sin `paths-ignore`, `pr.yml` también se disparó en #8 (ejecución sin jobs esperando aprobación, `failure` al integrar); `pr.yml` vuelve a ignorar solo `repo/state.yaml` y `repo/audit.jsonl`. Falta: un PR de solo docs en verde.
 
 **Checkpoint**: subir la herramienta es un PR revisado con red de seguridad.
 
@@ -147,7 +148,8 @@ sin la raíz real), porque valida que la herramienta es separable.
 
 - [X] T041 [P] `specs/003-ci-pipeline/tasks.md`: nota al principio de las tareas pendientes (T020, T021, T033, T039, T045–T047, T053, T058, T064, T068–T070) de que se ejecutan contra `opentepache/packages` tras la fase 004, con la correspondencia de las que esta fase sustituye (T030, T036, T038).
 - [X] T042 [P] `gofmt -l`, `go vet ./...` (también con `-tags integration` y `-tags e2e`), `go test ./...`, `go test -tags integration ./...` y `just ci-lint` en verde.
-- [ ] T043 **(manual)** Quickstart §3 (US1, SC-006) y §7 (SC-007) en producción.
+- [X] T043 **(manual)** Quickstart §3 (US1, SC-006) y §7 (SC-007) en producción.
+  - Resultado (2026-11-19): §3 con un paquete nuevo en lugar de la revisión de fnm: k9s 0.51.0 (packages #7; zellij descartado por `embedded-library curl`, etiqueta que no se silencia). Check del PR en 7 min 28 s; `main` (44433391047, 5 min 30 s) publicó solo k9s con `9cd4a9b`, serial 1 → 2; apt instala k9s en las 5 suites; el PR de estado #8 se integró y la siguiente ejecución no publica nada. §7: `ci doctor` en verde salvo los avisos esperados (PAT sin root, versiones de herramienta sin fijar).
 
 ---
 

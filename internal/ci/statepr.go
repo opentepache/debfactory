@@ -419,9 +419,10 @@ func (s *StatePR) openPR(ctx context.Context, state, audit, mainAudit []byte, pu
 const VerifyContext = "verify"
 
 // markVerified publica verify=success sobre la punta de la rama de estado.
-// GitHub no lanza workflows en los PR que abre el GITHUB_TOKEN, así que pr.yml
-// nunca corre en el PR de estado; el contenido ya lo validó esta ejecución de
-// confianza, que es la única que escribe la rama (contracts/workflows.md).
+// pr.yml no corre en el PR de estado (su paths-ignore lista solo el estado, y
+// una ejecución a nombre de github-actions[bot] quedaría esperando aprobación);
+// el contenido ya lo validó esta ejecución de confianza, que es la única que
+// escribe la rama (contracts/workflows.md).
 func (s *StatePR) markVerified(ctx context.Context) error {
 	if s.branchSHA == "" {
 		return fmt.Errorf("sin punta de la rama de estado para el estado %s", VerifyContext)
