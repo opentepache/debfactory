@@ -183,6 +183,16 @@ ni publica: corre en el runner `ci`, sin `<data>` ni la llave.
    environment secret* `DEBFACTORY_APP_CLIENT_ID` (el Client ID) y `DEBFACTORY_APP_KEY` (el
    contenido del `.pem`). Settings → General → **Allow auto-merge**. Guarda el `.pem` con el
    respaldo de la llave GPG (fuera de la PC) y bórralo de la PC.
+
+   La llave se carga mejor desde el archivo que pegándola:
+   `gh secret set DEBFACTORY_APP_KEY --env watch --repo opentepache/packages < archivo.pem`.
+   Errores de `create-github-app-token` y su causa:
+
+   | Error | Causa |
+   |---|---|
+   | `'client-id' ... must be set to a non-empty string` | el environment no se llama exactamente `watch` (GitHub crea vacío el que pide el workflow) o le falta el secreto |
+   | `error:1E08010C:DECODER routines::unsupported` | `DEBFACTORY_APP_KEY` no es el `.pem` completo |
+   | `Not Found - ... get-a-repository-installation` | la App no está instalada en `packages` (*Configure* → *Only select repositories*) |
 3. **Herramienta y workflow.** `just tool-install` con la versión que trae `ci watch` y un PR en
    `packages` que fija esa versión e incluye `.github/workflows/watch.yml` y el bloque `watch:`
    de `config/debfactory.yaml` (los tres juntos: una versión anterior rechaza el bloque `watch`).

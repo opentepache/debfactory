@@ -40,6 +40,32 @@ ramas, y no puede integrar sin `verify` en verde.
   repositorio, caduca y está ligado a una persona. La App tiene permisos mínimos, no caduca su
   llave y sus acciones se distinguen en el historial.
 
+**Resultado del spike** (tasks T003, 2026-11-24, `opentepache/packages`; workflow temporal
+`spike-app`, run 45317878222):
+
+- (a) Sí. El PR #11, abierto por `opentepache-updates[bot]`, disparó `pr.yml` (run 45317912277,
+  actor la App) y `verify` corrió sin "Approve workflows to run".
+- (b) Sí. `enablePullRequestAutoMerge` respondió sin errores y GitHub integró el PR
+  (`mergedBy: app/opentepache-updates`) en cuanto `verify` pasó, unos 50 s después.
+- (c) Sí. El merge (`8c8b14a`) disparó `main.yml` por `push` (run 45318013386), que terminó en
+  "ci: nada que publicar".
+- (d) Sí. El ruleset "Ruleset package" no bloqueó el merge de la App.
+- (e) Cubierto por configuración, sin un PR de prueba. El environment `watch` solo admite la rama
+  `main` (API: `custom_branch_policies: true`, política `main` de tipo `branch`). Un job de
+  `pull_request` corre sobre `refs/pull/N/merge`, así que GitHub lo rechaza antes de entregarle
+  los secretos. `ci doctor` vigila esa regla.
+- (f) Sí. Con el token de la App, `GET /repos/MordechaiHadad/bob/releases` responde 200 y
+  `X-RateLimit-Limit: 5000`. Las lecturas de upstream usan el token de la App (D9).
+- (g) El token se emitió con `contents: write` y `pull-requests: write` sobre `packages`; la
+  instalación tiene al menos esos permisos (más Metadata, obligatorio).
+
+Tropiezos de la instalación, recogidos en `docs/operacion-ci.md` § 6:
+
+- un environment con otro nombre (`whatch`): GitHub crea vacío el que pide el workflow y la acción
+  falla con "`client-id` ... must be set to a non-empty string";
+- `.pem` pegado mal: "`error:1E08010C:DECODER routines::unsupported`";
+- la App sin instalar en `packages`: "Not Found - ... get-a-repository-installation".
+
 ## D2. Dónde corre: el runner `ci`, nunca el confiable
 
 **Decisión**: el ciclo es un workflow nuevo `watch.yml` en `packages`, con un único job sobre
