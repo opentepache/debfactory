@@ -62,7 +62,14 @@ func Empty() *State {
 // ReadState lee repo/state.yaml de forma estricta. Si no existe, devuelve
 // el estado vacío.
 func ReadState(root string) (*State, error) {
-	data, err := os.ReadFile(filepath.Join(root, StateFile))
+	return ReadStateFile(filepath.Join(root, StateFile))
+}
+
+// ReadStateFile lee un estado desde path (p. ej. la copia de un PR de estado
+// sin integrar; specs/006-repo-website, data-model §1). Si no existe,
+// devuelve el estado vacío.
+func ReadStateFile(path string) (*State, error) {
+	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return Empty(), nil
 	}

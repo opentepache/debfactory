@@ -91,6 +91,12 @@ una GitHub App propia; el auto-merge es opcional por paquete y nunca cubre salto
 mayor ni cambios de licencia
 ([specs/005](specs/005-upstream-release-watch/spec.md); [operación](docs/operacion-ci.md#6-detector-de-versiones-fase-005)).
 
+El **sitio web** (`debfactory site`, fase 006) es la portada del repositorio en
+`https://apt.opentepache.org/`: comandos para agregarlo, fingerprint y una página por paquete,
+en inglés y en español (`/es/`), sin JavaScript. Se genera desde lo publicado y se sube al final
+de cada `ci main`, `retire` y `refresh`; `just site-serve` muestra una vista previa
+([specs/006](specs/006-repo-website/spec.md); [operación](docs/operacion-ci.md#7-sitio-web-fase-006)).
+
 ## Atajos
 
 ```bash

@@ -294,6 +294,9 @@ func messages(e *jsonschema.ValidationError) []string {
 		return []string{fmt.Sprintf("formato inválido (%s)", k.Want)}
 	case *kind.FalseSchema:
 		return []string{"propiedad no permitida"}
+	case *kind.Not:
+		// Solo name usa not: nombres reservados por el sitio web (006 research D3).
+		return []string{"valor reservado"}
 	}
 	return []string{e.ErrorKind.LocalizedString(englishPrinter)}
 }

@@ -560,6 +560,9 @@ func (r *Runner) Main(ctx context.Context, o Options) error {
 		x.notify.StagePassed(ctx, report.Compare)
 		x.notify.StagePassed(ctx, report.Plan)
 	}
+	// 8. Sitio web (specs/006-repo-website): siempre, también sin nada que
+	// publicar; su fallo no afecta a lo anterior.
+	x.site(ctx)
 	r.writeSummary(p, passed, x.errs)
 	return x.errs.Err()
 }

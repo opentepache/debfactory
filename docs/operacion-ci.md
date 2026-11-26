@@ -34,6 +34,8 @@ Las pruebas de la herramienta usan siempre su copia congelada `testdata/project/
 | GitHub App `opentepache-updates` | organización `opentepache` | Identidad del detector: sus PR disparan `verify` sin aprobación y su merge dispara `main.yml` |
 | `/srv/debfactory/data` | PC, dueño `dfpub` | Llavero de la subllave, almacén, generaciones y la copia del pipeline (`ci/`) |
 | PR de estado | rama `debfactory/state` de `packages` | `repo/state.yaml` y `repo/audit.jsonl` tras cada publicación; lo integras tú |
+| paso `site` | `ci main`, `retire` y `refresh` | Genera el sitio web desde la generación vigente y lo sube a `ci.destination` (§ 7) |
+| regla de reescritura | zona de Cloudflare `opentepache.org` | Hace que `…/` sirva `…/index.html`; sin ella la raíz del sitio da 404 (§ 7) |
 | Issues `pipeline-failure` | `packages` (públicos) | Un issue por paquete, versión y etapa que falla; se cierran solos |
 
 ## 1. Instalación (una vez)
@@ -247,3 +249,56 @@ para no esperar a `watch.interval`). Probarlo en local sin escribir nada:
 
 Para que el detector proponga una versión desde cero, cierra su PR (y borra la rama
 `debfactory/update/<pkg>` si tiene commits tuyos).
+
+## 7. Sitio web (fase 006)
+
+`https://apt.opentepache.org/` es la portada del repositorio: qué es, los comandos para agregarlo
+en Debian y Ubuntu, el fingerprint de la llave, la lista de paquetes y una página por paquete
+(versión, fecha, licencia, suites, versiones anteriores). Inglés en la raíz y español en `/es/`.
+Sin JavaScript ni recursos de terceros. Lo genera `debfactory site` desde el estado publicado, los
+manifiestos y la configuración, y nunca se edita a mano (specs/006-repo-website).
+
+### Instalación (una vez)
+
+1. **Regla de reescritura en Cloudflare.** R2 no sirve `index.html` en las rutas que terminan en
+   `/`. En la zona `opentepache.org`: *Rules → Transform Rules → URL Rewrite → Create rule*:
+   - *Custom filter expression*:
+     `(http.host in {"apt.opentepache.org" "apt-test.opentepache.org"} and ends_with(http.request.uri.path, "/"))`
+   - *Path → Rewrite to → Dynamic*: `concat(http.request.uri.path, "index.html")`
+   - *Query*: *Preserve*.
+
+   La regla no toca las rutas del repositorio APT (`dists/…`, `pool/…`, `debfactory.gpg`), que
+   no terminan en `/`.
+2. **Activar.** `just tool-install` con la versión que trae `debfactory site` y un PR en
+   `packages` que la fija y agrega a `config/debfactory.yaml`:
+
+   ```yaml
+   site:
+     enabled: true
+     name: OpenTepache
+   ```
+
+   Opcionalmente, `i18n.es` en los manifiestos para el resumen y la descripción en español.
+   Al integrarlo, `main.yml` no tiene paquetes que publicar, pero su paso `site` sube el sitio.
+3. **Comprobar.** `curl -sI https://apt.opentepache.org/` responde 200 y `GH_TOKEN=$(gh auth token)
+   just ci-doctor` muestra ✅ en "sitio web en https://apt.opentepache.org/".
+
+### Operación
+
+- **Vista previa en local:** `just site` (genera `dist/site/` desde `testdata/project`) y
+  `just site-serve` (lo sirve en `http://127.0.0.1:8080/`).
+- **Subir a mano a un destino** (p. ej. el de pruebas):
+  `debfactory site sync --root ../packages --data /srv/debfactory/data --dest r2test`, como `dfpub`
+  o con las credenciales de rclone del destino. `--dry-run` muestra qué subiría y borraría.
+- **En cada `main`, `retire` y `refresh`** el log termina con
+  `site: serial N, P páginas, K KB la mayor; r2: subidas S, borradas B`, o con
+  `site: serial N sin cambios; nada que subir`. Las páginas se ven al día en 1–2 minutos
+  (`Cache-Control` mutable de 60 s).
+- **Un paquete que se retira del todo** desaparece del sitio; sus páginas se borran una
+  sincronización después (borrado diferido, como el repositorio).
+
+### Notificaciones
+
+| Issue | Qué pasó | Qué hacer |
+|---|---|---|
+| `fallo: pipeline - en site` | No se pudo generar o subir el sitio: el estado no coincide con la generación, una página supera 100 KB, rclone falló | Los paquetes ya están publicados y cada página en línea sigue completa. Mira el log; la siguiente ejecución de `main.yml` (o `refresh`) vuelve a intentarlo y cierra el issue. |

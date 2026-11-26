@@ -52,6 +52,33 @@ func TestParseWatch(t *testing.T) {
 	}
 }
 
+func TestParseI18n(t *testing.T) {
+	src := readExample(t, "fnm") + "i18n:\n  es:\n    summary: gestor de versiones de Node.js\n"
+	m, err := Parse([]byte(src), "packages/fnm.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.I18n.ES == nil || m.I18n.ES.Summary != "gestor de versiones de Node.js" || m.I18n.ES.Description != "" {
+		t.Errorf("i18n = %+v", m.I18n.ES)
+	}
+	m, err = Parse([]byte(readExample(t, "fnm")), "packages/fnm.yaml")
+	if err != nil || m.I18n.ES != nil {
+		t.Errorf("sin i18n = %+v, %v", m.I18n, err)
+	}
+}
+
+// TestParseReserved: los nombres que chocan con rutas del sitio web se
+// rechazan en el schema y en Check (006 research D3).
+func TestParseReserved(t *testing.T) {
+	for _, name := range ReservedNames {
+		src := strings.Replace(readExample(t, "fnm"), "name: fnm", "name: "+name, 1)
+		_, err := Parse([]byte(src), "packages/"+name+".yaml")
+		if err == nil || !strings.Contains(err.Error(), "name: valor reservado") {
+			t.Errorf("%s: error = %v", name, err)
+		}
+	}
+}
+
 // TestParseErrors comprueba la traducción al español de cada tipo de error
 // del schema y la forma "packages/<f>.yaml: <campo>: <mensaje>".
 func TestParseErrors(t *testing.T) {
@@ -74,6 +101,8 @@ func TestParseErrors(t *testing.T) {
 		"watch enum":   {"revision: 1\n", "revision: 1\nwatch: {prerelease_flag: maybe}\n", "packages/fnm.yaml: watch.prerelease_flag: valor no permitido (se admite: trust, ignore)"},
 		"watch tipo":   {"revision: 1\n", "revision: 1\nwatch: {auto_merge: si}\n", "packages/fnm.yaml: watch.auto_merge: tipo incorrecto (se esperaba boolean, hay string)"},
 		"watch campo":  {"revision: 1\n", "revision: 1\nwatch: {automerge: true}\n", `packages/fnm.yaml: watch: propiedad desconocida "automerge"`},
+		"i18n idioma":  {"revision: 1\n", "revision: 1\ni18n: {fr: {summary: gestionnaire}}\n", `packages/fnm.yaml: i18n: propiedad desconocida "fr"`},
+		"i18n punto":   {"revision: 1\n", "revision: 1\ni18n: {es: {summary: gestor de versiones.}}\n", "packages/fnm.yaml: i18n.es.summary: no cumple el formato"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

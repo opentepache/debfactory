@@ -7,42 +7,51 @@ data-model §1.
 
 - `<html lang="en">` en la raíz y `lang="es"` bajo `/es/`. Los fragmentos sin traducir llevan su
   propio `lang="en"`.
-- `<link rel="alternate" hreflang="en|es">` a la página equivalente, y un enlace visible al otro
-  idioma con su nombre en ese idioma ("Español", "English").
-- Un solo `<h1>`, sin saltos de nivel en los encabezados, `<main>` y un enlace "saltar al
-  contenido" al principio.
-- Un solo recurso enlazado: `/assets/site.<hash>.css`. Sin scripts, sin fuentes, sin imágenes
-  externas. El logotipo es un SVG en línea.
-- Pie: enlace al repositorio de paquetes en GitHub (código y manifiestos) y el serial publicado.
-- Cada bloque de comandos es `<pre><code data-debfactory-step="<paso>">` con el script exacto de
-  `site.json`, sin prompts (`$`) ni texto añadido.
+- `<head>` (research D14): título y meta descripción propios, `canonical`, `hreflang` en/es/
+  `x-default`, Open Graph y Twitter con la imagen única, la hoja de estilos, el script opcional
+  (research D9) y un bloque JSON-LD.
+- Cabecera: nombre, enlaces a instalar, paquetes, llave y código, el enlace al otro idioma con su
+  nombre en ese idioma, y el botón de tema (`hidden` hasta que el script lo muestra).
+- Un solo `<h1>`, sin saltos de nivel, `<main>` y un enlace "saltar al contenido" al principio.
+- Recursos: solo `/assets/site.<hash>.css` y `/assets/site.<hash>.js`, del propio sitio. Sin
+  fuentes ni imágenes externas.
+- Pie: qué garantiza cada paquete, enlace al repositorio de paquetes y el serial publicado.
+- Cada bloque de comandos es `<pre class="cmd" tabindex="0">` con `<code id=… data-debfactory-step=…>`
+  y el script exacto de `site.json`, sin prompts ni texto añadido, con un botón "copiar" `hidden`
+  que el script muestra.
 
 ## Portada (`/`, `/es/`)
 
 En este orden:
 
-1. Qué es OpenTepache: herramientas de desarrollo recientes como `.deb` firmados, solo versiones
-   estables, Debian y Ubuntu, amd64 y arm64, construidas y probadas automáticamente desde el
-   código publicado por upstream.
-2. Agregar el repositorio: un bloque para Debian (`add-debian`) y otro para Ubuntu
-   (`add-ubuntu`), con las suites soportadas de cada distribución.
-3. Verificar la llave: el fingerprint completo de cada llave maestra y el comando para comprobarlo
-   (`verify-key`).
-4. Paquetes: tabla con nombre (enlace a su página), resumen y versión actual (upstream).
-5. Quitar el repositorio (`remove`).
+1. Estado (paquetes publicados, firmado), título, qué es el repositorio y dos botones.
+2. Agregar el repositorio: pestañas Detectar (`add`), Debian (`add-debian`) y Ubuntu
+   (`add-ubuntu`), y el enlace a quitarlo.
+3. Paquetes: tabla con nombre (enlace), versión, fecha, dónde está disponible en texto (y dónde
+   no, aparte) y arquitecturas. Sin descripción (FR-004).
+4. Comprobar la llave: fingerprint de cada llave maestra y `verify-key`.
+5. Cómo se construye cada paquete.
+6. Quitar el repositorio (`remove`).
 
 ## Página de paquete (`/packages/<p>/`, `/es/packages/<p>/`)
 
-1. `<h1>` con el nombre y el resumen.
-2. Descripción, en párrafos.
-3. Datos: versión publicada (upstream y versión del paquete Debian), fecha de publicación,
-   licencia (SPDX), enlace a upstream (`homepage`, con `rel="noopener"`).
-4. Instalar: `sudo apt install <p>` y una nota que enlaza a la portada si el repositorio no está
-   agregado.
-5. Disponibilidad: tabla de suites × arquitecturas de la versión actual. Debajo, las suites
-   excluidas con su motivo.
-6. Versiones anteriores, si hay: versión, fecha y `sudo apt install <p>=<versión>`, de la más
-   reciente a la más antigua.
+Ruta (breadcrumb) y cabecera de man page `<P>(1)`. Luego:
+
+1. `<h1>` "Install <p> on Debian and Ubuntu" y una línea con versión, resumen y "signed .deb
+   package".
+2. SINOPSIS: `sudo apt install <p>` con enlace a cómo agregar el repositorio.
+3. DESCRIPCIÓN: la del manifiesto en párrafos y el párrafo generado de construcción y pruebas.
+4. DISPONIBILIDAD: tabla distribución × arquitectura de la versión actual y, debajo, cada suite
+   excluida con su motivo.
+5. VERSIONES ANTERIORES, si hay: versión, fecha y
+   `sudo apt install --allow-downgrades <p>=<versión>`.
+6. Ficha lateral: versión, versión del paquete Debian, fecha, licencia, upstream y arquitecturas.
+
+## Archivos además de las páginas
+
+- `sitemap.xml` y `robots.txt` (research D14).
+- `site.json` (data-model §1).
+- `assets/site.<hash>.css`, `assets/site.<hash>.js` y `assets/og.<hash>.png`.
 
 ## Lo que nunca aparece
 

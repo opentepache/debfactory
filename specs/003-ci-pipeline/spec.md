@@ -480,4 +480,5 @@ nada y termina en verde.
   para medir SC-007 de la fase 002 (T062, paso 5).
 - **Fuera de alcance**: detección automática de versiones, agentes de IA (cuando lleguen, sus PR
   pasan por este mismo pipeline como cualquier contribuyente), sitio web, publicación de
-  paquetes de nivel 2.
+  paquetes de nivel 2. (El sitio web llegó en la fase 006, specs/006-repo-website: un paso
+  `site` al final de `ci main`, `retire` y `refresh`.)

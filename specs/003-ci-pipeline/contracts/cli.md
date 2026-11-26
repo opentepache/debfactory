@@ -44,6 +44,11 @@ Con `GITHUB_EVENT_NAME=workflow_dispatch`, `ci main` lee `INPUT_ACTION` (y `INPU
 `INPUT_VERSION`, `INPUT_REASON`, `INPUT_LAST`), los valida y despacha a `rebuild`, `retire`,
 `refresh` o `restore-state-pr`; así `main.yml` siempre ejecuta `bin/debfactory ci main`.
 
+Fase 006 (specs/006-repo-website, research D5): con `site.enabled: true`, `ci main` (también
+sin nada que publicar), `ci retire` y `ci refresh` terminan con un paso `site` que genera el sitio
+web desde la generación vigente y lo sube a `ci.destination`. Un fallo se notifica con la etapa
+`site` y hace terminar la ejecución con código 1, pero nunca revierte lo publicado.
+
 Cambios en órdenes de la fase 002:
 
 - `repo verify` exige `Valid-Until` en cada `Release`.

@@ -48,6 +48,10 @@ const usage = `uso: debfactory <orden> [opciones]
   repo rebuild                                 regenera el árbol desde repo/state.yaml
   repo status                                  muestra lo publicado y lo sincronizado
   repo serve [--port 8080]                     sirve el destino local por HTTP
+  site data [--state FILE] [--out FILE]        modelo del sitio web (site.json) de lo publicado
+  site build --in FILE --out DIR               genera el sitio desde un site.json
+  site serve --dir DIR [--addr 127.0.0.1:8080] sirve un sitio generado en local
+  site sync --dest D [--state FILE] [--dry-run] genera y sube el sitio a un destino
   ci <orden> [opciones]                        pipeline de GitHub Actions (debfactory ci help)
   version                                      imprime el commit de esta compilación
 
@@ -86,6 +90,9 @@ type options struct {
 	pkg, version              string
 	stage, stageFile, against string
 	fix                       bool
+
+	// site (specs/006-repo-website/contracts/cli.md)
+	state, in, out, dir, addr string
 }
 
 type app struct {
@@ -147,6 +154,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fs.StringVar(&o.dest, "dest", "", "")
 		fs.BoolVar(&o.dryRun, "dry-run", false, "")
 		fs.IntVar(&o.port, "port", 8080, "")
+	case "site":
+		fs.StringVar(&o.state, "state", "", "")
+		fs.StringVar(&o.in, "in", "", "")
+		fs.StringVar(&o.out, "out", "", "")
+		fs.StringVar(&o.dir, "dir", "", "")
+		fs.StringVar(&o.addr, "addr", "127.0.0.1:8080", "")
+		fs.StringVar(&o.dest, "dest", "", "")
+		fs.BoolVar(&o.dryRun, "dry-run", false, "")
 	case "ci":
 		fs.StringVar(&o.envFile, "env-file", "", "")
 		fs.StringVar(&o.mode, "mode", "", "")
@@ -203,9 +218,12 @@ func (a *app) dispatch(ctx context.Context, cmd string, pos []string) error {
 	if a.opts.arch != "" && a.opts.arch != "amd64" && a.opts.arch != "arm64" {
 		return usageError{fmt.Sprintf("--arch %q: se admite amd64 o arm64", a.opts.arch)}
 	}
+	if cmd == "site" && len(pos) > 0 && (pos[0] == "build" || pos[0] == "serve") {
+		return a.siteNoConfig(ctx, pos[0], pos[1:])
+	}
 	names := pos
 	switch cmd {
-	case "lint", "repo", "ci":
+	case "lint", "repo", "ci", "site":
 		names = nil
 	case "publish", "retire":
 		if len(pos) > 0 {
@@ -253,6 +271,8 @@ func (a *app) dispatch(ctx context.Context, cmd string, pos []string) error {
 		return a.repo(ctx, pos)
 	case "ci":
 		return a.ci(ctx, pos)
+	case "site":
+		return a.site(ctx, pos)
 	}
 	return usageError{"orden no implementada: " + cmd}
 }

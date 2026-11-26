@@ -1,0 +1,75 @@
+{{define "content"}}{{$p := .P}}{{$cur := index $p.Versions 0}}{{$s := summary $p .Lang}}{{$d := description $p .Lang}}{{$upper := upper $p.Name}}
+<div class="wrap">
+<nav class="crumbs" aria-label="{{t .T "breadcrumb"}}"><ol><li><a href="{{.Home}}">{{.M.Name}}</a></li><li><a href="{{.Home}}#packages">{{t .T "packages_title"}}</a></li><li aria-current="page">{{$p.Name}}</li></ol></nav>
+<div class="manhead" aria-hidden="true"><span>{{$upper}}(1)</span><span>{{.M.Name}}</span><span>{{$upper}}(1)</span></div>
+<div class="man">
+<article>
+<h1>{{tf .T "pkg_h1" $p.Name}}</h1>
+<p class="sub">{{$p.Name}} {{$cur.Upstream}}{{if $s.Text}} · <span{{if $s.Lang}} lang="{{$s.Lang}}"{{end}}>{{$s.Text}}</span>{{end}} · {{t .T "pkg_signed"}}</p>
+
+<section aria-labelledby="h-synopsis">
+<h2 id="h-synopsis">{{t .T "man_synopsis"}}</h2>
+<div class="body">
+<div class="block">
+<div class="panel-head"><p>{{t .T "install_note_before"}} <a href="{{.Home}}#add">{{t .T "install_note_link"}}</a></p><button class="copy" type="button" hidden data-copy="cmd-install" data-done="{{t .T "copied"}}">{{t .T "copy"}}</button></div>
+<pre class="cmd" tabindex="0" aria-label="{{t .T "man_synopsis"}}"><code id="cmd-install">{{$p.Install}}</code></pre>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="h-description">
+<h2 id="h-description">{{t .T "man_description"}}</h2>
+<div class="body">
+{{if $d.Paras}}<div{{if $d.Lang}} lang="{{$d.Lang}}"{{end}} class="desc">{{range $d.Paras}}
+<p>{{.}}</p>{{end}}
+</div>{{end}}
+{{if $p.Upstream}}<p class="hint">{{tf .T "pkg_built" $cur.Upstream $p.Upstream $cur.Available}}</p>{{end}}
+</div>
+</section>
+
+<section aria-labelledby="h-availability">
+<h2 id="h-availability">{{t .T "man_availability"}}</h2>
+<div class="body">
+<div class="scroll" tabindex="0" role="region" aria-labelledby="h-availability">
+<table>
+<thead><tr><th scope="col">{{t .T "col_distro"}}</th>{{range .M.Repo.Architectures}}<th scope="col">{{.}}</th>{{end}}</tr></thead>
+<tbody>{{range .M.Repo.Suites}}{{$suite := .Name}}
+<tr><th scope="row">{{.Label}} <span class="when">({{.Name}})</span></th>{{range $.M.Repo.Architectures}}{{if and (has $cur.Suites $suite) (has $cur.Architectures .)}}<td class="yes">{{t $.T "available"}}</td>{{else}}<td class="no">{{t $.T "not_available"}}</td>{{end}}{{end}}</tr>{{end}}
+</tbody>
+</table>
+</div>
+{{range $p.Excluded}}<p class="hint">{{tf $.T "not_on" (suiteLabel $.M .Suite)}}: <span lang="en">{{.Reason}}</span></p>{{end}}
+</div>
+</section>
+
+{{with older $p}}<section aria-labelledby="h-older">
+<h2 id="h-older">{{t $.T "older_title"}}</h2>
+<div class="body">
+<p class="hint">{{t $.T "older_intro"}}</p>
+<div class="scroll" tabindex="0" role="region" aria-labelledby="h-older">
+<table>
+<thead><tr><th scope="col">{{t $.T "col_version"}}</th><th scope="col">{{t $.T "col_date"}}</th><th scope="col">{{t $.T "col_install"}}</th></tr></thead>
+<tbody>{{range .}}
+<tr><th scope="row">{{.Upstream}}</th><td class="when"><time datetime="{{.Published}}">{{.Published}}</time></td><td><code>{{.Install}}</code></td></tr>{{end}}
+</tbody>
+</table>
+</div>
+</div>
+</section>{{end}}
+</article>
+
+<aside class="facts" aria-labelledby="h-facts">
+<h2 id="h-facts" class="sr-only">{{t .T "details_title"}}</h2>
+<p class="status">● {{t .T "published"}}</p>
+<dl>
+<dt>{{t .T "published_version"}}</dt><dd class="ver">{{$cur.Upstream}}</dd>
+<dt>{{t .T "debian_version"}}</dt><dd><code>{{$cur.Version}}</code></dd>
+<dt>{{t .T "published_date"}}</dt><dd><time datetime="{{$cur.Published}}">{{$cur.Published}}</time></dd>
+{{if $p.License}}<dt>{{t .T "license"}}</dt><dd>{{$p.License}}</dd>{{end}}
+{{if $p.Homepage}}<dt>{{t .T "upstream"}}</dt><dd><a href="{{$p.Homepage}}" rel="noopener">{{if $p.Upstream}}{{$p.Upstream}}{{else}}{{$p.Homepage}}{{end}}</a></dd>{{end}}
+<dt>{{t .T "col_arch"}}</dt><dd>{{join $cur.Architectures ", "}}</dd>
+</dl>
+</aside>
+</div>
+</div>
+{{end}}

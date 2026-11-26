@@ -71,5 +71,5 @@ repositorio no cambian.
 - **Retiro**: tras `ci retire`, la versión desaparece del sitio.
 - **Renovación periódica**: el log dice `site: serial N sin cambios; nada que subir`.
 - **Fallo**: con el destino inaccesible solo para el paso del sitio (p. ej. en el entorno de
-  prueba), llega la notificación `fallo: - - en site`, los paquetes quedan publicados y el
+  prueba), llega la notificación `fallo: pipeline - en site`, los paquetes quedan publicados y el
   siguiente run sube el sitio (SC-007).

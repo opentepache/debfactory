@@ -8,7 +8,8 @@ import (
 
 // Refresh es `ci refresh` (FR-031): concilia el estado, vuelve a generar la
 // generación con la misma serial (Valid-Until nuevo), sincroniza y verifica.
-// No toca state.yaml ni la auditoría.
+// No toca state.yaml ni la auditoría. Al final sube el sitio web si quedó
+// atrasado (specs/006-repo-website, FR-013).
 func (r *Runner) Refresh(ctx context.Context, o Options) error {
 	if err := r.Env.RequireWriter(r.Cfg); err != nil {
 		return err
@@ -38,6 +39,7 @@ func (r *Runner) Refresh(ctx context.Context, o Options) error {
 		x.failErr(ctx, err, report.Sync, "", "")
 		return x.errs
 	}
+	x.site(ctx)
 	r.summary("### debfactory ci refresh\n\nÍndices firmados de nuevo, sincronizados y verificados.")
 	return x.errs.Err()
 }

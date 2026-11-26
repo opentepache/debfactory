@@ -35,25 +35,26 @@ debfactory: bob 4.3.0-0~tepache1 -: site: el estado la publica en trixie/arm64 p
 ## En el pipeline
 
 `ci main`, `ci retire` y `ci refresh`, con `site.enabled: true`, terminan generando el sitio
-sobre la generación vigente con el estado de referencia de la ejecución y lo suben a cada destino
-(research D5). Corre también cuando no hay nada que publicar. Una línea en el log:
+sobre la generación vigente con el estado de referencia de la ejecución y lo suben a
+`ci.destination` (research D5). Corre también cuando no hay nada que publicar. Una línea en el log:
 
 ```text
-site: serial 3, 12 páginas, 41 KB la mayor; apt.opentepache.org: subidas 3, borradas 0
+site: serial 3, 12 páginas, 41 KB la mayor; r2: subidas 3, borradas 0
 site: serial 3 sin cambios; nada que subir
 ```
 
-Si falla: notificación `fallo: - - en site` con el motivo, y el job termina con código 1 después
+Si falla: notificación `fallo: pipeline - en site` con el motivo, y el job termina con código 1 después
 de terminar todo lo demás.
 
 ## `just`
 
 | Receta | Qué hace |
 |---|---|
-| `just site` | `site data` sobre el repositorio de prueba local y `site build` en `dist/site/`; imprime la ruta |
+| `just site` | vista previa en `dist/site/`: el estado de `testdata/project` (con una versión anterior de bob) y una generación simulada, sin llave ni repositorio publicado; imprime la ruta. El sitio real de un destino se sube con `site sync` |
 | `just site-serve` | `just site` y `site serve` en `127.0.0.1:8080` |
 
 ## `ci doctor` (comprobación nueva)
 
-Solo con `site.enabled: true`: `GET <public_url>/` de cada destino público responde 200 con
-`Content-Type: text/html` (la regla de reescritura de research D4 está activa).
+Solo con `site.enabled: true`: `GET <public_url>/` de `ci.destination` (donde sube el pipeline)
+responde 200 con `Content-Type: text/html`, es decir, la regla de reescritura de research D4 está
+activa y el sitio subido. Si no, ❌ con el motivo.

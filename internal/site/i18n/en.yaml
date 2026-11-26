@@ -1,0 +1,69 @@
+# Textos fijos del sitio en inglés (specs/006-repo-website, research D7).
+# es.yaml MUST tener exactamente las mismas claves y los mismos marcadores
+# (%s, %d) en el mismo orden.
+lang_name: English
+skip: Skip to content
+nav_label: Site
+nav_install: install
+nav_packages: packages
+nav_key: key
+nav_source: source
+theme_toggle: Switch between light and dark theme
+seo_home_title: "%s: recent developer tools for Debian and Ubuntu"
+seo_home_desc: "APT repository with signed .deb packages of %s for Debian and Ubuntu, built from official stable releases and tested on every supported release."
+seo_pkg_title: "Install %s %s on Debian and Ubuntu (.deb) | %s"
+seo_pkg_desc: "Signed .deb of %s (%s) for %s. amd64 and arm64; updates arrive with apt upgrade."
+status_line: "repository online · %d packages · signed with GPG"
+home_title: Recent developer tools for Debian and Ubuntu, with
+home_lede: Signed .deb packages for amd64 and arm64. Every version is built from the project's official stable release, checked with lintian and installed in a clean container of each supported release before it is published.
+add_title: Add the repository
+see_packages: See packages
+add_intro: Copy the block and paste it into a terminal. It downloads the repository key, adds the repository for your release and refreshes the package lists.
+distro_label: Distribution
+tab_detect: Detect
+detect_note: Detects your release from /etc/os-release
+copy: copy
+copied: copied
+add_note: "The key is only trusted for this repository (Signed-By); it does not change how apt trusts your distribution's own repositories. To undo it:"
+remove_title: Remove the repository
+packages_title: Packages
+packages_intro: Open a package to see what it does, how to install it and its previous versions.
+col_package: Package
+col_version: Version
+col_date: Published
+col_available: Available on
+col_arch: Architectures
+not_on: "not on %s"
+no_packages: No packages are published yet.
+verify_title: Check the key
+verify_intro: The downloaded key file must belong to this primary key. Compare the fingerprint below with the one the command prints.
+fingerprint_label: Primary key fingerprint
+verify_note: If the fingerprints do not match, remove the repository and do not install anything from it.
+how_title: How every package is built
+how_pipeline: "official stable release → sha256 verified → license approved → .deb → lintian\n  → apt install on every release × architecture → GPG signature → published\n\nEvery published .deb has an entry in repo/audit.jsonl with the commit that produced it."
+remove_intro: This removes the repository and its key. Packages you already installed stay installed; remove them with apt if you no longer need them.
+breadcrumb: Breadcrumb
+pkg_h1: "Install %s on Debian and Ubuntu"
+pkg_signed: signed .deb package
+man_synopsis: SYNOPSIS
+install_note_before: With the repository added
+install_note_link: (how to add it)
+man_description: DESCRIPTION
+pkg_built: "Built from the official %s release of %s, checked with lintian and tested by installing it on %s before it is published."
+man_availability: AVAILABILITY
+col_distro: Distribution
+available: "yes"
+not_available: "no"
+older_title: PREVIOUS VERSIONS
+older_intro: The repository keeps a few earlier versions so you can go back to one of them.
+col_install: Install this version
+details_title: Package details
+published: published
+published_version: version
+debian_version: package
+published_date: published
+license: license
+upstream: upstream
+footer_build: Every package is built, checked with lintian and installed in a clean container of each release before it is signed and published.
+footer_source: Recipes and build pipeline
+footer_serial: Repository serial

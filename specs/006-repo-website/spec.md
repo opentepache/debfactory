@@ -30,6 +30,21 @@ paquete nuevo no requiere tocar nada del sitio."
   quedan publicados, el sitio anterior sigue en línea, se notifica el fallo y la siguiente
   ejecución del pipeline (publicación o renovación) vuelve a intentar el sitio (FR-013).
 
+### Session 2026-11-27 (revisión del diseño)
+
+Tras ver la primera versión, el mantenedor pidió un diseño de estilo terminal, más atractivo y
+funcional, con tema claro y oscuro, una tabla de paquetes más clara y orientación a SEO, y que el
+sitio quede preparado para derivadas (Linux Mint, Pop!_OS…) que llegarán en otra fase. Propuesta
+aprobada en un lienzo de diseño.
+
+- Q: ¿Se permite JavaScript? → A: sí, opcional: un botón para copiar cada bloque de comandos y
+  otro para cambiar de tema. Sin JavaScript, todo lo demás funciona igual (FR-018).
+- Q: ¿Imagen para compartir en redes (Open Graph)? → A: una sola imagen para todo el sitio
+  (FR-026).
+- Q: ¿Páginas y pruebas por distribución derivada? → A: en una fase posterior. Esta fase deja el
+  comando de la portada detectando la versión base por sí mismo y no anuncia derivadas que el E2E
+  no prueba (FR-002).
+
 ## User Scenarios & Testing *(mandatory)*
 
 Hay tres actores:
@@ -183,13 +198,19 @@ su equivalente en el otro idioma y que los datos y comandos son idénticos en am
 
 - **FR-001**: La portada MUST explicar en pocas líneas qué es el repositorio (herramientas de
   desarrollo recientes, `.deb` firmados, solo versiones estables, Debian y Ubuntu, amd64 y arm64).
-- **FR-002**: La portada MUST incluir los comandos para agregar el repositorio en Debian y en
-  Ubuntu, listos para copiar y pegar, que funcionen sin modificar en todas las suites y
-  arquitecturas soportadas, y los comandos para quitarlo.
+- **FR-002**: La portada MUST incluir los comandos para agregar el repositorio, listos para copiar
+  y pegar, que funcionen sin modificar en todas las suites y arquitecturas soportadas, y los
+  comandos para quitarlo. El bloque principal detecta la suite por sí mismo (Ubuntu y Debian, y
+  sus derivadas por `UBUNTU_CODENAME`/`DEBIAN_CODENAME`); si la distribución no corresponde a
+  ninguna suite publicada, no agrega el repositorio y lo dice. Hay además un bloque explícito para
+  Debian y otro para Ubuntu. El sitio MUST NOT anunciar como soportada una distribución que el E2E
+  no prueba.
 - **FR-003**: La portada MUST mostrar el fingerprint completo de la llave maestra del repositorio
   y cómo comprobarlo contra la llave descargada.
-- **FR-004**: La portada MUST listar cada paquete publicado con su versión actual y un enlace a su
-  página.
+- **FR-004**: La portada MUST listar cada paquete publicado en una tabla con: nombre (enlace a su
+  página), versión actual, fecha de publicación, dónde está disponible en texto legible
+  ("Debian 12, 13, sid · Ubuntu 24.04, 26.04", con las suites no disponibles indicadas aparte) y
+  arquitecturas. La descripción no va en la tabla: está en la página del paquete.
 - **FR-005**: Cada paquete publicado MUST tener una página con: descripción, versión publicada,
   fecha de publicación, licencia, enlace a upstream, comando de instalación, suites y
   arquitecturas en las que está publicado, y las versiones anteriores que sigan en el repositorio
@@ -245,8 +266,13 @@ su equivalente en el otro idioma y que los datos y comandos son idénticos en am
 
 **Calidad**
 
-- **FR-018**: Toda la funcionalidad (leer, navegar, cambiar de idioma, copiar comandos) MUST
-  funcionar sin JavaScript. Cualquier JavaScript que se agregue es una mejora opcional.
+- **FR-018**: Leer, navegar, cambiar de idioma, elegir la distribución y seleccionar los comandos
+  MUST funcionar sin JavaScript. El sitio MAY incluir un único script propio, servido desde el
+  mismo hosting, que solo agregue un botón para copiar cada bloque de comandos y otro para cambiar
+  el tema (recordado en el navegador). Sin el script, esos botones no aparecen y nada se rompe.
+  Ningún atributo `on*` ni script en línea, salvo los datos estructurados (FR-025).
+- **FR-024**: El sitio MUST tener tema claro y oscuro, ambos AA. Por defecto sigue la preferencia
+  del sistema; el botón de FR-018 lo cambia.
 - **FR-019**: El sitio MUST cumplir WCAG 2.1 nivel AA (contraste, navegación por teclado,
   estructura de encabezados, textos alternativos, idioma declarado).
 - **FR-020**: El sitio MUST leerse en pantallas de 320 px de ancho sin desplazamiento horizontal
@@ -254,6 +280,17 @@ su equivalente en el otro idioma y que los datos y comandos son idénticos en am
 - **FR-021**: El sitio MUST NOT cargar recursos de terceros (fuentes, scripts, analítica,
   rastreadores, CDN): todo se sirve desde el mismo hosting.
 - **FR-022**: Cada página MUST pesar menos de 100 KB transferidos, sumando todos sus recursos.
+
+**Buscadores (SEO)**
+
+- **FR-025**: Cada página MUST tener un título y una meta descripción propios, generados desde los
+  datos y pensados para la búsqueda que responde (p. ej. "Install bob 4.3.0 on Debian and Ubuntu
+  (.deb)"); URL canónica; `hreflang` para cada idioma y `x-default`; datos estructurados JSON-LD
+  (`WebSite` en la portada, `SoftwareApplication` y `BreadcrumbList` en cada paquete); y un párrafo
+  generado que explica en qué distribuciones se construye y prueba el paquete.
+- **FR-026**: El sitio MUST publicar `sitemap.xml` (todas las páginas en los dos idiomas, con la
+  fecha de publicación más reciente como `lastmod`) y `robots.txt` que lo anuncia, y etiquetas
+  Open Graph con una única imagen para todo el sitio.
 
 ### Key Entities
 
@@ -300,6 +337,7 @@ su equivalente en el otro idioma y que los datos y comandos son idénticos en am
   (deb822 `.sources` con `Signed-By`). El sitio y la guía no deben contradecirse; el sitio pasa a
   ser la referencia pública.
 - **Fuera de alcance**: búsqueda, estadísticas de descargas, analítica, comentarios, registro de
-  cambios de upstream, noticias o blog, y dominio propio para el sitio.
+  cambios de upstream, noticias o blog, dominio propio para el sitio, y páginas, pruebas y anuncio
+  de distribuciones derivadas (Linux Mint, Pop!_OS…), que llegan en una fase posterior.
 - **Dependencias**: el pipeline de publicación de la fase 003 y el estado publicado del
   repositorio (fases 002 y 004).

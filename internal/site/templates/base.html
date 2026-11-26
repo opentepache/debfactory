@@ -1,0 +1,51 @@
+{{define "base"}}<!doctype html>
+<html lang="{{.Lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<meta name="description" content="{{.Desc}}">
+<meta name="color-scheme" content="light dark">
+<link rel="canonical" href="{{.M.URL}}{{.Self}}">
+{{range .Alt}}<link rel="alternate" hreflang="{{.Lang}}" href="{{$.M.URL}}{{.Href}}">
+{{end}}{{with index .Alt 0}}<link rel="alternate" hreflang="x-default" href="{{$.M.URL}}{{.Href}}">
+{{end}}<meta property="og:type" content="website">
+<meta property="og:site_name" content="{{.M.Name}}">
+<meta property="og:title" content="{{.Title}}">
+<meta property="og:description" content="{{.Desc}}">
+<meta property="og:url" content="{{.M.URL}}{{.Self}}">
+<meta property="og:image" content="{{.OG}}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="{{.CSS}}">
+<script src="{{.JS}}"></script>
+<script type="application/ld+json">{{.JSONLD}}</script>
+</head>
+<body>
+<a class="skip" href="#main">{{t .T "skip"}}</a>
+<header class="top">
+<div class="wrap">
+<a class="brand" href="{{.Home}}"><span class="tag" aria-hidden="true">[ot]</span><span>{{.M.Name}}</span><span class="path" aria-hidden="true">/apt</span></a>
+<nav class="nav" aria-label="{{t .T "nav_label"}}">
+<a href="{{.Home}}#add">{{t .T "nav_install"}}</a>
+<a href="{{.Home}}#packages">{{t .T "nav_packages"}}</a>
+<a href="{{.Home}}#key">{{t .T "nav_key"}}</a>
+{{if .M.Source}}<a href="{{.M.Source}}">{{t .T "nav_source"}}</a>{{end}}
+{{range .Alt}}{{if not .Current}}<a class="lang" href="{{.Href}}" hreflang="{{.Lang}}" lang="{{.Lang}}">{{.Name}}</a>{{end}}{{end}}
+<button class="theme" type="button" hidden aria-label="{{t .T "theme_toggle"}}"><span class="light-icon" aria-hidden="true">☀</span><span class="dark-icon" aria-hidden="true">☾</span></button>
+</nav>
+</div>
+</header>
+<main id="main">
+{{template "content" .}}
+</main>
+<footer class="foot">
+<div class="wrap">
+<p>{{t .T "footer_build"}}{{if .M.Source}} <a href="{{.M.Source}}">{{t .T "footer_source"}}</a>{{end}}</p>
+<p>{{t .T "footer_serial"}} {{.M.Serial}}</p>
+</div>
+</footer>
+</body>
+</html>
+{{end}}

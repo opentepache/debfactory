@@ -28,7 +28,14 @@
     "name": {
       "description": "Nombre del paquete Debian; también el nombre del archivo del manifiesto.",
       "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9+.-]+$"
+      "pattern": "^[a-z0-9][a-z0-9+.-]+$",
+      "not": {
+        "description": "Nombres reservados por las rutas del sitio web (specs/006-repo-website, research D3).",
+        "enum": [
+          "assets",
+          "es"
+        ]
+      }
     },
     "version": {
       "description": "Versión upstream sin prefijo 'v'.",
@@ -269,6 +276,29 @@
             "ignore"
           ],
           "default": "trust"
+        }
+      }
+    },
+    "i18n": {
+      "description": "Traducciones que solo usa el sitio web (specs/006-repo-website, contracts/config.md). summary y description son los del .deb, en inglés.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "es": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 80,
+              "pattern": "^[^\\n]*[^.\\n]$"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 20
+            }
+          }
         }
       }
     },

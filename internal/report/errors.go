@@ -54,6 +54,9 @@ const (
 	WatchChecksums Stage = "watch-checksums"
 	WatchTampered  Stage = "watch-tampered"
 	WatchRateLimit Stage = "watch-ratelimit"
+
+	// Site: generar o subir el sitio web (specs/006-repo-website, research D5).
+	Site Stage = "site"
 )
 
 // Stages lista las etapas en orden.

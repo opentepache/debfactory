@@ -1,0 +1,96 @@
+{{define "content"}}
+<section class="hero" aria-labelledby="title">
+<div class="wrap">
+<div>
+<p class="status">● {{tf .T "status_line" (len .M.Packages)}}</p>
+<h1 id="title">{{t .T "home_title"}} <span class="hl">apt install</span>.</h1>
+<p class="lede">{{t .T "home_lede"}}</p>
+<div class="actions">
+<a class="btn primary" href="#add">{{t .T "add_title"}}</a>
+<a class="btn" href="#packages">{{t .T "see_packages"}}</a>
+</div>
+</div>
+<pre class="ascii" aria-hidden="true">        \ | /
+       \\|//
+      ._\|/_.
+     /\/\/\/\
+    |\/\/\/\/|
+    |/\/\/\/\|
+    |\/\/\/\/|
+     \/\/\/\/
+      `----'
+  $ apt install fresh</pre>
+</div>
+</section>
+
+<div class="wrap">
+<section class="section" id="add" aria-labelledby="h-add">
+<h2 id="h-add">{{t .T "add_title"}}</h2>
+<p class="hint">{{t .T "add_intro"}}</p>
+<div class="distro">
+<fieldset>
+<legend>{{t .T "distro_label"}}</legend>
+<input type="radio" name="distro" id="d-detect" checked><label for="d-detect">{{t .T "tab_detect"}}</label>
+<input type="radio" name="distro" id="d-debian"><label for="d-debian">Debian</label>
+<input type="radio" name="distro" id="d-ubuntu"><label for="d-ubuntu">Ubuntu</label>
+</fieldset>
+<div class="panel p-detect">
+<div class="panel-head"><p>{{t .T "detect_note"}}</p><button class="copy" type="button" hidden data-copy="cmd-add" data-done="{{t .T "copied"}}">{{t .T "copy"}}</button></div>
+<pre class="cmd" tabindex="0" aria-label="{{t .T "tab_detect"}}"><code id="cmd-add" data-debfactory-step="{{.M.Commands.Detect.Step}}">{{.M.Commands.Detect.Script}}</code></pre>
+</div>
+<div class="panel p-debian">
+<div class="panel-head"><p>{{range $i, $s := .M.Repo.Suites}}{{if eq $s.Distro "debian"}}{{$s.Label}} ({{$s.Name}}) {{end}}{{end}}</p><button class="copy" type="button" hidden data-copy="cmd-debian" data-done="{{t .T "copied"}}">{{t .T "copy"}}</button></div>
+<pre class="cmd" tabindex="0" aria-label="Debian"><code id="cmd-debian" data-debfactory-step="{{.M.Commands.Debian.Step}}">{{.M.Commands.Debian.Script}}</code></pre>
+</div>
+<div class="panel p-ubuntu">
+<div class="panel-head"><p>{{range $i, $s := .M.Repo.Suites}}{{if eq $s.Distro "ubuntu"}}{{$s.Label}} LTS ({{$s.Name}}) {{end}}{{end}}</p><button class="copy" type="button" hidden data-copy="cmd-ubuntu" data-done="{{t .T "copied"}}">{{t .T "copy"}}</button></div>
+<pre class="cmd" tabindex="0" aria-label="Ubuntu"><code id="cmd-ubuntu" data-debfactory-step="{{.M.Commands.Ubuntu.Step}}">{{.M.Commands.Ubuntu.Script}}</code></pre>
+</div>
+</div>
+<p class="hint">{{t .T "add_note"}} <a href="#remove">{{t .T "remove_title"}}</a>.</p>
+</section>
+
+<section class="section" id="packages" aria-labelledby="h-packages">
+<h2 id="h-packages">{{t .T "packages_title"}}</h2>
+{{if .M.Packages}}<p class="hint">{{t .T "packages_intro"}}</p>
+<div class="scroll" tabindex="0" role="region" aria-labelledby="h-packages">
+<table class="pkgs">
+<thead><tr><th scope="col">{{t .T "col_package"}}</th><th scope="col">{{t .T "col_version"}}</th><th scope="col">{{t .T "col_date"}}</th><th scope="col">{{t .T "col_available"}}</th><th scope="col">{{t .T "col_arch"}}</th></tr></thead>
+<tbody>{{range .M.Packages}}{{$v := index .Versions 0}}
+<tr><th scope="row"><a href="{{$.Home}}packages/{{.Name}}/">{{.Name}}</a></th><td class="ver">{{$v.Upstream}}</td><td class="when"><time datetime="{{$v.Published}}">{{$v.Published}}</time></td><td>{{$v.Available}}{{if $v.Missing}}<span class="except">{{tf $.T "not_on" $v.Missing}}</span>{{end}}</td><td class="arch">{{join $v.Architectures ", "}}</td></tr>{{end}}
+</tbody>
+</table>
+</div>{{else}}<p>{{t .T "no_packages"}}</p>{{end}}
+</section>
+
+<section class="section" id="key" aria-labelledby="h-key">
+<h2 id="h-key">{{t .T "verify_title"}}</h2>
+<p class="hint">{{t .T "verify_intro"}}</p>
+<div class="key">
+<dl class="fpr">{{range .M.Repo.Keyring.Fingerprints}}
+<dt>{{t $.T "fingerprint_label"}}</dt>
+<dd><code>{{.}}</code></dd>{{end}}
+</dl>
+<div class="block">
+<div class="panel-head"><p>gpg</p><button class="copy" type="button" hidden data-copy="cmd-verify" data-done="{{t .T "copied"}}">{{t .T "copy"}}</button></div>
+<pre class="cmd" tabindex="0" aria-label="{{t .T "verify_title"}}"><code id="cmd-verify" data-debfactory-step="{{.M.Commands.Verify.Step}}">{{.M.Commands.Verify.Script}}</code></pre>
+</div>
+</div>
+<p class="hint">{{t .T "verify_note"}}</p>
+</section>
+
+<section class="section" id="how" aria-labelledby="h-how">
+<h2 id="h-how">{{t .T "how_title"}}</h2>
+<pre class="pipeline">{{t .T "how_pipeline"}}</pre>
+</section>
+
+<section class="section" id="remove" aria-labelledby="h-remove">
+<h2 id="h-remove">{{t .T "remove_title"}}</h2>
+<p class="hint">{{t .T "remove_intro"}}</p>
+<div class="block">
+<div class="panel-head"><p>apt</p><button class="copy" type="button" hidden data-copy="cmd-remove" data-done="{{t .T "copied"}}">{{t .T "copy"}}</button></div>
+<pre class="cmd" tabindex="0" aria-label="{{t .T "remove_title"}}"><code id="cmd-remove" data-debfactory-step="{{.M.Commands.Remove.Step}}">{{.M.Commands.Remove.Script}}</code></pre>
+</div>
+</section>
+</div>
+{{end}}

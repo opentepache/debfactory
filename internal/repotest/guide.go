@@ -9,6 +9,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"golang.org/x/net/html"
 )
 
 // GuideFile es la guía de usuario, relativa a la raíz del repositorio.
@@ -48,6 +50,54 @@ func Blocks(path string) (map[string]string, error) {
 	}
 	if step != "" {
 		return nil, fmt.Errorf("%s: bloque %q sin cerrar", path, step)
+	}
+	return blocks, nil
+}
+
+// SiteBlocks extrae los bloques ejecutables de una página del sitio web
+// (specs/006-repo-website, research D8): el texto de cada
+// <code data-debfactory-step="<paso>">, sin escapes de HTML, tal como lo
+// copia el visitante.
+func SiteBlocks(path string) (map[string]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	doc, err := html.Parse(f)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %v", path, err)
+	}
+	blocks := map[string]string{}
+	var walk func(*html.Node) error
+	walk = func(n *html.Node) error {
+		if n.Type == html.ElementNode && n.Data == "code" {
+			for _, a := range n.Attr {
+				if a.Key != "data-debfactory-step" {
+					continue
+				}
+				if _, dup := blocks[a.Val]; dup {
+					return fmt.Errorf("%s: bloque %q repetido", path, a.Val)
+				}
+				var b strings.Builder
+				for c := n.FirstChild; c != nil; c = c.NextSibling {
+					if c.Type != html.TextNode {
+						return fmt.Errorf("%s: el bloque %q tiene marcado dentro", path, a.Val)
+					}
+					b.WriteString(c.Data)
+				}
+				blocks[a.Val] = b.String() + "\n"
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			if err := walk(c); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := walk(doc); err != nil {
+		return nil, err
 	}
 	return blocks, nil
 }

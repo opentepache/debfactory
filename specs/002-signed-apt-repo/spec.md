@@ -557,4 +557,5 @@ En cada paso, comprobar que un cliente que solo siguió la documentación sigue 
 - Solo se publican paquetes de nivel 1. El sufijo de suite del nivel 2 queda fuera de alcance,
   aunque el diseño no debe impedirlo.
 - Fuera de alcance: CI, detección automática de versiones, sitio web, notificaciones
-  automáticas, espejos múltiples y firmas por paquete.
+  automáticas, espejos múltiples y firmas por paquete. (El sitio web llegó en la fase 006,
+  specs/006-repo-website, en la raíz del mismo hosting; no cambia ninguna ruta del repositorio.)

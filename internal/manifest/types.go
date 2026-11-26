@@ -38,6 +38,7 @@ type Manifest struct {
 	Test             Test              `yaml:"test"`
 	LintianOverrides []LintianOverride `yaml:"lintian_overrides"`
 	Watch            Watch             `yaml:"watch"`
+	I18n             I18n              `yaml:"i18n"`
 
 	// File es la ruta del manifiesto relativa a la raíz (packages/<name>.yaml).
 	File string `yaml:"-"`
@@ -123,6 +124,23 @@ type Watch struct {
 	AutoMerge      bool   `yaml:"auto_merge"`      // FR-013; por defecto false
 	PrereleaseFlag string `yaml:"prerelease_flag"` // trust | ignore (FR-003a); por defecto trust
 }
+
+// I18n son las traducciones que solo usa el sitio web (specs/006-repo-website,
+// contracts/config.md). summary y description del manifiesto son los del .deb,
+// en inglés.
+type I18n struct {
+	ES *Text `yaml:"es"`
+}
+
+// Text es un resumen y una descripción traducidos; los dos son opcionales.
+type Text struct {
+	Summary     string `yaml:"summary"`
+	Description string `yaml:"description"`
+}
+
+// ReservedNames son nombres de paquete que chocan con rutas del sitio web
+// (specs/006-repo-website, research D3).
+var ReservedNames = []string{"assets", "es"}
 
 // Watched indica si el detector revisa el paquete.
 func (w Watch) Watched() bool { return w.Enabled == nil || *w.Enabled }

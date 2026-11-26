@@ -71,10 +71,24 @@ sync dest: bin
 serve: bin
     bin/debfactory repo serve
 
+# Vista previa del sitio web (specs/006-repo-website) en dist/site/: el estado
+# de testdata/project con una versión anterior de bob y una generación
+# simulada, sin llave ni repositorio publicado. Para el sitio real de un
+# destino: `debfactory site sync --dest D`.
+site:
+    #!/bin/sh
+    set -eu
+    DEBFACTORY_SITE_OUT="$PWD/dist/site" go test -count=1 -run '^TestPreview$' ./internal/site/ >/dev/null
+    echo "$PWD/dist/site"
+
+# Sirve la vista previa del sitio en http://127.0.0.1:8080/.
+site-serve: site bin
+    bin/debfactory site serve --dir dist/site --addr 127.0.0.1:8080
+
 # Pruebas E2E del repositorio (SC-001, SC-003, SC-004).
 e2e: bin
     bin/debfactory build --root {{project}} --all
-    go test -tags e2e -run 'TestE2E(Repo|Lifecycle|Failures|SyncLocal|RebuildFromGit)' ./internal/repotest/ -timeout 60m -v
+    go test -tags e2e -run 'TestE2E(Repo|Lifecycle|Failures|SyncLocal|RebuildFromGit|Site|A11y)' ./internal/repotest/ -timeout 60m -v
 
 # Prueba E2E de la llave (SC-006).
 e2e-key: bin

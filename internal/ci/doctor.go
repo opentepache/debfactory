@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/user"
@@ -87,6 +88,7 @@ func (r *Runner) Doctor(ctx context.Context, o Options) error {
 		return &report.EnvError{Cause: err.Error()}
 	}
 	checks := r.GitHubChecks(ctx, gh, o.Fix)
+	checks = append(checks, r.SiteChecks(ctx, http.DefaultClient)...)
 	checks = append(checks, r.HostChecks(RealHost())...)
 	failed := 0
 	for _, c := range checks {
@@ -108,6 +110,38 @@ func (r *Runner) Doctor(ctx context.Context, o Options) error {
 		return report.Newf(report.Config, "ci doctor: %d comprobaciones fallan", failed)
 	}
 	return nil
+}
+
+// SiteChecks comprueba, con site.enabled, que la raíz pública de
+// ci.destination sirve el sitio (specs/006-repo-website, research D4): sin la
+// regla de reescritura de "/" a "/index.html", un bucket de R2 responde 404.
+func (r *Runner) SiteChecks(ctx context.Context, client *http.Client) []Check {
+	if !r.Cfg.Site.Enabled {
+		return nil
+	}
+	dest, ok := r.Cfg.Repo.Destinations[r.Cfg.CI.Destination]
+	if !ok || dest.PublicURL == "" {
+		return nil
+	}
+	url := strings.TrimSuffix(dest.PublicURL, "/") + "/"
+	name := "sitio web en " + url
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return []Check{{Name: name, Info: err.Error()}}
+	}
+	req.Header.Set("User-Agent", "debfactory")
+	resp, err := client.Do(req)
+	if err != nil {
+		return []Check{{Name: name, Warn: true, Info: "no se pudo consultar: " + err.Error()}}
+	}
+	defer resp.Body.Close()
+	ct := resp.Header.Get("Content-Type")
+	if resp.StatusCode == http.StatusOK && strings.HasPrefix(ct, "text/html") {
+		return []Check{{Name: name, OK: true}}
+	}
+	return []Check{{Name: name, Info: fmt.Sprintf("HTTP %d (%s); falta la regla de reescritura de / a /index.html o el sitio aún no se subió (docs/operacion-ci.md)", resp.StatusCode, ct)}}
 }
 
 // GitHubChecks comprueba la configuración del repositorio en GitHub.

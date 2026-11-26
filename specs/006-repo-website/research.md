@@ -134,7 +134,8 @@ registro (punto 3) hace que no se suba nada.
    temporal, que se renombra a `<data>/site/<digest>/` (digest del árbol, data-model §3). Un
    sitio que cambia sin cambiar el serial (una traducción) no choca con el anterior. Se conservan
    solo el vigente y el anterior.
-2. Para cada destino configurado, una subida con rclone en tres pasos: `assets/` (inmutables, con
+2. A `ci.destination` (el destino al que el pipeline sincroniza el repositorio), una subida con
+   rclone en tres pasos: `assets/` (inmutables, con
    el `Cache-Control` de `pool/`), después las páginas y `site.json` (con el `Cache-Control`
    mutable, hoy `max-age=60`), y al final el borrado de lo que salió hace dos sincronizaciones
    (borrado diferido, como el repositorio: specs/002, research D6).
@@ -195,27 +196,43 @@ redirecciones del servidor, las URLs públicas cambiarían en cada publicación.
 **Motivo**: agregar un idioma nuevo es un archivo de traducciones. Agregar un paquete no toca
 nada del sitio (FR-008).
 
-## D8. Comandos de instalación: los mismos de la guía de usuario, probados igual
+## D8. Comandos de instalación: uno que detecta la suite, probado tal cual
 
-**Decisión**: los bloques de la portada se generan desde la configuración: URL, nombre del
-keyring, componente, y la suite tomada de `/etc/os-release` (`VERSION_CODENAME`). Son el mismo
-procedimiento deb822 con `Signed-By` de `docs/usuario.md` del repositorio de paquetes (fase 002).
-Hay un bloque para Debian y otro para Ubuntu, más el de quitar el repositorio. Cada bloque lleva en
-el HTML un atributo `data-debfactory-step="<paso>"`, el equivalente a las marcas
-```` ```sh debfactory:<paso> ```` de la guía.
+**Decisión** (revisada el 2026-11-27): los bloques de la portada se generan desde la configuración
+(URL, keyring, componente, suites) con el procedimiento deb822 con `Signed-By` de
+`docs/usuario.md` del repositorio de paquetes (fase 002). Son tres, en pestañas que funcionan sin
+JavaScript (radios + `:has()`; sin `:has()`, se ven los tres seguidos):
 
-La prueba E2E (`internal/repotest`) extrae esos bloques del HTML generado, no de una copia, y los
-ejecuta tal cual en contenedores limpios de las 5 suites × 2 arquitecturas contra el árbol servido
-con Caddy (SC-002). Para extraerlos usa el mismo mecanismo que hoy prueba la guía (`guide.go`).
+- **Detectar** (`add`, el que se muestra primero): la suite sale de
+  `UBUNTU_CODENAME`, si no de `DEBIAN_CODENAME` y si no de `VERSION_CODENAME` en
+  `/etc/os-release`. Las derivadas declaran el codename de su base (Linux Mint y Pop!_OS
+  `UBUNTU_CODENAME`, LMDE `DEBIAN_CODENAME`), así que el mismo bloque ya les sirve. Si el codename
+  no es una suite estable publicada y la distribución es Debian (`ID=debian`), es sid: en sid,
+  `os-release` dice el nombre de la próxima estable. Cualquier otro caso (un Ubuntu no soportado,
+  Kali) deja la suite vacía: el bloque no escribe el `.sources` y lo dice. La condición `ID=debian`
+  importa porque Ubuntu también trae `/etc/debian_version` con `…/sid`.
+- **Debian** (`add-debian`) y **Ubuntu** (`add-ubuntu`): la variante explícita de cada una.
 
-**Motivo**: lo que se prueba es exactamente lo que el visitante copia.
+Cada bloque lleva `data-debfactory-step="<paso>"`, el equivalente a las marcas
+```` ```sh debfactory:<paso> ```` de la guía. La prueba E2E extrae los bloques del HTML generado,
+no de una copia, y en cada una de las 5 suites × 2 arquitecturas ejecuta el de su distribución y
+el universal, comprueba que los dos eligen la misma suite e instala todos los paquetes (SC-002).
 
-## D9. Sin JavaScript
+El sitio no nombra derivadas como soportadas mientras el E2E no las pruebe (FR-002): llegan en una
+fase posterior, con `site.distros` y sus contenedores de prueba.
 
-**Decisión**: ningún script. Los comandos van en `<pre><code>`, seleccionables con triple clic o
-con el teclado. El cambio de idioma es un enlace. Un botón "copiar" exige JavaScript y queda fuera
-de esta fase. FR-018 lo permitiría como mejora opcional, pero se descarta para no tener que
-mantener una política de CSP con excepciones.
+**Motivo**: lo que se prueba es exactamente lo que el visitante copia, y un solo bloque cubre la
+mayoría de los casos sin que el visitante sepa su codename.
+
+## D9. JavaScript opcional: copiar y cambiar de tema
+
+**Decisión** (revisada el 2026-11-27; antes, ningún script): un único archivo propio,
+`assets/site.<hash>.js` (unos 2 KB), cargado en el `<head>` sin `defer` para aplicar el tema
+guardado antes de pintar. Hace dos cosas: muestra un botón "copiar" en cada bloque de comandos
+(`navigator.clipboard`) y un botón de tema que alterna claro y oscuro y lo recuerda en
+`localStorage`. Los dos botones están en el HTML con `hidden`: sin el script no aparecen y el resto
+funciona igual (FR-018). No hay scripts en línea ni atributos `on*`; el único `<script>` con
+contenido es el JSON-LD (D14), que no se ejecuta.
 
 ## D10. Calidad: pruebas en Go y una auditoría de accesibilidad en contenedor
 
@@ -244,14 +261,48 @@ mantener una política de CSP con excepciones.
 - **Ancho de 320 px** (FR-020): la misma auditoría comprueba que no haya desplazamiento horizontal
   del documento.
 
-## D11. Diseño visual
+## D11. Diseño visual: terminal, claro y oscuro
 
-**Decisión**: tipografía del sistema (sin fuentes descargadas: FR-021, FR-022), una sola hoja de
-estilos pequeña y modo oscuro con `prefers-color-scheme`. Los bloques de comandos son el elemento
-protagonista: un recuadro con desplazamiento horizontal propio (FR-020). La identidad
-"OpenTepache" va en texto y en un SVG en línea con `aria-hidden` y texto equivalente. La dirección
-visual concreta se decide al implementar, con la guía de diseño de interfaces, dentro de estos
-límites.
+**Decisión** (revisada el 2026-11-27 tras una propuesta en un lienzo de diseño): estilo terminal
+con la monoespaciada del sistema (sin fuentes descargadas: FR-021, FR-022), paleta grafito frío y
+acento de piña, y dos temas AA (FR-024):
+
+| Token | Claro | Oscuro |
+|---|---|---|
+| fondo | `#F7F8FA` | `#12161C` |
+| superficie / comandos | `#FFFFFF` / `#EEF1F5` | `#1A2029` / `#0D1116` |
+| texto / tenue | `#1B222C` / `#56606D` | `#E6EDF3` / `#9AA7B4` |
+| enlace | `#7A5600` | `#F5C518` |
+| acento (botón principal) | `#F5C518` | `#F5C518` |
+| ok | `#1F7A4D` | `#7EE2A8` |
+
+El tema sigue `prefers-color-scheme`; `data-theme` en `<html>` (D9) lo fuerza. La portada abre
+con una piña en ASCII (`aria-hidden`). La página de paquete tiene forma de man page (`BOB(1)`,
+SINOPSIS, DESCRIPCIÓN, DISPONIBILIDAD, VERSIONES ANTERIORES) con una ficha lateral. La tabla de
+paquetes no lleva descripción y dice dónde está cada paquete en texto
+("Debian 12, 13, sid · Ubuntu 24.04, 26.04"), con las suites que faltan aparte (FR-004); a menos de
+40rem cada fila pasa a ser una ficha.
+
+## D14. SEO: cada página responde una búsqueda
+
+**Decisión** (FR-025, FR-026): todo se genera de los mismos datos que el resto del sitio.
+
+- Títulos y descripciones por página, pensados para lo que se busca: "Install bob 4.3.0 on Debian
+  and Ubuntu (.deb) | OpenTepache"; el h1 de la página de paquete es "Install bob on Debian and
+  Ubuntu". En español, "Instalar…".
+- URL canónica; `hreflang` en, es y `x-default`; Open Graph y Twitter con una única imagen para
+  todo el sitio (`assets/og.<hash>.png`, 1200×630, embebida en el binario).
+- JSON-LD: `WebSite` en la portada; `SoftwareApplication` (versión, licencia SPDX, sistemas, fecha,
+  gratis) y `BreadcrumbList` en cada paquete. `encoding/json` escapa `<`, `>` y `&`, así que el
+  contenido no puede cerrar el `<script>`.
+- Un párrafo generado por paquete: "Built from the official 4.3.0 release of
+  MordechaiHadad/bob, checked with lintian and tested by installing it on …".
+- `sitemap.xml` con todas las páginas en los dos idiomas, sus alternativas y `lastmod` (la fecha de
+  publicación de la versión; la portada, la más reciente) y `robots.txt` que lo anuncia y deja
+  fuera `dists/` y `pool/`.
+
+**Alternativas**: una imagen OG por paquete (descartada: más trabajo en cada publicación por poco
+beneficio); páginas por distribución (`/distros/linux-mint/`), para la fase de derivadas.
 
 ## D12. Determinismo
 

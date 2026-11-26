@@ -40,6 +40,9 @@ func TestLoadRepoConfig(t *testing.T) {
 	if c.CI.StatePRMaxAge != Duration(7*24*time.Hour) || c.CI.Labels.Pub != "debfactory-main" || c.CI.Destination != "r2" {
 		t.Errorf("ci = %+v", c.CI)
 	}
+	if c.Site != (Site{Enabled: true, Name: "OpenTepache"}) {
+		t.Errorf("site = %+v", c.Site)
+	}
 	w := c.Watch
 	if w.IntervalDuration() != 24*time.Hour || w.CooldownDuration() != 48*time.Hour || w.Reserve() != 500 ||
 		w.Prefix() != "debfactory/update/" {
@@ -124,6 +127,11 @@ func TestLoadRejects(t *testing.T) {
 		"watch.branch_prefix main":  {`branch_prefix: debfactory/update/`, `branch_prefix: main/`, "choca con main"},
 		"watch.branch_prefix state": {`branch_prefix: debfactory/update/`, `branch_prefix: debfactory/`, "choca con main o con ci.state_branch"},
 		"watch desconocido":         {`rate_reserve: 500`, "rate_reserve: 500\n  app: x", "field app not found"},
+		// Fase 006 (specs/006-repo-website/contracts/config.md).
+		"site.name vacío":      {`name: OpenTepache        #`, `name: ""        #`, "site.name: obligatorio si site.enabled"},
+		"site.name multilínea": {`name: OpenTepache        #`, `name: "a\nb"        #`, "site.name: debe ser una sola línea"},
+		"site sin repo.url":    {`url: "https://apt.opentepache.org"`, `url: ""`, "site.enabled exige repo.url"},
+		"site desconocido":     {`enabled: true            #`, "enabled: true\n  theme: dark #", "field theme not found"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

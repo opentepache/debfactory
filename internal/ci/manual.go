@@ -205,6 +205,7 @@ func (r *Runner) Retire(ctx context.Context, o Options) error {
 		return x.errs
 	}
 	x.pushState(ctx)
+	x.site(ctx)
 	x.notify.Resolve(ctx, o.Package, o.Version, fmt.Sprintf("retirada en serial %d", st.Serial))
 	r.summary(fmt.Sprintf("### debfactory ci retire\n\n%s %s retirada (serial %d): %s", o.Package, o.Version, st.Serial, mdEscape(o.Reason)))
 	return x.errs.Err()

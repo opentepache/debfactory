@@ -7,6 +7,7 @@ require (
 	github.com/goreleaser/nfpm/v2 v2.48.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	go.yaml.in/yaml/v3 v3.0.6
+	golang.org/x/net v0.60.0
 	golang.org/x/text v0.43.0
 )
 
@@ -46,7 +47,6 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	gitlab.com/digitalxero/go-conventional-commit v1.0.7 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
-	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )

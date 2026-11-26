@@ -20,3 +20,11 @@ func TestErrorFormat(t *testing.T) {
 		t.Errorf("json = %s, %v", b, err)
 	}
 }
+
+// TestSiteStage: los fallos del sitio no son de un paquete (006 contracts/cli.md).
+func TestSiteStage(t *testing.T) {
+	e := &Error{Stage: Site, Cause: "el estado no describe la generación vigente"}
+	if got := e.Error(); got != "debfactory: - - -: site: el estado no describe la generación vigente" {
+		t.Errorf("%q", got)
+	}
+}

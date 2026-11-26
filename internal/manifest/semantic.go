@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -59,6 +60,9 @@ func (c *checker) add(field, format string, args ...any) {
 func (c *checker) name() {
 	if f := FileName(c.m.File); f != c.m.Name {
 		c.add("name", "%q no coincide con el archivo %q", c.m.Name, f)
+	}
+	if slices.Contains(ReservedNames, c.m.Name) {
+		c.add("name", "%q está reservado por el sitio web", c.m.Name)
 	}
 }
 

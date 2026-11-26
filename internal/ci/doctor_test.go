@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -221,5 +223,37 @@ func TestDoctorHost(t *testing.T) {
 	}
 	if !warned {
 		t.Errorf("sin aviso de versiones sin fijar: %+v", cs)
+	}
+}
+
+// TestDoctorSite: con site.enabled, la raíz pública de ci.destination debe
+// servir HTML (specs/006-repo-website, research D4).
+func TestDoctorSite(t *testing.T) {
+	ctx := context.Background()
+	r, _, _ := doctorRunner(t)
+	status, ctype := http.StatusOK, "text/html; charset=utf-8"
+	var ua string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		ua = req.Header.Get("User-Agent")
+		w.Header().Set("Content-Type", ctype)
+		w.WriteHeader(status)
+	}))
+	defer srv.Close()
+	d := r.Cfg.Repo.Destinations[r.Cfg.CI.Destination]
+	d.PublicURL = srv.URL
+	r.Cfg.Repo.Destinations[r.Cfg.CI.Destination] = d
+
+	cs := r.SiteChecks(ctx, srv.Client())
+	if len(cs) != 1 || !cs[0].OK || ua != "debfactory" {
+		t.Errorf("sitio servido: %+v (User-Agent %q)", cs, ua)
+	}
+	status, ctype = http.StatusNotFound, "application/xml"
+	cs = r.SiteChecks(ctx, srv.Client())
+	if len(cs) != 1 || cs[0].OK || cs[0].Warn || !strings.Contains(cs[0].Info, "falta la regla de reescritura") {
+		t.Errorf("404 de R2: %+v", cs)
+	}
+	r.Cfg.Site.Enabled = false
+	if cs := r.SiteChecks(ctx, srv.Client()); len(cs) != 0 {
+		t.Errorf("sin site.enabled no se comprueba: %+v", cs)
 	}
 }

@@ -97,3 +97,15 @@ func TestCheckRevision(t *testing.T) {
 		t.Errorf("error = %v", err)
 	}
 }
+
+// TestCheckReserved: Check rechaza un nombre reservado aunque el manifiesto
+// no haya pasado por el schema (006 research D3).
+func TestCheckReserved(t *testing.T) {
+	cfg := repoConfig(t)
+	files, _ := filepath.Glob("../../testdata/manifests/valid/*.yaml")
+	m, _ := parseFixture(t, files[0])
+	m.Name, m.File = "es", "packages/es.yaml"
+	if err := Check(m, cfg, nil); err == nil || !strings.Contains(err.Error(), `"es" está reservado por el sitio web`) {
+		t.Errorf("error = %v", err)
+	}
+}

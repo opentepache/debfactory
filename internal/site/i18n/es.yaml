@@ -1,0 +1,69 @@
+# Textos fijos del sitio en español (specs/006-repo-website, research D7).
+# MUST tener exactamente las mismas claves y los mismos marcadores (%s, %d)
+# en el mismo orden que en.yaml.
+lang_name: Español
+skip: Saltar al contenido
+nav_label: Sitio
+nav_install: instalar
+nav_packages: paquetes
+nav_key: llave
+nav_source: código
+theme_toggle: Cambiar entre tema claro y oscuro
+seo_home_title: "%s: herramientas de desarrollo recientes para Debian y Ubuntu"
+seo_home_desc: "Repositorio APT con paquetes .deb firmados de %s para Debian y Ubuntu, construidos desde las versiones estables oficiales y probados en cada versión soportada."
+seo_pkg_title: "Instalar %s %s en Debian y Ubuntu (.deb) | %s"
+seo_pkg_desc: "Paquete .deb firmado de %s (%s) para %s. amd64 y arm64; las actualizaciones llegan con apt upgrade."
+status_line: "repositorio en línea · %d paquetes · firmado con GPG"
+home_title: Herramientas de desarrollo recientes para Debian y Ubuntu, con
+home_lede: Paquetes .deb firmados para amd64 y arm64. Cada versión se construye desde la versión estable oficial del proyecto, pasa lintian y se instala en un contenedor limpio de cada versión soportada antes de publicarse.
+add_title: Agregar el repositorio
+see_packages: Ver paquetes
+add_intro: Copia el bloque y pégalo en una terminal. Descarga la llave del repositorio, agrega el repositorio para tu versión y actualiza la lista de paquetes.
+distro_label: Distribución
+tab_detect: Detectar
+detect_note: Detecta tu versión desde /etc/os-release
+copy: copiar
+copied: copiado
+add_note: "La llave solo se usa para este repositorio (Signed-By); no cambia la confianza de apt en los repositorios de tu distribución. Para deshacerlo:"
+remove_title: Quitar el repositorio
+packages_title: Paquetes
+packages_intro: Abre un paquete para ver qué hace, cómo instalarlo y sus versiones anteriores.
+col_package: Paquete
+col_version: Versión
+col_date: Publicada
+col_available: Disponible en
+col_arch: Arquitecturas
+not_on: "no en %s"
+no_packages: Todavía no hay paquetes publicados.
+verify_title: Comprobar la llave
+verify_intro: El archivo de la llave descargada debe corresponder a esta llave maestra. Compara el fingerprint de abajo con el que muestra el comando.
+fingerprint_label: Fingerprint de la llave maestra
+verify_note: Si los fingerprints no coinciden, quita el repositorio y no instales nada de él.
+how_title: Cómo se construye cada paquete
+how_pipeline: "versión estable oficial → sha256 verificado → licencia aprobada → .deb → lintian\n  → apt install en cada versión × arquitectura → firma GPG → publicado\n\nCada .deb publicado tiene su entrada en repo/audit.jsonl con el commit que lo produjo."
+remove_intro: Esto quita el repositorio y su llave. Los paquetes que ya instalaste siguen instalados; quítalos con apt si ya no los necesitas.
+breadcrumb: Ruta
+pkg_h1: "Instalar %s en Debian y Ubuntu"
+pkg_signed: paquete .deb firmado
+man_synopsis: SINOPSIS
+install_note_before: Con el repositorio agregado
+install_note_link: (cómo agregarlo)
+man_description: DESCRIPCIÓN
+pkg_built: "Construido desde la versión oficial %s de %s, revisado con lintian y probado instalándolo en %s antes de publicarse."
+man_availability: DISPONIBILIDAD
+col_distro: Distribución
+available: sí
+not_available: "no"
+older_title: VERSIONES ANTERIORES
+older_intro: El repositorio conserva algunas versiones anteriores para que puedas volver a una de ellas.
+col_install: Instalar esta versión
+details_title: Datos del paquete
+published: publicado
+published_version: versión
+debian_version: paquete
+published_date: publicada
+license: licencia
+upstream: upstream
+footer_build: Cada paquete se construye, se revisa con lintian y se instala en un contenedor limpio de cada versión antes de firmarse y publicarse.
+footer_source: Recetas y pipeline de construcción
+footer_serial: Serial del repositorio

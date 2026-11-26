@@ -39,6 +39,7 @@ type Config struct {
 	Repo             RepoConfig        `yaml:"repo"`
 	CI               CI                `yaml:"ci"`
 	Watch            Watch             `yaml:"watch"`
+	Site             Site              `yaml:"site"`
 
 	// Licenses es la allowlist de config/licenses.yaml (constitución IV).
 	Licenses []string `yaml:"-"`
@@ -180,6 +181,29 @@ func (w Watch) validate(stateBranch string) error {
 	}
 	if strings.HasPrefix(stateBranch+"/", p) || p == "main/" {
 		return fmt.Errorf("watch.branch_prefix: %q choca con main o con ci.state_branch", p)
+	}
+	return nil
+}
+
+// Site configura el sitio web del repositorio (specs/006-repo-website,
+// contracts/config.md). La URL, las suites y las llaves salen de repo.
+type Site struct {
+	Enabled bool   `yaml:"enabled"` // genera y sube el sitio en cada publicación
+	Name    string `yaml:"name"`    // nombre que muestra el sitio
+}
+
+func (s Site) validate(r *RepoConfig) error {
+	if strings.ContainsAny(s.Name, "\r\n") {
+		return errors.New("site.name: debe ser una sola línea")
+	}
+	if !s.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(s.Name) == "" {
+		return errors.New("site.name: obligatorio si site.enabled")
+	}
+	if r.URL == "" {
+		return errors.New("site.enabled exige repo.url")
 	}
 	return nil
 }
@@ -442,7 +466,10 @@ func (c *Config) validate() error {
 	if err := c.CI.validate(&c.Repo); err != nil {
 		return err
 	}
-	return c.Watch.validate(c.CI.StateBranch)
+	if err := c.Watch.validate(c.CI.StateBranch); err != nil {
+		return err
+	}
+	return c.Site.validate(&c.Repo)
 }
 
 // UnmarshalYAML lee el mapa de suites conservando su orden y rechazando
