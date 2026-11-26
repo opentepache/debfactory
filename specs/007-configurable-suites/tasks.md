@@ -102,8 +102,8 @@ US3 (portada) se pueden hacer en paralelo tras la fase 2.
 ## Phase 7: Polish & activación
 
 - [X] T020 `just check` y `just e2e` en verde (la E2E con forky: 6 suites × 2 arquitecturas, incluidos `TestE2ERepo`, `TestE2ESite` y `TestE2EA11y`).
-- [ ] T021 `just tool-install`; rama en `packages` con el pin nuevo, los campos nuevos en las suites existentes, forky entre trixie y sid, y `docs/usuario.md` (tabla de suites con "Debian 14 (testing)" y la nota de que en sid el sistema declara el codename de testing). **(manual)** commit, push y merge del PR (research D7).
-- [ ] T022 **(manual)** Quickstart §2–§3 en producción: el log de `main.yml` amplía los 5 paquetes a forky; `apt install` en un contenedor de forky instala las versiones publicadas; la portada muestra "Debian 12, 13, 14, sid · Ubuntu 24.04, 26.04"; el PR de estado tiene las entradas `extend`; un `ci rebuild` de cualquiera termina en "nada que publicar" (SC-003, SC-004).
+- [X] T021 `just tool-install`; rama en `packages` con el pin nuevo, los campos nuevos en las suites existentes, forky entre trixie y sid, y `docs/usuario.md` (tabla de suites con "Debian 14 (testing)" y la nota de que en sid el sistema declara el codename de testing). **(manual)** commit, push y merge del PR (research D7).
+- [X] T022 **(manual)** Quickstart §2–§3 en producción: el log de `main.yml` amplía los 5 paquetes a forky; `apt install` en un contenedor de forky instala las versiones publicadas; la portada muestra "Debian 12, 13, 14, sid · Ubuntu 24.04, 26.04"; el PR de estado tiene las entradas `extend`; un `ci rebuild` de cualquiera termina en "nada que publicar" (SC-003, SC-004).
 
 ---
 
