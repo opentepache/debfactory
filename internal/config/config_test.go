@@ -19,8 +19,18 @@ func TestLoadRepoConfig(t *testing.T) {
 	for _, s := range c.Suites {
 		names = append(names, s.Name)
 	}
-	if got := strings.Join(names, ","); got != "bookworm,trixie,sid,noble,resolute" {
+	if got := strings.Join(names, ","); got != "bookworm,trixie,forky,sid,noble,resolute" {
 		t.Errorf("orden de suites = %s", got)
+	}
+	// specs/007-configurable-suites, data-model §1.
+	if s, _ := c.Suite("forky"); s.Distro != "debian" || s.Label != "Debian 14 (testing)" || s.Version != "14" || s.Catchall {
+		t.Errorf("forky = %+v", s)
+	}
+	if s, _ := c.Suite("sid"); !s.Catchall || s.Version != "sid" {
+		t.Errorf("sid = %+v", s)
+	}
+	if s, _ := c.Suite("noble"); s.Distro != "ubuntu" || s.Label != "Ubuntu 24.04" || s.Version != "24.04" {
+		t.Errorf("noble = %+v", s)
 	}
 	if s, _ := c.Suite("noble"); s.Image != "ubuntu:noble" || s.Level2Suffix != "u2404" {
 		t.Errorf("noble = %+v", s)
@@ -96,18 +106,27 @@ func TestLoadRejects(t *testing.T) {
 		t.Fatal(err)
 	}
 	cases := map[string]struct{ old, new, want string }{
-		"regex inválida":     {`"^dep5-"`, `"^dep5-("`, "never_override_patterns[2]: regex inválida"},
-		"marcador":           {`libgcc-s1`, `libgcc-s1 (>= {gcc})`, "marcador desconocido {gcc}"},
-		"campo desconocido":  {`completions_image:`, "colour: red\ncompletions_image:", "field colour not found"},
-		"arquitecturas":      {`arches: [amd64, arm64]`, `arches: [amd64]`, "arches: debe ser [amd64, arm64]"},
-		"imagen vacía":       {`image: "debian:sid"`, `image: ""`, "suites.sid.image: no puede estar vacío"},
-		"suite desconocida":  {`level2_suffix: deb12}`, `level2_suffix: deb12, extra: x}`, `suites.bookworm: propiedad desconocida "extra"`},
-		"fail_on incorrecto": {`fail_on: error`, `fail_on: always`, "lintian.fail_on"},
-		"keep":               {`keep: 3 `, `keep: 0 `, "repo.keep: mínimo 1"},
-		"fingerprint":        {`masters: [72671CD221684BF7FDCDFB3965B278975D4FE04B]`, `masters: [abc123]`, "repo.signing.masters[0]: fingerprint inválido"},
-		"subkey":             {`subkey: 84983CE038A7C73647AF0C9A15DDD1383F3A75D5`, `subkey: "84983ce038a7c73647af0c9a15ddd1383f3a75d5"`, "repo.signing.subkey: fingerprint inválido"},
-		"nombre de destino":  {`    r2:`, `    R2:`, `repo.destinations: nombre "R2" inválido`},
-		"credenciales":       {`"r2:debfactory-apt"`, `"user:secret@host:/srv"`, "repo.destinations.r2.remote: no puede contener credenciales"},
+		"regex inválida":    {`"^dep5-"`, `"^dep5-("`, "never_override_patterns[2]: regex inválida"},
+		"marcador":          {`libgcc-s1`, `libgcc-s1 (>= {gcc})`, "marcador desconocido {gcc}"},
+		"campo desconocido": {`completions_image:`, "colour: red\ncompletions_image:", "field colour not found"},
+		"arquitecturas":     {`arches: [amd64, arm64]`, `arches: [amd64]`, "arches: debe ser [amd64, arm64]"},
+		"imagen vacía":      {`image: "debian:sid"`, `image: ""`, "suites.sid.image: no puede estar vacío"},
+		"suite desconocida": {`version: "12"}`, `version: "12", extra: x}`, `suites.bookworm: propiedad desconocida "extra"`},
+		// Fase 007 (specs/007-configurable-suites/data-model.md §1).
+		"suite sin distro":      {`distro: debian, label: "Debian 14 (testing)"`, `label: "Debian 14 (testing)"`, "suites.forky.distro: obligatorio"},
+		"suite distro inválida": {`distro: debian, label: "Debian 14 (testing)"`, `distro: arch, label: "Debian 14 (testing)"`, `suites.forky.distro: "arch" no es debian ni ubuntu`},
+		"suite sin label":       {`label: "Debian 14 (testing)", `, ``, "suites.forky.label: obligatorio"},
+		"suite sin version":     {`version: "14"}`, `}`, "suites.forky.version: obligatorio"},
+		"version con espacios":  {`version: "14"}`, `version: "1 4"}`, "suites.forky.version: sin espacios"},
+		"dos catchall":          {`version: "14"}`, `version: "14", catchall: true}`, "suites: más de una suite catchall en debian (forky, sid)"},
+		"catchall inválido":     {`catchall: true}`, `catchall: si}`, `suites.sid.catchall: "si" no es true ni false`},
+		"sufijo repetido":       {`level2_suffix: deb14,`, `level2_suffix: deb13,`, `suites.forky.level2_suffix: "deb13" repetido (también en trixie)`},
+		"fail_on incorrecto":    {`fail_on: error`, `fail_on: always`, "lintian.fail_on"},
+		"keep":                  {`keep: 3 `, `keep: 0 `, "repo.keep: mínimo 1"},
+		"fingerprint":           {`masters: [72671CD221684BF7FDCDFB3965B278975D4FE04B]`, `masters: [abc123]`, "repo.signing.masters[0]: fingerprint inválido"},
+		"subkey":                {`subkey: 84983CE038A7C73647AF0C9A15DDD1383F3A75D5`, `subkey: "84983ce038a7c73647af0c9a15ddd1383f3a75d5"`, "repo.signing.subkey: fingerprint inválido"},
+		"nombre de destino":     {`    r2:`, `    R2:`, `repo.destinations: nombre "R2" inválido`},
+		"credenciales":          {`"r2:debfactory-apt"`, `"user:secret@host:/srv"`, "repo.destinations.r2.remote: no puede contener credenciales"},
 		// Fase 003 (specs/003-ci-pipeline/contracts/config.md).
 		"validity.days":                 {`days: 30 `, `days: 7 `, "repo.validity.days debe estar entre 8 y 90"},
 		"validity.days alto":            {`days: 30 `, `days: 91 `, "repo.validity.days debe estar entre 8 y 90"},

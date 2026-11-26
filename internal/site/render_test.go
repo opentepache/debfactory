@@ -25,8 +25,8 @@ func TestHomePage(t *testing.T) {
 		`<link rel="alternate" hreflang="x-default" href="https://apt.opentepache.org/">`,
 		`<link rel="canonical" href="https://apt.opentepache.org/">`,
 		// Tabla: sin descripción, disponibilidad en texto y excepciones aparte (FR-004).
-		`<tr><th scope="row"><a href="/packages/bob/">bob</a></th><td class="ver">4.3.0</td><td class="when"><time datetime="2026-11-13">2026-11-13</time></td><td>Debian 13, sid · Ubuntu 24.04, 26.04<span class="except">not on Debian 12</span></td><td class="arch">amd64, arm64</td></tr>`,
-		`<td>Debian 12, 13, sid · Ubuntu 24.04, 26.04</td>`,
+		`<tr><th scope="row"><a href="/packages/bob/">bob</a></th><td class="ver">4.3.0</td><td class="when"><time datetime="2026-11-13">2026-11-13</time></td><td>Debian 13, 14, sid · Ubuntu 24.04, 26.04<span class="except">not on Debian 12</span></td><td class="arch">amd64, arm64</td></tr>`,
+		`<td>Debian 12, 13, 14, sid · Ubuntu 24.04, 26.04</td>`,
 		`<button class="copy" type="button" hidden data-copy="cmd-add"`,
 		`<button class="theme" type="button" hidden`,
 	} {
@@ -87,7 +87,7 @@ func TestPackagePage(t *testing.T) {
 	bob := read(t, out, "packages/bob/index.html")
 	for _, want := range []string{
 		"<title>Install bob 4.3.0 on Debian and Ubuntu (.deb) | OpenTepache</title>",
-		`<meta name="description" content="Signed .deb of bob (version manager for Neovim) for Debian 13, sid · Ubuntu 24.04, 26.04.`,
+		`<meta name="description" content="Signed .deb of bob (version manager for Neovim) for Debian 13, 14, sid · Ubuntu 24.04, 26.04.`,
 		"<h1>Install bob on Debian and Ubuntu</h1>",
 		`<span>version manager for Neovim</span>`,
 		`<dd class="ver">4.3.0</dd>`, "<code>4.3.0-0~tepache1</code>", `<time datetime="2026-11-13">2026-11-13</time>`,
@@ -96,7 +96,7 @@ func TestPackagePage(t *testing.T) {
 		`<tr><th scope="row">Debian 12 <span class="when">(bookworm)</span></th><td class="no">no</td><td class="no">no</td></tr>`,
 		`<tr><th scope="row">Debian 13 <span class="when">(trixie)</span></th><td class="yes">yes</td><td class="yes">yes</td></tr>`,
 		`not on Debian 12: <span lang="en">Upstream builds on Ubuntu 24.04 and requires glibc &gt;= 2.39`,
-		"Built from the official 4.3.0 release of MordechaiHadad/bob, checked with lintian and tested by installing it on Debian 13, sid · Ubuntu 24.04, 26.04",
+		"Built from the official 4.3.0 release of MordechaiHadad/bob, checked with lintian and tested by installing it on Debian 13, 14, sid · Ubuntu 24.04, 26.04",
 		"PREVIOUS VERSIONS", "<code>sudo apt install --allow-downgrades bob=4.2.1-0~tepache1</code>",
 		`<a href="/#add">`, `<li aria-current="page">bob</li>`, "BOB(1)",
 	} {
@@ -144,7 +144,7 @@ func TestSEO(t *testing.T) {
 	for _, want := range []string{
 		"<title>Instalar bob 4.3.0 en Debian y Ubuntu (.deb) | OpenTepache</title>",
 		`"@type":"SoftwareApplication"`, `"softwareVersion":"4.3.0"`, `"license":"https://spdx.org/licenses/MIT"`,
-		`"operatingSystem":"Debian 13, Debian sid, Ubuntu 24.04, Ubuntu 26.04"`, `"@type":"BreadcrumbList"`,
+		`"operatingSystem":"Debian 13, Debian 14 (testing), Debian sid, Ubuntu 24.04, Ubuntu 26.04"`, `"@type":"BreadcrumbList"`,
 		`<link rel="canonical" href="https://apt.opentepache.org/es/packages/bob/">`,
 	} {
 		if !strings.Contains(bob, want) {

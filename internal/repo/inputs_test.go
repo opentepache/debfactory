@@ -27,7 +27,7 @@ func TestInputs(t *testing.T) {
 		want  string
 		suite []string // suites esperadas si no hay error
 	}{
-		{name: "todo correcto", suite: []string{"bookworm", "trixie", "sid", "noble", "resolute"}},
+		{name: "todo correcto", suite: suiteNames(t)},
 		{name: "falta arm64", edit: func(t *testing.T, root string) { os.Remove(dist(root, "arm64", ".deb")) },
 			want: "foo 1.0.0-0~tepache1 arm64: inputs: falta dist/foo_1.0.0-0~tepache1_arm64.deb"},
 		{name: "lintian", edit: func(t *testing.T, root string) {
@@ -56,7 +56,8 @@ func TestInputs(t *testing.T) {
 				res := m["results"].([]any)
 				res[0].(map[string]any)["status"] = "excluded"
 			})
-		}, want: "foo 1.0.0-0~tepache1 -: inputs: suites distintas entre amd64 [bookworm trixie sid noble resolute] y arm64 [trixie sid noble resolute]"},
+		}, want: "foo 1.0.0-0~tepache1 -: inputs: suites distintas entre amd64 [" + strings.Join(suiteNames(t), " ") +
+			"] y arm64 [" + strings.Join(suiteNames(t)[1:], " ") + "]"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

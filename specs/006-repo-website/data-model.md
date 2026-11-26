@@ -100,6 +100,10 @@ de estado sin integrar; en la CLI, `--state FILE` (por defecto `repo/state.yaml`
 3. Los textos de los manifiestos se guardan tal cual. El escape lo hace la plantilla (FR-010), no
    el modelo.
 
+**Fase 007** (specs/007-configurable-suites): `repo.suites[]` sale entero de la configuración
+(`distro`, `label`, `version`, `catchall`); no hay tabla en el código. El campo `short` pasó a
+llamarse `version` y se agregó `catchall`.
+
 ## 2. Árbol generado
 
 `site build` escribe en un directorio que no existe o está vacío el árbol de research D3, por

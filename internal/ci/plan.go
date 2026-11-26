@@ -23,6 +23,9 @@ const (
 	NewVersion  = "new-version"
 	NewRevision = "new-revision"
 	Rebuild     = "rebuild"
+	// Extend: la versión publicada llega a suites configuradas que le faltan
+	// (specs/007-configurable-suites, research D3).
+	Extend = "extend"
 )
 
 // AffectedPackage es un paquete que esta ejecución construye.
@@ -31,6 +34,8 @@ type AffectedPackage struct {
 	Version string `json:"version"` // versión Debian completa
 	Commit  string `json:"commit"`  // commit cuyo manifiesto y lockfile se construyen
 	Reason  string `json:"reason"`
+	// Suites son las que se agregan, solo en extend.
+	Suites []string `json:"suites,omitempty"`
 }
 
 // PkgVersion es un paquete y una versión.
@@ -64,6 +69,7 @@ type Plan struct {
 	Mode      string            `json:"mode"`
 	Reference Reference         `json:"reference"`
 	Publish   []AffectedPackage `json:"publish"`
+	Extend    []AffectedPackage `json:"extend,omitempty"` // versiones publicadas a ampliar (007)
 	Test      []AffectedPackage `json:"test"`
 	Compare   []PkgVersion      `json:"compare"`
 	Skipped   []Skip            `json:"skipped"`
@@ -94,6 +100,13 @@ func (p *Plan) Summary() string {
 		parts = append(parts, verb+" "+strings.Join(s, ", "))
 	}
 	list("publicar", p.Publish)
+	if len(p.Extend) > 0 {
+		var s []string
+		for _, a := range p.Extend {
+			s = append(s, a.Package+" → "+strings.Join(a.Suites, " "))
+		}
+		parts = append(parts, fmt.Sprintf("ampliar %d (%s)", len(p.Extend), strings.Join(s, ", ")))
+	}
 	list("probar", p.Test)
 	if len(p.Compare) > 0 {
 		var s []string
@@ -198,12 +211,40 @@ func PlanMain(root string, cfg *config.Config, ref *repo.State, refInfo Referenc
 		case perr != nil:
 			p.Errors = append(p.Errors, *perr)
 		case skip != "":
+			if suites := MissingSuites(root, cfg, ref, name, version); len(suites) > 0 {
+				p.Extend = append(p.Extend, AffectedPackage{Package: name, Version: version, Commit: head, Reason: Extend, Suites: suites})
+				continue
+			}
 			p.Skipped = append(p.Skipped, Skip{Package: name, Reason: skip})
 		default:
 			p.Publish = append(p.Publish, AffectedPackage{Package: name, Version: version, Commit: head, Reason: reason})
 		}
 	}
 	return p, nil
+}
+
+// MissingSuites devuelve las suites configuradas que la versión publicada de
+// name no tiene y que su manifiesto de root no excluye, si es la versión más
+// alta del paquete; si no, nada (specs/007-configurable-suites, FR-007,
+// FR-013). Se recalcula en cada ejecución desde el estado: una ampliación
+// que falló se reintenta sola (FR-014).
+func MissingSuites(root string, cfg *config.Config, ref *repo.State, name, version string) []string {
+	pubs := ref.Packages[name]
+	if len(pubs) == 0 || pubs[0].Version != version {
+		return nil
+	}
+	m, err := manifest.Load(root, name)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, su := range cfg.Suites {
+		if _, excluded := m.Exclude.Suites[su.Name]; excluded || slices.Contains(pubs[0].Suites, su.Name) {
+			continue
+		}
+		out = append(out, su.Name)
+	}
+	return out
 }
 
 // PlanPR calcula el plan de un pull request (modo pr): los paquetes con

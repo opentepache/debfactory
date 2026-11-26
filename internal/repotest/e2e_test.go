@@ -52,7 +52,7 @@ func installAll(t *testing.T, ctx context.Context, c *Client, e *repo.Env, block
 	}
 }
 
-// TestE2ERepo sigue la guía en las 5 suites × 2 arquitecturas (SC-001,
+// TestE2ERepo sigue la guía en todas las suites configuradas × 2 arquitecturas (SC-001,
 // SC-002, FR-032).
 func TestE2ERepo(t *testing.T) {
 	ctx := context.Background()

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -76,9 +77,39 @@ func (s *State) Apply(cfg *config.Config, now time.Time, ops ...Op) (*State, []C
 							Stage: report.State, Cause: "ya publicada con otro sha256 (las versiones no se reescriben; sube revision)"})
 					}
 				}
-				if same {
-					continue // sin cambios
+				if !same {
+					continue
 				}
+				// Mismos .deb: si trae suites aprobadas que la publicada no
+				// tiene, se agregan (specs/007-configurable-suites, research D2).
+				added := slices.DeleteFunc(slices.Clone(p.Suites), func(su string) bool { return contains(old.Suites, su) })
+				if len(added) == 0 {
+					continue // sin cambios; nunca se quitan suites
+				}
+				versions := next.Packages[o.Package]
+				if err := sortVersions(versions); err != nil {
+					fail(o.Package, p.Version, "%v", err)
+					continue
+				}
+				if versions[0].Version != p.Version {
+					fail(o.Package, p.Version, "no es la versión más alta; no se amplía")
+					continue
+				}
+				var merged []string
+				for _, su := range cfg.Suites {
+					if contains(old.Suites, su.Name) || contains(added, su.Name) {
+						merged = append(merged, su.Name)
+					}
+				}
+				versions[0].Suites = merged
+				changes = append(changes, Change{Kind: KindAdd, Package: o.Package, Version: p.Version, Suites: added,
+					Reason: "ampliada a suites nuevas"})
+				rc, err := next.retain(cfg, o.Package, versions[0])
+				if err != nil {
+					fail(o.Package, p.Version, "%v", err)
+					continue
+				}
+				changes = append(changes, rc...)
 				continue
 			}
 			p.Published = now.UTC().Truncate(time.Second)

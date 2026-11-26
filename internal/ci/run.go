@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -418,6 +419,23 @@ func (x *run) publish(ctx context.Context, passed []gateResult, commit string) (
 		if c == "" || c == "HEAD" {
 			c = commit
 		}
+		// Una versión que ya estaba publicada se amplió (specs/007,
+		// research D6): la entrada lleva solo las suites agregadas.
+		var prev repo.Published
+		was := false
+		if before != nil {
+			prev, was = before.Find(g.ap.Package, g.ap.Version)
+		}
+		if was {
+			added := slices.DeleteFunc(slices.Clone(p.Suites), func(su string) bool { return slices.Contains(prev.Suites, su) })
+			if len(added) == 0 {
+				continue
+			}
+			x.Out.Line("repo: %s %s: + %s", g.ap.Package, g.ap.Version, strings.Join(added, " "))
+			entries = append(entries, Entry{Time: x.now().UTC(), Op: OpExtend, Package: g.ap.Package, Version: g.ap.Version,
+				Suites: added, Commit: c, Debs: p.Debs, Serial: st.Serial, Run: &run})
+			continue
+		}
 		entries = append(entries, Entry{Time: p.Published, Op: OpPublish, Package: g.ap.Package, Version: g.ap.Version,
 			Commit: c, Debs: p.Debs, Serial: st.Serial, Run: &run})
 	}
@@ -510,19 +528,28 @@ func (r *Runner) Main(ctx context.Context, o Options) error {
 			changed = []string{"?"}
 		}
 		if len(changed) > 0 {
-			codeOK = x.checkCode(ctx, st)
+			// Las versiones a ampliar no se comparan aparte: las reconstruye
+			// y compara su propia ampliación (specs/007, research D3).
+			skip := map[string]bool{}
+			for _, e := range p.Extend {
+				skip[e.Package+" "+e.Version] = true
+			}
+			codeOK = x.checkCode(ctx, st, skip)
 		}
 	}
 	// 4. Gates.
 	var passed []gateResult
-	if codeOK && len(p.Publish) > 0 {
+	if codeOK && len(p.Publish)+len(p.Extend) > 0 {
 		if err := r.preflight(ctx); err != nil {
 			return err
 		}
 		x.setStage(report.Test)
-		for _, g := range r.runGates(ctx, r.Root, p.Publish, o.Jobs) {
+		for _, g := range r.runGates(ctx, r.Root, append(slices.Clone(p.Publish), p.Extend...), o.Jobs) {
 			if g.err != nil {
 				x.failErr(ctx, g.err, report.Test, g.ap.Package, g.ap.Version)
+				continue
+			}
+			if g.ap.Reason == Extend && !x.sameDebs(ctx, st, g) {
 				continue
 			}
 			passed = append(passed, g)
@@ -552,7 +579,7 @@ func (r *Runner) Main(ctx context.Context, o Options) error {
 		for _, g := range passed {
 			x.notify.Published(ctx, g.ap.Package, g.ap.Version, pubSt.Serial)
 		}
-	} else if len(p.Publish) == 0 && len(p.Errors) == 0 && codeOK {
+	} else if len(p.Publish)+len(p.Extend) == 0 && len(p.Errors) == 0 && codeOK {
 		r.Out.Event("unchanged", nil, "ci: nada que publicar")
 	}
 	if len(x.errs) == 0 {
@@ -567,10 +594,27 @@ func (r *Runner) Main(ctx context.Context, o Options) error {
 	return x.errs.Err()
 }
 
+// sameDebs comprueba que los .deb reconstruidos de una ampliación son los
+// publicados; si no, falla con la etapa compare y no se amplía (specs/007,
+// research D3).
+func (x *run) sameDebs(ctx context.Context, st *repo.State, g gateResult) bool {
+	pub, _ := st.Find(g.ap.Package, g.ap.Version)
+	ok := true
+	for _, arch := range x.Cfg.Arches {
+		if g.shas[arch] != pub.Debs[arch] {
+			x.fail(ctx, &report.Error{Package: g.ap.Package, Version: g.ap.Version, Arch: arch, Stage: report.Compare,
+				Cause: fmt.Sprintf("el .deb reconstruido (sha256 %s…) no es el publicado (%s…); no se amplía a %s",
+					sha12(g.shas[arch]), sha12(pub.Debs[arch]), strings.Join(g.ap.Suites, " "))})
+			ok = false
+		}
+	}
+	return ok
+}
+
 // checkCode es el paso 3b: si cambió la configuración o la herramienta
 // fijada (ci.code_paths), valida los manifiestos y compara las versiones
 // publicadas con lo que produce ahora (FR-005, FR-010; 004 FR-008).
-func (x *run) checkCode(ctx context.Context, st *repo.State) bool {
+func (x *run) checkCode(ctx context.Context, st *repo.State, skip map[string]bool) bool {
 	x.setStage(report.Validate)
 	ok := true
 	if err := x.validateAll(x.Root); err != nil {
@@ -582,7 +626,7 @@ func (x *run) checkCode(ctx context.Context, st *repo.State) bool {
 	names, _ := build.ListPackages(x.Root)
 	for _, n := range names {
 		if v, perr := manifestEntry(x.Root, x.Cfg, n); perr == nil {
-			if _, pub := st.Find(n, v); pub {
+			if _, pub := st.Find(n, v); pub && !skip[n+" "+v] {
 				list = append(list, PkgVersion{n, v})
 			}
 		}

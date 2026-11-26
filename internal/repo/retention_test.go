@@ -17,7 +17,7 @@ func versionsOf(st *State, pkg string) []string {
 func TestRetention(t *testing.T) {
 	cfg := loadCfg(t)
 	now := time.Now()
-	all := []string{"bookworm", "trixie", "sid", "noble", "resolute"}
+	all := suiteNames(t) // las suites de la configuración de prueba
 	st := Empty()
 	var err error
 	// SC-008: 5 versiones sucesivas → quedan 3.

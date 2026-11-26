@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -25,6 +26,9 @@ const (
 	OpPublish = "publish"
 	OpRetire  = "retire"
 	OpImport  = "import"
+	// OpExtend: una versión ya publicada llega a suites nuevas con los mismos
+	// .deb (specs/007-configurable-suites, research D6).
+	OpExtend = "extend"
 )
 
 // Entry es una línea de repo/audit.jsonl. El orden de los campos es el del
@@ -35,7 +39,9 @@ type Entry struct {
 	Op      string    `json:"op"`
 	Package string    `json:"package"`
 	Version string    `json:"version"`
-	Commit  string    `json:"commit"`
+	// Suites son las suites agregadas; solo en extend.
+	Suites []string `json:"suites,omitempty"`
+	Commit string   `json:"commit"`
 	// Tool es el commit de la herramienta que produjo la entrada
 	// (specs/004-split-repos, data-model.md §3). Las anteriores no lo tienen.
 	Tool   string            `json:"tool,omitempty"`
@@ -64,6 +70,9 @@ func (e Entry) MarshalJSON() ([]byte, error) {
 	field("op", e.Op)
 	field("package", e.Package)
 	field("version", e.Version)
+	if len(e.Suites) > 0 {
+		field("suites", e.Suites)
+	}
 	field("commit", e.Commit)
 	if e.Tool != "" {
 		field("tool", e.Tool)
@@ -138,7 +147,7 @@ func ParseAudit(data []byte) ([]Entry, error) {
 			return nil, fail("seq %d tras %d", e.Seq, prev)
 		}
 		switch e.Op {
-		case OpPublish, OpImport:
+		case OpPublish, OpImport, OpExtend:
 			if len(e.Debs) == 0 {
 				return nil, fail("%s sin debs", e.Op)
 			}
@@ -147,8 +156,11 @@ func ParseAudit(data []byte) ([]Entry, error) {
 					return nil, fail("debs.%s: sha256 inválido", arch)
 				}
 			}
-			if e.Op == OpPublish && e.Run == nil {
-				return nil, fail("publish sin run")
+			if (e.Op == OpPublish || e.Op == OpExtend) && e.Run == nil {
+				return nil, fail("%s sin run", e.Op)
+			}
+			if e.Op == OpExtend && len(e.Suites) == 0 {
+				return nil, fail("extend sin suites")
 			}
 		case OpRetire:
 			if e.Reason == "" {
@@ -247,6 +259,11 @@ func CheckAudit(data, against []byte, st *repo.State) error {
 		switch e.Op {
 		case OpPublish, OpImport:
 			published[key] = e.Debs
+		case OpExtend:
+			// Amplía una versión ya publicada: no cambia qué versiones existen.
+			if pub, ok := published[key]; !ok || !maps.Equal(pub, e.Debs) {
+				errs = append(errs, report.Newf(report.Audit, "%s:%d: extend de una versión nunca publicada o con otros .deb", AuditFile, e.Seq))
+			}
 		case OpRetire:
 			if _, ok := published[key]; !ok {
 				errs = append(errs, report.Newf(report.Audit, "%s:%d: retiro de una versión nunca publicada", AuditFile, e.Seq))

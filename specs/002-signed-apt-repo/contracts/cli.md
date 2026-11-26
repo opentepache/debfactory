@@ -9,7 +9,7 @@ nueva: `--data DIR`, por defecto `~/.local/share/debfactory`, que contiene `gnup
 
 | Orden | Efecto | Red | Escribe |
 |---|---|---|---|
-| `publish <pkg> [<version>] [--dry-run]` | Publica una versión. Sin `<version>`, la del manifiesto (`<upstream>-0~tepache<N>`). Pasos: verificar entradas (research D8) → estado nuevo con retención → generar `gen-<N+1>` → verificar → swap. Si la versión ya está publicada con el mismo sha256, no hace nada y sale con 0. | no | `repo/state.yaml`, `<data>/store`, `<data>/public` |
+| `publish <pkg> [<version>] [--dry-run]` | Publica una versión. Sin `<version>`, la del manifiesto (`<upstream>-0~tepache<N>`). Pasos: verificar entradas (research D8) → estado nuevo con retención → generar `gen-<N+1>` → verificar → swap. Si la versión ya está publicada con el mismo sha256, no hace nada y sale con 0; desde la fase 007, si además trae suites aprobadas que la publicada no tiene y es la versión más alta, las agrega (specs/007-configurable-suites, research D2). | no | `repo/state.yaml`, `<data>/store`, `<data>/public` |
 | `publish --all [--dry-run]` | Publica la versión del manifiesto de cada paquete de `packages/` en **una sola** generación. Si uno falla, no se publica ninguno y se listan todos los motivos (US3-4). | no | ídem |
 | `retire <pkg> <version> --reason TEXTO [--last] [--dry-run]` | Quita la versión de todas las suites y la añade a `retired`. Si es la única versión publicada del paquete, exige `--last`. | no | ídem |
 | `repo rebuild` | Regenera `current` desde `state.yaml` (FR-036). Toma los `.deb` del almacén, de `dist/` o los reconstruye con `build`. | solo si hay que reconstruir | `<data>/store`, `<data>/public` |

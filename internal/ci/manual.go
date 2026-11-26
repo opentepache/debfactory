@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"debfactory/internal/repo"
 	"debfactory/internal/report"
@@ -116,12 +117,24 @@ func (r *Runner) Rebuild(ctx context.Context, o Options) error {
 					Cause: fmt.Sprintf("el .deb reconstruido en %s (sha256 %s…) no es el publicado (%s…)", short(ap.Commit), sha12(g.shas[arch]), sha12(pub.Debs[arch]))})
 			}
 		}
-		if len(x.errs) == 0 {
+		if len(x.errs) > 0 {
+			return x.errs.Err()
+		}
+		// Mismos .deb: si a la versión actual le faltan suites configuradas,
+		// se amplía (specs/007-configurable-suites, research D3).
+		missing := MissingSuites(wt, r.Cfg, st, ap.Package, ap.Version)
+		if len(missing) == 0 {
+			if pubs := st.Packages[ap.Package]; len(pubs) > 0 && pubs[0].Version != ap.Version {
+				r.Out.Line("rebuild: %s %s no es la versión más alta; no se amplía", ap.Package, ap.Version)
+			}
 			r.Out.Event("unchanged", nil, "rebuild: sha256 iguales; nada que publicar")
 			x.notify.Published(ctx, ap.Package, ap.Version, st.Serial)
 			r.summary(fmt.Sprintf("### debfactory ci rebuild\n\n%s %s: sha256 iguales a lo publicado; nada que publicar.", ap.Package, ap.Version))
+			return x.errs.Err()
 		}
-		return x.errs.Err()
+		ap.Reason, ap.Suites = Extend, missing
+		g.ap = ap
+		r.Out.Line("rebuild: %s %s: sha256 iguales; se amplía a %s", ap.Package, ap.Version, strings.Join(missing, " "))
 	}
 	// No publicada: se copian sus .deb e informes a dist/ del checkout y se
 	// publica como en main.
@@ -152,6 +165,7 @@ func (r *Runner) Rebuild(ctx context.Context, o Options) error {
 	}
 	x.pushState(ctx)
 	x.notify.Published(ctx, ap.Package, ap.Version, pubSt.Serial)
+	x.site(ctx)
 	return x.errs.Err()
 }
 

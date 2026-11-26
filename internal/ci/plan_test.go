@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -57,7 +58,9 @@ func TestClassify(t *testing.T) {
 	}
 }
 
-// TestPlanMainRepo: con el estado real, los 4 paquetes ya están publicados.
+// TestPlanMainRepo: con el estado de prueba, los 4 paquetes ya están
+// publicados, pero no en forky, que la configuración de prueba agrega: van a
+// extend (specs/007-configurable-suites).
 func TestPlanMainRepo(t *testing.T) {
 	cfg := testConfig(t)
 	st, err := repo.ReadState(testutil.ProjectRoot())
@@ -68,8 +71,44 @@ func TestPlanMainRepo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(p.Publish) != 0 || len(p.Errors) != 0 || len(p.Skipped) != 4 {
+	if len(p.Publish) != 0 || len(p.Errors) != 0 || len(p.Skipped) != 0 || len(p.Extend) != 4 {
 		t.Errorf("plan = %s (%+v)", p.Summary(), p.Errors)
+	}
+	for _, e := range p.Extend {
+		if e.Reason != Extend || strings.Join(e.Suites, ",") != "forky" {
+			t.Errorf("extend = %+v", e)
+		}
+	}
+	if !strings.Contains(p.Summary(), "ampliar 4 (aqua → forky, bob → forky, buf → forky, fnm → forky)") {
+		t.Errorf("resumen = %s", p.Summary())
+	}
+}
+
+// TestPlanMainExtend: un manifiesto que excluye la suite nueva no se amplía;
+// una versión del manifiesto que no es la más alta publicada tampoco; con la
+// suite ya publicada, no hay nada que ampliar (FR-007, FR-013, SC-004).
+func TestPlanMainExtend(t *testing.T) {
+	cfg := testConfig(t)
+	root := fixtureRoot(t)
+	editFile(t, filepath.Join(root, "packages/buf.yaml"), "upstream:", "exclude:\n  suites:\n    forky: rompe en testing\nupstream:")
+	st, _ := repo.ReadState(root)
+	aqua := st.Packages["aqua"][0]
+	aqua.Suites = append(aqua.Suites, "forky")
+	st.Packages["aqua"][0] = aqua
+	older := st.Packages["fnm"][0]
+	newer := older
+	newer.Version = "1.40.0-0~tepache1"
+	st.Packages["fnm"] = []repo.Published{newer, older}
+	p, err := PlanMain(root, cfg, st, Reference{Source: "main"}, "abc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, e := range p.Extend {
+		got = append(got, e.Package)
+	}
+	if strings.Join(got, ",") != "bob" {
+		t.Errorf("extend = %v (%s)", got, p.Summary())
 	}
 }
 
@@ -109,14 +148,14 @@ func TestPlanMainFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(p.Publish) != 1 || p.Publish[0] != (AffectedPackage{"fnm", "1.39.0-0~tepache2", "abc", NewRevision}) {
+	if len(p.Publish) != 1 || !reflect.DeepEqual(p.Publish[0], AffectedPackage{Package: "fnm", Version: "1.39.0-0~tepache2", Commit: "abc", Reason: NewRevision}) {
 		t.Errorf("publish = %+v", p.Publish)
 	}
 	if len(p.Errors) != 1 || p.Errors[0].Package != "bob" || !strings.Contains(p.Errors[0].Reason, "regenera el lockfile") {
 		t.Errorf("errors = %+v", p.Errors)
 	}
-	if len(p.Skipped) != 2 {
-		t.Errorf("skipped = %+v", p.Skipped)
+	if len(p.Skipped)+len(p.Extend) != 2 {
+		t.Errorf("skipped = %+v, extend = %+v", p.Skipped, p.Extend)
 	}
 }
 

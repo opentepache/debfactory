@@ -54,7 +54,7 @@ func TestVerifyGuide(t *testing.T) {
 	// Tabla de paquetes frente al estado.
 	st := Empty()
 	st.Serial = 1
-	all := []string{"bookworm", "trixie", "sid", "noble", "resolute"}
+	all := suiteNames(t) // las suites de la configuración de prueba
 	st.Packages["fnm"] = []Published{{Version: "1-0~tepache1", Suites: all}}
 	st.Packages["bob"] = []Published{{Version: "1-0~tepache1", Suites: all[1:]}}
 	if err := VerifyGuide(guideRoot(t, withFpr), cfg, st); err != nil {

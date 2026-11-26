@@ -73,12 +73,12 @@ func TestPublish(t *testing.T) {
 	if err != nil || cur == nil {
 		t.Fatal(err)
 	}
-	// US1-1: un solo archivo por .deb en pool/, compartido por las 5 suites.
+	// US1-1: un solo archivo por .deb en pool/, compartido por todas las suites.
 	if got := poolFiles(t, cur.Dir(e.DataDir)); len(got) != 4 {
 		t.Errorf("pool = %v", got)
 	}
 	// US1-2: bar no está en bookworm (VerifyTree compara con el estado).
-	if p, _ := st.Find("bar", "2.0.0-0~tepache1"); strings.Join(p.Suites, ",") != "trixie,sid,noble,resolute" {
+	if p, _ := st.Find("bar", "2.0.0-0~tepache1"); strings.Join(p.Suites, ",") != strings.Join(suiteNames(t)[1:], ",") {
 		t.Errorf("suites de bar = %v", p.Suites)
 	}
 	pk, _ := os.ReadFile(filepath.Join(cur.Dir(e.DataDir), "dists/bookworm/main/binary-amd64/Packages"))

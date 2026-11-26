@@ -155,3 +155,35 @@ func TestAuditTool(t *testing.T) {
 		t.Errorf("tool inválido aceptado: %v", err)
 	}
 }
+
+// TestAuditExtend: la entrada extend lleva las suites después de version y
+// solo vale sobre una versión publicada con los mismos .deb
+// (specs/007-configurable-suites, data-model §4).
+func TestAuditExtend(t *testing.T) {
+	root := t.TempDir()
+	ts := time.Date(2026, 11, 26, 10, 0, 0, 0, time.UTC)
+	debs := map[string]string{"amd64": sha1, "arm64": sha2}
+	if _, err := AppendAudit(root,
+		Entry{Time: ts, Op: OpPublish, Package: "bob", Version: "4.3.0-0~tepache1", Commit: c40, Debs: debs, Serial: 1, Run: runURL("u")},
+		Entry{Time: ts.Add(time.Hour), Op: OpExtend, Package: "bob", Version: "4.3.0-0~tepache1", Suites: []string{"forky"},
+			Commit: c40, Debs: debs, Serial: 2, Run: runURL("u")},
+	); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(root, AuditFile))
+	line := strings.Split(strings.TrimSpace(string(data)), "\n")[1]
+	if !strings.Contains(line, `"op":"extend","package":"bob","version":"4.3.0-0~tepache1","suites":["forky"],"commit":"`) {
+		t.Errorf("extend = %s", line)
+	}
+	if err := CheckAudit(data, nil, nil); err != nil {
+		t.Errorf("auditoría válida: %v", err)
+	}
+	bad := strings.Replace(string(data), `"suites":["forky"],`, "", 1)
+	if _, err := ParseAudit([]byte(bad)); err == nil || !strings.Contains(err.Error(), "extend sin suites") {
+		t.Errorf("sin suites: %v", err)
+	}
+	other := strings.Replace(string(data), `"version":"4.3.0-0~tepache1","suites"`, `"version":"9.9-0~tepache1","suites"`, 1)
+	if err := CheckAudit([]byte(other), nil, nil); err == nil || !strings.Contains(err.Error(), "extend de una versión nunca publicada") {
+		t.Errorf("versión no publicada: %v", err)
+	}
+}

@@ -302,3 +302,36 @@ manifiestos y la configuración, y nunca se edita a mano (specs/006-repo-website
 | Issue | Qué pasó | Qué hacer |
 |---|---|---|
 | `fallo: pipeline - en site` | No se pudo generar o subir el sitio: el estado no coincide con la generación, una página supera 100 KB, rclone falló | Los paquetes ya están publicados y cada página en línea sigue completa. Mira el log; la siguiente ejecución de `main.yml` (o `refresh`) vuelve a intentarlo y cierra el issue. |
+
+## 8. Agregar una suite (fase 007)
+
+Desde la constitución v1.8.0 las suites son configuración: agregar una versión de Debian o de
+Ubuntu (o renombrarla) es un PR en `packages`, sin cambiar la herramienta
+(specs/007-configurable-suites).
+
+1. **Requisitos** (constitución, alcance): Debian, Ubuntu o una derivada con `.deb`, e imagen de
+   contenedor oficial para amd64 y arm64 (`docker manifest inspect debian:forky`).
+2. **El PR**: una entrada en `suites` de `config/debfactory.yaml`, en el orden en que debe
+   aparecer en los informes y en el sitio:
+
+   ```yaml
+   forky: {image: "debian:forky", level2_suffix: deb14, distro: debian, label: "Debian 14 (testing)", version: "14"}
+   ```
+
+   `distro` es `debian` o `ubuntu`; `label` es el nombre legible y `version` la versión corta que
+   muestra el sitio; `catchall: true` solo en la suite que recibe cualquier versión de su
+   distribución que no coincida con otra (hoy, sid). Actualiza la tabla de suites de
+   `docs/usuario.md` en el mismo PR. `verify` construye y prueba todo también en la suite nueva.
+3. **Al integrarlo**, `main.yml` amplía solo la versión actual de cada paquete a la suite nueva,
+   con los mismos `.deb` y después de probarlos allí (log `plan: … ampliar N (… → forky)` y una
+   entrada `extend` por paquete en la auditoría). Las versiones anteriores no llegan a la suite
+   nueva; volver atrás allí es posible con las que se publiquen desde ese momento.
+4. **Si la prueba falla en la suite nueva** (p. ej. testing roto por algo ajeno al paquete), ese
+   paquete queda pendiente y notificado; cada ejecución de `main` lo reintenta y el issue se cierra
+   solo al lograrlo. Si el fallo es del paquete en esa suite, excluye la suite en su manifiesto con
+   su motivo (`exclude.suites`), por PR. Para reintentar un paquete a mano:
+   Actions → **main** → `rebuild` con su paquete y versión.
+5. **Cuando una testing pasa a estable** (forky → Debian 14), cambia solo su `label`; el codename
+   no cambia. La testing siguiente se agrega igual.
+6. **Retirar una suite** exige anunciarlo antes en `docs/usuario.md` (constitución); el
+   procedimiento llega en otra fase.

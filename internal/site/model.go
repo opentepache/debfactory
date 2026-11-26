@@ -39,12 +39,14 @@ type Repo struct {
 	Keyring       Keyring  `json:"keyring"`
 }
 
-// Suite es una suite soportada y su distribución.
+// Suite es una suite soportada, tal como la describe la configuración
+// (specs/007-configurable-suites, data-model §1).
 type Suite struct {
-	Name   string `json:"name"`
-	Distro string `json:"distro"` // debian | ubuntu
-	Label  string `json:"label"`  // "Debian 12", "Ubuntu 24.04"
-	Short  string `json:"short"`  // "12", "24.04"
+	Name     string `json:"name"`
+	Distro   string `json:"distro"`   // debian | ubuntu
+	Label    string `json:"label"`    // "Debian 14 (testing)", "Ubuntu 24.04"
+	Version  string `json:"version"`  // "14", "24.04"
+	Catchall bool   `json:"catchall"` // recibe cualquier versión de su distribución que no coincida con otra
 }
 
 // Keyring es la llave pública del repositorio.
@@ -120,18 +122,13 @@ const (
 	SourcesFile      = "/etc/apt/sources.list.d/debfactory.sources"
 )
 
-// suiteInfo es la distribución y el nombre legible de cada suite soportada
-// (data-model §1).
-var suiteInfo = map[string]Suite{
-	"bookworm": {Distro: "debian", Label: "Debian 12", Short: "12"},
-	"trixie":   {Distro: "debian", Label: "Debian 13", Short: "13"},
-	"sid":      {Distro: "debian", Label: "Debian sid", Short: "sid"},
-	"noble":    {Distro: "ubuntu", Label: "Ubuntu 24.04", Short: "24.04"},
-	"resolute": {Distro: "ubuntu", Label: "Ubuntu 26.04", Short: "26.04"},
+// distroName es el nombre visible de una distribución: "debian" → "Debian".
+func distroName(id string) string {
+	if id == "" {
+		return id
+	}
+	return strings.ToUpper(id[:1]) + id[1:]
 }
-
-// distroNames son los nombres de cada distribución, en el orden en que se muestran.
-var distroNames = []struct{ id, name string }{{"debian", "Debian"}, {"ubuntu", "Ubuntu"}}
 
 var tepacheRev = regexp.MustCompile(`-0~tepache[0-9]+$`)
 
@@ -177,12 +174,8 @@ func Load(cfg *config.Config, root string, st *repo.State, gen *repo.GenInfo, wa
 		m.Source = "https://github.com/" + cfg.CI.Repository
 	}
 	for _, s := range cfg.Suites {
-		info, ok := suiteInfo[s.Name]
-		if !ok {
-			return nil, siteErr("suite %q sin distribución conocida (bookworm, trixie, sid, noble, resolute)", s.Name)
-		}
-		info.Name = s.Name
-		m.Repo.Suites = append(m.Repo.Suites, info)
+		m.Repo.Suites = append(m.Repo.Suites, Suite{Name: s.Name, Distro: s.Distro, Label: s.Label,
+			Version: s.Version, Catchall: s.Catchall})
 	}
 	for _, f := range cfg.Repo.Signing.Masters {
 		m.Repo.Keyring.Fingerprints = append(m.Repo.Keyring.Fingerprints, GroupFingerprint(f))
@@ -265,24 +258,30 @@ func loadPackage(cfg *config.Config, root, name string, published []repo.Publish
 }
 
 // availability describe en texto dónde está una versión: las suites por
-// distribución con su nombre corto ("Debian 12, 13, sid · Ubuntu 24.04,
-// 26.04") y, aparte, las soportadas donde no está ("Debian 12").
+// distribución con su versión corta ("Debian 12, 13, 14, sid · Ubuntu 24.04,
+// 26.04") y, aparte, las configuradas donde no está ("Debian 12"). Las
+// distribuciones van en el orden en que aparecen en la configuración.
 func availability(all []Suite, in []string) (available, missing string) {
-	var groups, gone []string
-	for _, d := range distroNames {
-		var shorts []string
+	var groups, gone, distros []string
+	for _, s := range all {
+		if !slices.Contains(distros, s.Distro) {
+			distros = append(distros, s.Distro)
+		}
+	}
+	for _, d := range distros {
+		var versions []string
 		for _, s := range all {
-			if s.Distro != d.id {
+			if s.Distro != d {
 				continue
 			}
 			if slices.Contains(in, s.Name) {
-				shorts = append(shorts, s.Short)
+				versions = append(versions, s.Version)
 			} else {
 				gone = append(gone, s.Label)
 			}
 		}
-		if len(shorts) > 0 {
-			groups = append(groups, d.name+" "+strings.Join(shorts, ", "))
+		if len(versions) > 0 {
+			groups = append(groups, distroName(d)+" "+strings.Join(versions, ", "))
 		}
 	}
 	return strings.Join(groups, " · "), strings.Join(gone, ", ")

@@ -49,6 +49,20 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Los paquetes ya están ampliados a forky (specs/007), que va después de
+	// trixie en la configuración.
+	for name, versions := range st.Packages {
+		for i := range versions {
+			var suites []string
+			for _, su := range versions[i].Suites {
+				suites = append(suites, su)
+				if su == "trixie" {
+					suites = append(suites, "forky")
+				}
+			}
+			st.Packages[name][i].Suites = suites
+		}
+	}
 	old := st.Packages["bob"][0]
 	old.Version = "4.2.1-0~tepache1"
 	old.Published = time.Date(2026, 10, 2, 23, 30, 0, 0, time.FixedZone("CST", -6*3600))

@@ -50,7 +50,18 @@ type Suite struct {
 	Name         string
 	Image        string
 	Level2Suffix string
+	// Descripción de la suite (specs/007-configurable-suites, data-model §1):
+	// nada en la herramienta lista suites por su nombre.
+	Distro   string // debian | ubuntu
+	Label    string // nombre legible: "Debian 14 (testing)"
+	Version  string // versión corta: "14", "24.04"
+	Catchall bool   // recibe cualquier versión de su distribución que no coincida con otra
 }
+
+// Distros son las distribuciones que admite la constitución (v1.8.0, alcance).
+var Distros = []string{"debian", "ubuntu"}
+
+var suiteNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
 // Suites conserva el orden del YAML, que es el orden del informe de pruebas.
 type Suites []Suite
@@ -425,12 +436,41 @@ func (c *Config) validate() error {
 	if len(c.Suites) == 0 {
 		return errors.New("suites: la lista está vacía")
 	}
+	suffixes := map[string]string{}
+	catchall := map[string]string{}
 	for _, s := range c.Suites {
+		if !suiteNameRe.MatchString(s.Name) {
+			return fmt.Errorf("suites: nombre %q inválido", s.Name)
+		}
 		if s.Image == "" {
 			return fmt.Errorf("suites.%s.image: no puede estar vacío", s.Name)
 		}
 		if s.Level2Suffix == "" {
 			return fmt.Errorf("suites.%s.level2_suffix: no puede estar vacío", s.Name)
+		}
+		if other, dup := suffixes[s.Level2Suffix]; dup {
+			return fmt.Errorf("suites.%s.level2_suffix: %q repetido (también en %s)", s.Name, s.Level2Suffix, other)
+		}
+		suffixes[s.Level2Suffix] = s.Name
+		switch {
+		case s.Distro == "":
+			return fmt.Errorf("suites.%s.distro: obligatorio", s.Name)
+		case !slices.Contains(Distros, s.Distro):
+			return fmt.Errorf("suites.%s.distro: %q no es debian ni ubuntu", s.Name, s.Distro)
+		case strings.TrimSpace(s.Label) == "":
+			return fmt.Errorf("suites.%s.label: obligatorio", s.Name)
+		case strings.ContainsAny(s.Label, "\r\n"):
+			return fmt.Errorf("suites.%s.label: debe ser una sola línea", s.Name)
+		case s.Version == "":
+			return fmt.Errorf("suites.%s.version: obligatorio", s.Name)
+		case strings.ContainsAny(s.Version, " \t\r\n"):
+			return fmt.Errorf("suites.%s.version: sin espacios", s.Name)
+		}
+		if s.Catchall {
+			if other, dup := catchall[s.Distro]; dup {
+				return fmt.Errorf("suites: más de una suite catchall en %s (%s, %s)", s.Distro, other, s.Name)
+			}
+			catchall[s.Distro] = s.Name
 		}
 	}
 	if c.Lintian.Image == "" {
@@ -476,7 +516,7 @@ func (c *Config) validate() error {
 // claves desconocidas.
 func (s *Suites) UnmarshalYAML(n *yaml.Node) error {
 	if n.Kind != yaml.MappingNode {
-		return errors.New("suites: debe ser un mapa nombre -> {image, level2_suffix}")
+		return errors.New("suites: debe ser un mapa nombre -> {image, level2_suffix, distro, label, version, catchall}")
 	}
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		name, body := n.Content[i].Value, n.Content[i+1]
@@ -491,6 +531,20 @@ func (s *Suites) UnmarshalYAML(n *yaml.Node) error {
 				su.Image = val
 			case "level2_suffix":
 				su.Level2Suffix = val
+			case "distro":
+				su.Distro = val
+			case "label":
+				su.Label = val
+			case "version":
+				su.Version = val
+			case "catchall":
+				switch val {
+				case "true":
+					su.Catchall = true
+				case "false":
+				default:
+					return fmt.Errorf("suites.%s.catchall: %q no es true ni false", name, val)
+				}
 			default:
 				return fmt.Errorf("suites.%s: propiedad desconocida %q", name, key)
 			}
