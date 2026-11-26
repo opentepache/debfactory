@@ -255,8 +255,8 @@ comandos son idénticos (SC-004, FR-017).
   En `README.md`, una línea con el sitio.
 - [X] T037 [P] Notas en las specs anteriores: en `specs/002-signed-apt-repo/spec.md` y `specs/003-ci-pipeline/spec.md`, "sitio web" deja de estar fuera de alcance y pasa a la fase 006. En `specs/003-ci-pipeline/contracts/cli.md`, el paso `site` al final de `ci main`, `ci retire` y `ci refresh`.
 - [X] T038 `just check` y `just e2e` en verde. Revisar a mano `just site-serve` con JavaScript desactivado y a 320 px de ancho, y `debfactory site sync --dest r2test` en `https://apt-test.opentepache.org/` (quickstart §1).
-- [ ] T039 **(manual)** Regla de reescritura en Cloudflare para `apt.opentepache.org` y el host de pruebas (quickstart §3). Antes de subir el sitio, `/` sigue en 404 porque `index.html` aún no existe. La comprobación de verdad es la de T041, con el sitio ya subido.
-- [ ] T040 `just tool-install`; PR en `packages` que fija la herramienta nueva y agrega `site: {enabled: true, name: OpenTepache}` a `config/debfactory.yaml`, opcionalmente con `i18n.es` en los manifiestos, y que hace que `docs/usuario.md` enlace la portada. **(manual)** el push y el merge.
+- [X] T039 **(manual)** Regla de reescritura en Cloudflare para `apt.opentepache.org` y el host de pruebas (quickstart §3). Antes de subir el sitio, `/` sigue en 404 porque `index.html` aún no existe. La comprobación de verdad es la de T041, con el sitio ya subido.
+- [X] T040 `just tool-install`; PR en `packages` que fija la herramienta nueva y agrega `site: {enabled: true, name: OpenTepache}` a `config/debfactory.yaml`, opcionalmente con `i18n.es` en los manifiestos, y que hace que `docs/usuario.md` enlace la portada. **(manual)** el push y el merge.
 - [ ] T041 **(manual)** Quickstart §3–§4 en producción:
   - `curl -sI https://apt.opentepache.org/` y `/es/` responden 200;
   - `site.json` tiene el serial vigente;
@@ -279,7 +279,7 @@ FR-004, FR-018, FR-024–FR-026; research D8, D9, D11, D14).
 - [X] T047 [P] SEO en `internal/site/seo.go` (research D14): títulos y descripciones por página, canonical, `hreflang` con `x-default`, Open Graph con `internal/site/assets/og.png` (imagen única), JSON-LD, `sitemap.xml` y `robots.txt`. Tests en `internal/site/render_test.go` (`TestSEO`).
 - [X] T048 Traducciones en `internal/site/i18n/{en,es}.yaml` con las claves nuevas; `LoadI18n` exige los mismos marcadores `%s`/`%d` en los dos idiomas.
 - [X] T049 Pruebas actualizadas: `internal/site/{render,quality}_test.go` (un script propio y un JSON-LD por página, sin scripts en línea; presupuesto con CSS y script) y `internal/repotest/site_test.go` (el bloque de la distribución y el universal eligen la misma suite en las 10 combinaciones).
-- [ ] T050 `just check`, `TestE2ESite`, `TestE2EA11y` y `just e2e` en verde con el rediseño; revisar `just site-serve` en claro, oscuro y a 320 px.
+- [X] T050 `just check`, `TestE2ESite`, `TestE2EA11y` y `just e2e` en verde con el rediseño; revisar `just site-serve` en claro, oscuro y a 320 px.
 
 ---
 
