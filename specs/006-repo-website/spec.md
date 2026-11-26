@@ -30,7 +30,7 @@ paquete nuevo no requiere tocar nada del sitio."
   quedan publicados, el sitio anterior sigue en línea, se notifica el fallo y la siguiente
   ejecución del pipeline (publicación o renovación) vuelve a intentar el sitio (FR-013).
 
-### Session 2026-11-27 (revisión del diseño)
+### Session 2026-11-26 (revisión del diseño)
 
 Tras ver la primera versión, el mantenedor pidió un diseño de estilo terminal, más atractivo y
 funcional, con tema claro y oscuro, una tabla de paquetes más clara y orientación a SEO, y que el

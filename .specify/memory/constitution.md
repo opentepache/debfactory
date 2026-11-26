@@ -96,8 +96,9 @@ construye desde upstream, sin copiar el empaquetado de terceros ni usar su marca
 - **Nivel 2 (compilación desde fuente)**: como cada suite produce un binario distinto, MUST
   agregarse un sufijo por suite para que nunca existan dos archivos distintos con el mismo nombre
   en el pool: `<upstream>-0~tepache<N>+<suite>`, por ejemplo `1.2.3-0~tepache1+deb13`.
-  - Sufijos de suite: `deb12` (bookworm), `deb13` (trixie), `debsid` (sid), `u2404` (noble),
-    `u2604` (resolute). `N` sigue las mismas reglas que en nivel 1.
+  - Cada suite declara su sufijo en la configuración (`level2_suffix`), único entre las suites;
+    por ejemplo `deb12` (bookworm), `deb13` (trixie), `debsid` (sid), `u2404` (noble). `N` sigue
+    las mismas reglas que en nivel 1.
 - Con la revisión en `0` y el sufijo `~`, cualquier versión oficial de Debian u Ubuntu del mismo
   upstream (por ejemplo `1.40.0-1`) siempre es mayor y gana, y una versión upstream más nueva de
   OpenTepache siempre supera a una oficial más vieja.
@@ -166,8 +167,19 @@ reside solo en el pipeline determinista y en el mantenedor.
   `opentepache.org`. Sus campos `Origin` y `Label` MUST valer `OpenTepache`. debfactory es el
   nombre de la herramienta, no del repositorio.
 - **Arquitecturas**: `amd64` y `arm64`.
-- **Suites soportadas**: Debian `bookworm`, `trixie` y `sid`; Ubuntu `noble` (24.04 LTS) y
-  `resolute` (26.04 LTS).
+- **Suites soportadas**: las define la configuración del repositorio de paquetes
+  (`config/debfactory.yaml`, bloque `suites`). Agregar, quitar o renombrar una suite o una versión
+  de sistema operativo es un cambio de configuración por PR, no una enmienda. Toda suite
+  configurada MUST:
+  - ser de Debian, de Ubuntu o de una distribución basada en ellas que use paquetes `.deb`;
+  - tener una imagen de contenedor oficial de esa distribución para las pruebas de instalación;
+  - pasar las mismas pruebas que las demás: lintian y la instalación en contenedor limpio por cada
+    arquitectura soportada (gate 6);
+  - contar para la regla "falla en una, no se publica en ninguna" del principio VII, salvo que un
+    manifiesto la excluya.
+
+  Retirar una suite MUST anunciarse en la documentación de usuario antes de dejar de publicar en
+  ella.
 - **Exclusiones por paquete**: un manifiesto MAY excluir suites concretas (p. ej. si el binario
   upstream requiere una glibc más nueva que la de `bookworm`), documentando el motivo. Excluir una
   suite no bloquea la publicación en las demás; las suites excluidas no cuentan para la regla de
@@ -180,7 +192,7 @@ reside solo en el pipeline determinista y en el mantenedor.
   es para uso productivo y su promesa al usuario es estabilidad.
 - **Paquetes iniciales**: `fnm`, `bob`, `buf`, `aqua`. Cada uno MUST cumplir todos los
   principios (en particular V) antes de publicarse.
-- Ampliar arquitecturas o suites es una enmienda a esta sección.
+- Ampliar las arquitecturas es una enmienda a esta sección; las suites, no (ver arriba).
 
 ## Flujo de publicación y quality gates
 
@@ -205,10 +217,10 @@ se notifica según el principio VIII:
 - **Versionado de la constitución** (SemVer):
   - MAJOR: eliminación o redefinición incompatible de un principio o de la gobernanza.
   - MINOR: principio o sección nuevos, o ampliación material de una regla (incluye ampliar
-    suites, arquitecturas o la allowlist de licencias).
+    arquitecturas o la allowlist de licencias; las suites son configuración).
   - PATCH: aclaraciones y correcciones de redacción sin cambio semántico.
 - **Cumplimiento**: cada plan (`plan.md`) MUST incluir una verificación explícita contra cada uno
   de los principios I–X en su sección "Constitution Check". Toda desviación MUST justificarse en
   la tabla de seguimiento de complejidad del plan o el plan no se aprueba.
 
-**Version**: 1.7.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-16
+**Version**: 1.8.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-26

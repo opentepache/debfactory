@@ -198,7 +198,7 @@ nada del sitio (FR-008).
 
 ## D8. Comandos de instalación: uno que detecta la suite, probado tal cual
 
-**Decisión** (revisada el 2026-11-27): los bloques de la portada se generan desde la configuración
+**Decisión** (revisada el 2026-11-26): los bloques de la portada se generan desde la configuración
 (URL, keyring, componente, suites) con el procedimiento deb822 con `Signed-By` de
 `docs/usuario.md` del repositorio de paquetes (fase 002). Son tres, en pestañas que funcionan sin
 JavaScript (radios + `:has()`; sin `:has()`, se ven los tres seguidos):
@@ -226,7 +226,7 @@ mayoría de los casos sin que el visitante sepa su codename.
 
 ## D9. JavaScript opcional: copiar y cambiar de tema
 
-**Decisión** (revisada el 2026-11-27; antes, ningún script): un único archivo propio,
+**Decisión** (revisada el 2026-11-26; antes, ningún script): un único archivo propio,
 `assets/site.<hash>.js` (unos 2 KB), cargado en el `<head>` sin `defer` para aplicar el tema
 guardado antes de pintar. Hace dos cosas: muestra un botón "copiar" en cada bloque de comandos
 (`navigator.clipboard`) y un botón de tema que alterna claro y oscuro y lo recuerda en
@@ -263,7 +263,7 @@ contenido es el JSON-LD (D14), que no se ejecuta.
 
 ## D11. Diseño visual: terminal, claro y oscuro
 
-**Decisión** (revisada el 2026-11-27 tras una propuesta en un lienzo de diseño): estilo terminal
+**Decisión** (revisada el 2026-11-26 tras una propuesta en un lienzo de diseño): estilo terminal
 con la monoespaciada del sistema (sin fuentes descargadas: FR-021, FR-022), paleta grafito frío y
 acento de piña, y dos temas AA (FR-024):
 

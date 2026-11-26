@@ -266,9 +266,9 @@ comandos son idénticos (SC-004, FR-017).
 
 ---
 
-## Phase 8: Rediseño (sesión 2026-11-27)
+## Phase 8: Rediseño (sesión 2026-11-26)
 
-**Purpose**: aplicar la revisión del diseño aprobada (spec § Clarifications 2026-11-27: FR-002,
+**Purpose**: aplicar la revisión del diseño aprobada (spec § Clarifications 2026-11-26: FR-002,
 FR-004, FR-018, FR-024–FR-026; research D8, D9, D11, D14).
 
 - [X] T042 [US1] Bloque universal `add` en `internal/site/commands.go` (research D8): suite de `UBUNTU_CODENAME`/`DEBIAN_CODENAME`/`VERSION_CODENAME`, sid solo con `ID=debian`, y sin `.sources` ni suite rota si no hay coincidencia. Tests en `internal/site/commands_test.go` (`TestDetectCommand`).
