@@ -21,7 +21,16 @@ import (
 type Input struct {
 	Package   string
 	Published Published
-	Paths     map[string]string // arch -> dist/….deb
+	Paths     map[string]string // arch -> dist/….deb (nivel 1)
+	Files     map[string]string // nombre en el pool -> dist/… (nivel 2)
+}
+
+// Source devuelve la ruta en dist/ de un archivo de la versión.
+func (in *Input) Source(a Artifact) string {
+	if in.Published.Level2() {
+		return in.Files[a.Name]
+	}
+	return in.Paths[a.Arch]
 }
 
 // ManifestVersion devuelve la versión Debian completa del manifiesto.
@@ -38,6 +47,9 @@ func ManifestVersion(root string, cfg *config.Config, name string) (string, erro
 // prueba cubra todas las suites (FR-007, constitución VII; research D8).
 // Devuelve todos los errores, no solo el primero.
 func Inputs(root string, cfg *config.Config, name, version string) (*Input, error) {
+	if m, err := manifest.Load(root, name); err == nil && m.Level2() && m.DebVersion() == version {
+		return inputsLevel2(root, cfg, m)
+	}
 	var errs report.Errors
 	fail := func(arch, format string, args ...any) {
 		errs = append(errs, &report.Error{Package: name, Version: version, Arch: arch,
@@ -138,4 +150,84 @@ func readTestReport(path string) (*installtest.Report, error) {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return &r, nil
+}
+
+// inputsLevel2 es Inputs para un paquete de nivel 2 (specs/008-source-builds,
+// research D10): por cada suite no excluida, el .dsc y el .debian.tar.xz y,
+// por arquitectura, el .deb con su build.json (lintian y doble compilación
+// aprobados, mismo .dsc) y su test.json (aprobado en esa suite sobre ese
+// mismo .deb) y el .buildinfo; el .orig es común. Si falta algo en una suite,
+// no se publica en ninguna (constitución VII).
+func inputsLevel2(root string, cfg *config.Config, m *manifest.Manifest) (*Input, error) {
+	var errs report.Errors
+	fail := func(where, format string, args ...any) {
+		errs = append(errs, &report.Error{Package: m.Name, Version: m.DebVersion(), Arch: where,
+			Stage: report.Inputs, Cause: fmt.Sprintf(format, args...)})
+	}
+	dist := filepath.Join(root, "dist")
+	in := &Input{Package: m.Name, Files: map[string]string{},
+		Published: Published{Version: m.DebVersion(), Level: 2, Builds: map[string]Build{}}}
+	sha := func(where, file string) string {
+		p := filepath.Join(dist, file)
+		s, err := fetch.SHA256File(p)
+		if err != nil {
+			fail(where, "falta dist/%s; ejecuta `debfactory build %s`", file, m.Name)
+			return ""
+		}
+		in.Files[file] = p
+		return s
+	}
+	in.Published.Orig = &Orig{File: m.OrigName(), SHA256: sha("", m.OrigName())}
+	for _, su := range cfg.Suites {
+		if _, excluded := m.Exclude.Suites[su.Name]; excluded {
+			continue
+		}
+		v := m.SuiteVersion(su.Level2Suffix)
+		b := Build{Version: v, Debs: map[string]string{}, Buildinfo: map[string]string{}}
+		b.DSC = sha(su.Name, DscFile(m.Name, v))
+		b.DebianTar = sha(su.Name, DebianTarFile(m.Name, v))
+		for _, arch := range cfg.Arches {
+			where := su.Name + "/" + arch
+			base := fmt.Sprintf("%s_%s_%s", m.Name, v, arch)
+			deb := sha(where, base+".deb")
+			binfo := sha(where, base+".buildinfo")
+			if deb == "" || binfo == "" {
+				continue
+			}
+			bi, err := pkg.ReadBuildInfo(filepath.Join(dist, base+".build.json"))
+			switch {
+			case err != nil:
+				fail(where, "falta dist/%s.build.json; ejecuta `debfactory build %s`", base, m.Name)
+				continue
+			case bi.Lintian != "pass" || !bi.Reproducible:
+				fail(where, "build.json no aprobado (lintian: %s, reproducible: %v)", bi.Lintian, bi.Reproducible)
+				continue
+			case bi.SHA256 != deb || bi.BuildinfoSHA256 != binfo || bi.DSCSHA256 != b.DSC || bi.Suite != su.Name:
+				fail(where, "los archivos de dist/ no coinciden con build.json; vuelve a ejecutar `debfactory build %s`", m.Name)
+				continue
+			}
+			tr, err := readTestReport(filepath.Join(dist, base+".test.json"))
+			switch {
+			case err != nil:
+				fail(where, "falta dist/%s.test.json; ejecuta `debfactory test %s`", base, m.Name)
+				continue
+			case tr.Overall != "pass" || len(tr.Results) != 1 || tr.Results[0].Suite != su.Name || tr.Results[0].Status != "pass":
+				fail(where, "test.json no aprobado en %s", su.Name)
+				continue
+			case tr.DebSHA256 != deb:
+				fail(where, "sha256 del .deb no coincide con test.json; vuelve a ejecutar `debfactory test %s`", m.Name)
+				continue
+			}
+			b.Debs[arch], b.Buildinfo[arch] = deb, binfo
+		}
+		in.Published.Builds[su.Name] = b
+		in.Published.Suites = append(in.Published.Suites, su.Name)
+	}
+	if len(in.Published.Suites) == 0 {
+		fail("", "el manifiesto excluye todas las suites")
+	}
+	if len(errs) > 0 {
+		return nil, errs
+	}
+	return in, nil
 }

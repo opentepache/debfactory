@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -56,10 +57,19 @@ func Generate(ctx context.Context, cfg *config.Config, st *State, store Store, d
 		return report.Newf(report.Generate, format, args...)
 	}
 
+	// Con paquetes de nivel 2 se publica también la arquitectura source
+	// (research D10); sin ellos el árbol no cambia (FR-014).
+	arches := slices.Clone(cfg.Arches)
+	if st.schemaFor() == 2 {
+		arches = append(arches, "source")
+	}
+	stage := genDir + ".stage"
+	os.RemoveAll(stage)
+	defer os.RemoveAll(stage)
 	conf := map[string]any{
 		"rootDir":       aptlyRoot,
 		"gpgProvider":   "gpg2",
-		"architectures": cfg.Arches,
+		"architectures": arches,
 		"FileSystemPublishEndpoints": map[string]any{
 			"gen": map[string]string{"rootDir": genDir, "linkMethod": "hardlink"},
 		},
@@ -98,6 +108,16 @@ func Generate(ctx context.Context, cfg *config.Config, st *State, store Store, d
 				if !contains(p.Suites, su.Name) {
 					continue
 				}
+				if p.Level2() {
+					// aptly busca los archivos de un .dsc junto a él, con su
+					// nombre: se preparan enlaces en un directorio aparte.
+					add, err := stageLevel2(store, stage, name, su.Name, p, cfg.Arches)
+					if err != nil {
+						return "", fail("%v", err)
+					}
+					files = append(files, add...)
+					continue
+				}
 				for _, arch := range cfg.Arches {
 					path := store.Path(p.Debs[arch])
 					if !store.Has(p.Debs[arch]) {
@@ -119,7 +139,7 @@ func Generate(ctx context.Context, cfg *config.Config, st *State, store Store, d
 		if err := aptly("publish", "snapshot", "-batch", "-skip-signing",
 			"-acquire-by-hash",
 			"-origin="+cfg.Repo.Origin, "-label="+cfg.Repo.Label,
-			"-architectures="+strings.Join(cfg.Arches, ","),
+			"-architectures="+strings.Join(arches, ","),
 			snap, "filesystem:gen:."); err != nil {
 			return "", err
 		}
@@ -130,6 +150,9 @@ func Generate(ctx context.Context, cfg *config.Config, st *State, store Store, d
 		if err := sign.SignRelease(ctx, home, cfg.Repo.Signing.Subkey, dists); err != nil {
 			return "", err
 		}
+	}
+	if err := placeBuildinfo(store, genDir, st, cfg.Arches); err != nil {
+		return "", fail("%v", err)
 	}
 	if err := sign.ExportKeyring(ctx, home, cfg.Repo.Signing.Masters, filepath.Join(genDir, "debfactory.gpg")); err != nil {
 		return "", report.Newf(report.Sign, "%v", err)
@@ -164,4 +187,92 @@ func contains(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// stageLevel2 enlaza en stage/<suite>/ los archivos de una versión de nivel 2
+// para esa suite (el .orig común, el .dsc, el .debian.tar.xz y los .deb) con
+// su nombre del pool y devuelve lo que se pasa a aptly repo add: el .dsc y
+// los .deb.
+func stageLevel2(store Store, stage, pkg, suite string, p Published, arches []string) ([]string, error) {
+	dir := filepath.Join(stage, suite)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, err
+	}
+	var add []string
+	for _, a := range p.Artifacts(pkg, arches) {
+		if (a.Suite != "" && a.Suite != suite) || a.Kind == "buildinfo" {
+			continue
+		}
+		if !store.HasFor(a.Name, a.SHA256) {
+			return nil, fmt.Errorf("falta en el almacén %s (sha %s); ejecuta `debfactory repo rebuild`", a.Name, a.SHA256[:12])
+		}
+		dst := filepath.Join(dir, a.Name)
+		if err := os.Link(store.PathFor(a.Name, a.SHA256), dst); err != nil {
+			if err := copyPlain(store.PathFor(a.Name, a.SHA256), dst); err != nil {
+				return nil, err
+			}
+		}
+		if a.Kind == "dsc" || a.Kind == "deb" {
+			add = append(add, dst)
+		}
+	}
+	return add, nil
+}
+
+// placeBuildinfo deja cada .buildinfo de nivel 2 junto a su .deb en el pool
+// (aptly no los publica; research D10).
+func placeBuildinfo(store Store, genDir string, st *State, arches []string) error {
+	debDirs := map[string]string{} // nombre del .deb -> directorio del pool
+	pool := filepath.Join(genDir, "pool")
+	var level2 bool
+	for _, name := range st.PackageNames() {
+		for _, p := range st.Packages[name] {
+			level2 = level2 || p.Level2()
+		}
+	}
+	if !level2 {
+		return nil
+	}
+	err := filepath.WalkDir(pool, func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".deb") {
+			debDirs[filepath.Base(p)] = filepath.Dir(p)
+		}
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	for _, name := range st.PackageNames() {
+		for _, p := range st.Packages[name] {
+			if !p.Level2() {
+				continue
+			}
+			for _, a := range p.Artifacts(name, arches) {
+				if a.Kind != "buildinfo" {
+					continue
+				}
+				deb := DebFile(name, p.Builds[a.Suite].Version, a.Arch)
+				dir, ok := debDirs[deb]
+				if !ok {
+					return fmt.Errorf("%s no está en el pool", deb)
+				}
+				if !store.HasFor(a.Name, a.SHA256) {
+					return fmt.Errorf("falta en el almacén %s (sha %s); ejecuta `debfactory repo rebuild`", a.Name, a.SHA256[:12])
+				}
+				if err := copyPlain(store.PathFor(a.Name, a.SHA256), filepath.Join(dir, a.Name)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// copyPlain copia src a dst con permisos 0644.
+func copyPlain(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, 0o644)
 }

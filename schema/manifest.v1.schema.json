@@ -16,10 +16,34 @@
     "homepage",
     "upstream",
     "license",
-    "value",
-    "arch_map",
-    "artifact",
-    "install"
+    "value"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "level": {
+            "const": 2
+          }
+        },
+        "required": [
+          "level"
+        ]
+      },
+      "then": {
+        "required": [
+          "justification",
+          "source"
+        ]
+      },
+      "else": {
+        "required": [
+          "arch_map",
+          "artifact",
+          "install"
+        ]
+      }
+    }
   ],
   "properties": {
     "schema": {
@@ -48,8 +72,11 @@
       "minimum": 1
     },
     "level": {
-      "description": "Nivel de construcción (constitución II). El esquema v1 solo admite 1 (reempaquetado del binario oficial); el nivel 2 llegará con su campo de justificación.",
-      "const": 1
+      "description": "Nivel de construcción (constitución II): 1 reempaqueta el binario oficial; 2 compila desde el código fuente con la carpeta debian/ de packages/<name>/ y exige justification (specs/008-source-builds).",
+      "enum": [
+        1,
+        2
+      ]
     },
     "summary": {
       "description": "Sinopsis de una línea (Description de Debian). Sin punto final. El artículo inicial se valida en Go (el motor de regex de Go no tiene lookahead).",
@@ -121,6 +148,46 @@
       "description": "Justificación de valor (constitución V): no al día en Debian estable, sin repo APT del autor, no en repos comunitarios conocidos.",
       "type": "string",
       "minLength": 20
+    },
+    "justification": {
+      "description": "Nivel 2: por qué no basta el binario oficial (constitución II).",
+      "type": "string",
+      "minLength": 20
+    },
+    "source": {
+      "description": "Nivel 2: tarball del código fuente del release (se verifica con source_sha256 del lockfile).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "format"
+      ],
+      "properties": {
+        "url": {
+          "description": "URL del tarball (templated: {{version}}, {{tag}}).",
+          "type": "string",
+          "pattern": "^https://"
+        },
+        "format": {
+          "enum": [
+            "tar.gz",
+            "tar.xz",
+            "tar.bz2"
+          ]
+        }
+      }
+    },
+    "build": {
+      "description": "Nivel 2: ajustes de la compilación.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tmpfs": {
+          "description": "Tamaño del tmpfs de compilación, p. ej. 8g; ≤ level2.tmpfs_max.",
+          "type": "string",
+          "pattern": "^[1-9][0-9]*[mg]$"
+        }
+      }
     },
     "arch_map": {
       "description": "Arquitectura Debian -> token upstream usado como {{arch}}. Ambas arquitecturas son obligatorias.",

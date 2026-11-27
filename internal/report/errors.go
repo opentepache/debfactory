@@ -23,6 +23,10 @@ const (
 	Package  Stage = "package"
 	Lintian  Stage = "lintian"
 	Test     Stage = "test"
+	// Nivel 2 (specs/008-source-builds, contracts/build.md).
+	Source    Stage = "source"    // generar el paquete fuente
+	Build     Stage = "build"     // compilar en el contenedor de la suite
+	Lifecycle Stage = "lifecycle" // instalar, quitar y purgar sin restos
 
 	// Etapas de la publicación (specs/002-signed-apt-repo/contracts/cli.md).
 	State      Stage = "state"

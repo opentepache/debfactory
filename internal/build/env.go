@@ -15,6 +15,8 @@ import (
 	"debfactory/internal/lint"
 	"debfactory/internal/manifest"
 	"debfactory/internal/report"
+	"debfactory/internal/srcbuild"
+	"debfactory/internal/srcpkg"
 )
 
 // Env reúne lo que comparten lock y build.
@@ -34,6 +36,11 @@ type Env struct {
 	// license.Gate). El detector de versiones (fase 005) lo sustituye para
 	// clasificar un cambio de licencia en lugar de solo rechazarlo.
 	LicenseCheck func(text []byte, declared string, cfg *config.Config) error
+	// SourceGen y BinaryBuild generan el paquete fuente y compilan un
+	// paquete de nivel 2 (por defecto en contenedores de la suite,
+	// internal/srcbuild); las pruebas sin Docker los sustituyen.
+	SourceGen   func(ctx context.Context, s config.Suite, in srcpkg.Input, work string) (*srcbuild.Source, error)
+	BinaryBuild func(ctx context.Context, spec srcbuild.Spec, out string) (*srcbuild.Binary, error)
 }
 
 // Defaults completa Lint y Generate con las implementaciones en contenedor.
@@ -43,6 +50,12 @@ func (e *Env) Defaults() {
 	}
 	if e.Generate == nil {
 		e.Generate = assemble.ContainerGenerator(e.Cfg.CompletionsImage)
+	}
+	if e.SourceGen == nil {
+		e.SourceGen = srcbuild.GenerateSource
+	}
+	if e.BinaryBuild == nil {
+		e.BinaryBuild = srcbuild.Build
 	}
 }
 

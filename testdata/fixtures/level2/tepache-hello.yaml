@@ -1,0 +1,28 @@
+schema: 1
+name: tepache-hello
+version: 1.0.0
+revision: 1
+level: 2
+justification: |
+  Links against the system libcrypto, which changes per suite (libssl3 in
+  bookworm, libssl3t64 in trixie); a single upstream binary cannot serve all.
+summary: prints the OpenSSL version it links against
+description: |
+  Test package for level-2 source builds; never published in production.
+homepage: https://github.com/opentepache/tepache-hello
+upstream: opentepache/tepache-hello
+license:
+  spdx: MIT
+  file: {archive: "tepache-hello-{{version}}/LICENSE"}
+value: Test fixture for level-2 source builds; it never reaches production.
+source:
+  url: https://github.com/opentepache/tepache-hello/archive/refs/tags/{{tag}}.tar.gz
+  format: tar.gz
+test:
+  command: tepache-hello
+  expect: OpenSSL
+exclude:
+  suites:
+    forky: acotar la prueba de nivel 2 (tasks T003)
+    sid: acotar la prueba de nivel 2 (tasks T003)
+    resolute: acotar la prueba de nivel 2 (tasks T003)

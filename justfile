@@ -85,10 +85,11 @@ site:
 site-serve: site bin
     bin/debfactory site serve --dir dist/site --addr 127.0.0.1:8080
 
-# Pruebas E2E del repositorio (SC-001, SC-003, SC-004).
+# Pruebas E2E del repositorio (SC-001, SC-003, SC-004) y del nivel 2
+# (specs/008-source-builds: compilar, publicar, instalar y recompilar).
 e2e: bin
     bin/debfactory build --root {{project}} --all
-    go test -tags e2e -run 'TestE2E(Repo|Lifecycle|Failures|SyncLocal|RebuildFromGit|Site|A11y)' ./internal/repotest/ -timeout 60m -v
+    go test -tags e2e -run 'TestE2E(Repo|Lifecycle|Failures|SyncLocal|RebuildFromGit|Site|A11y|Level2)' ./internal/repotest/ -timeout 120m -v
 
 # Prueba E2E de la llave (SC-006).
 e2e-key: bin

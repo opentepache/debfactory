@@ -44,7 +44,39 @@ type Retire struct {
 	Last                     bool // confirma retirar la única versión publicada
 }
 
-func (Add) op()    {}
+func (Add) op() {}
+
+// differentArtifacts compara una versión publicada con la misma versión que
+// se intenta publicar otra vez: en nivel 1 los .deb; en nivel 2 el .orig y
+// la compilación de cada suite que tengan las dos. Devuelve dónde difieren.
+func differentArtifacts(old, p Published) []string {
+	var diff []string
+	if old.Level2() != p.Level2() {
+		return []string{"nivel"}
+	}
+	if !p.Level2() {
+		for arch, sha := range p.Debs {
+			if old.Debs[arch] != sha {
+				diff = append(diff, arch)
+			}
+		}
+		slices.Sort(diff)
+		return diff
+	}
+	if old.Orig == nil || p.Orig == nil || *old.Orig != *p.Orig {
+		diff = append(diff, "orig")
+	}
+	for _, su := range p.Suites {
+		ob, ok := old.Builds[su]
+		if !ok {
+			continue
+		}
+		if !ob.Equal(p.Builds[su]) {
+			diff = append(diff, su)
+		}
+	}
+	return diff
+}
 func (Retire) op() {}
 
 // Apply devuelve el estado resultante de aplicar ops y los cambios. Si
@@ -69,15 +101,11 @@ func (s *State) Apply(cfg *config.Config, now time.Time, ops ...Op) (*State, []C
 				continue
 			}
 			if old, ok := next.Find(o.Package, p.Version); ok {
-				same := true
-				for arch, sha := range p.Debs {
-					if old.Debs[arch] != sha {
-						same = false
-						errs = append(errs, &report.Error{Package: o.Package, Version: p.Version, Arch: arch,
+				if diff := differentArtifacts(old, p); len(diff) > 0 {
+					for _, where := range diff {
+						errs = append(errs, &report.Error{Package: o.Package, Version: p.Version, Arch: where,
 							Stage: report.State, Cause: "ya publicada con otro sha256 (las versiones no se reescriben; sube revision)"})
 					}
-				}
-				if !same {
 					continue
 				}
 				// Mismos .deb: si trae suites aprobadas que la publicada no
@@ -102,6 +130,12 @@ func (s *State) Apply(cfg *config.Config, now time.Time, ops ...Op) (*State, []C
 					}
 				}
 				versions[0].Suites = merged
+				if p.Level2() {
+					// Nivel 2: la suite nueva trae su propia compilación (FR-015).
+					for _, su := range added {
+						versions[0].Builds[su] = p.Builds[su]
+					}
+				}
 				changes = append(changes, Change{Kind: KindAdd, Package: o.Package, Version: p.Version, Suites: added,
 					Reason: "ampliada a suites nuevas"})
 				rc, err := next.retain(cfg, o.Package, versions[0])

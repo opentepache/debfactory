@@ -40,6 +40,7 @@ type Config struct {
 	CI               CI                `yaml:"ci"`
 	Watch            Watch             `yaml:"watch"`
 	Site             Site              `yaml:"site"`
+	Level2           Level2            `yaml:"level2"`
 
 	// Licenses es la allowlist de config/licenses.yaml (constitución IV).
 	Licenses []string `yaml:"-"`
@@ -132,6 +133,82 @@ type Watch struct {
 	Cooldown     *Duration `yaml:"cooldown"`      // espera desde el release; global; 48h
 	RateReserve  *int      `yaml:"rate_reserve"`  // peticiones que el ciclo deja sin usar; 500
 	BranchPrefix string    `yaml:"branch_prefix"` // ramas del detector; debfactory/update/
+}
+
+// Level2 configura la compilación de paquetes de nivel 2
+// (specs/008-source-builds, data-model §4). Todos los campos son opcionales.
+type Level2 struct {
+	Jobs     int    `yaml:"jobs"`      // compilaciones simultáneas; 3
+	Tmpfs    string `yaml:"tmpfs"`     // tmpfs por compilación; 6g
+	TmpfsMax string `yaml:"tmpfs_max"` // límite de build.tmpfs de un manifiesto; 12g
+}
+
+// Valores por defecto y límite del bloque level2 (research D2: 31 GB de RAM).
+const (
+	DefaultLevel2Jobs     = 3
+	DefaultLevel2Tmpfs    = "6g"
+	DefaultLevel2TmpfsMax = "12g"
+	Level2TmpfsBudget     = 18 << 30 // jobs × tmpfs; lo vigila ci doctor
+)
+
+// JobsOrDefault devuelve level2.jobs o su valor por defecto.
+func (l Level2) JobsOrDefault() int {
+	if l.Jobs > 0 {
+		return l.Jobs
+	}
+	return DefaultLevel2Jobs
+}
+
+// TmpfsOrDefault devuelve level2.tmpfs o su valor por defecto.
+func (l Level2) TmpfsOrDefault() string {
+	if l.Tmpfs != "" {
+		return l.Tmpfs
+	}
+	return DefaultLevel2Tmpfs
+}
+
+// TmpfsMaxOrDefault devuelve level2.tmpfs_max o su valor por defecto.
+func (l Level2) TmpfsMaxOrDefault() string {
+	if l.TmpfsMax != "" {
+		return l.TmpfsMax
+	}
+	return DefaultLevel2TmpfsMax
+}
+
+var sizeRe = regexp.MustCompile(`^([1-9][0-9]*)([mg])$`)
+
+// ParseSize convierte un tamaño como "6g" o "512m" a bytes.
+func ParseSize(s string) (int64, error) {
+	m := sizeRe.FindStringSubmatch(s)
+	if m == nil {
+		return 0, fmt.Errorf("%q no es un tamaño (p. ej. 6g o 512m)", s)
+	}
+	n, err := strconv.ParseInt(m[1], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	if m[2] == "g" {
+		return n << 30, nil
+	}
+	return n << 20, nil
+}
+
+func (l Level2) validate() error {
+	if l.Jobs < 0 {
+		return errors.New("level2.jobs: debe ser al menos 1")
+	}
+	tmpfs, err := ParseSize(l.TmpfsOrDefault())
+	if err != nil {
+		return fmt.Errorf("level2.tmpfs: %v", err)
+	}
+	max, err := ParseSize(l.TmpfsMaxOrDefault())
+	if err != nil {
+		return fmt.Errorf("level2.tmpfs_max: %v", err)
+	}
+	if tmpfs > max {
+		return fmt.Errorf("level2.tmpfs: %s supera level2.tmpfs_max (%s)", l.TmpfsOrDefault(), l.TmpfsMaxOrDefault())
+	}
+	return nil
 }
 
 // Valores por defecto del bloque watch.
@@ -435,6 +512,9 @@ func (c *Config) validate() error {
 	}
 	if len(c.Suites) == 0 {
 		return errors.New("suites: la lista está vacía")
+	}
+	if err := c.Level2.validate(); err != nil {
+		return err
 	}
 	suffixes := map[string]string{}
 	catchall := map[string]string{}

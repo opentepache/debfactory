@@ -1,0 +1,7 @@
+# Generado por `debfactory lock`; no se edita a mano. Se revisa en el diff de git.
+schema: 1
+versions:
+  1.0.0:
+    source_date_epoch: 1767225600
+    license_sha256: af7d839fb80752aa7faf8a512adc9ae09a46e4213099270ba6cb165360ab871a
+    source_sha256: 9634823f1cca1766fe7167e77252c9d6062b73c1b6322622b12961cd27ee47da

@@ -39,6 +39,10 @@ retired:
     reason: "segfault al iniciar en arm64 (issue #12)"
 ```
 
+> **Fase 008**: con alguna versión de nivel 2 el estado se escribe con `schema: 2` (versión base,
+> `level: 2`, `orig` y `builds` por suite) y aptly publica también la arquitectura `source`; sin
+> nivel 2 sigue siendo `schema: 1` y este contrato no cambia (specs/008-source-builds/data-model.md §2).
+
 ## Reglas de validación (fallo = código 1, etapa `state`)
 
 | Regla | Mensaje |

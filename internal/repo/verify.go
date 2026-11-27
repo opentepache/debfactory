@@ -3,8 +3,10 @@ package repo
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -89,7 +91,7 @@ func VerifyTree(ctx context.Context, cfg *config.Config, st *State, genDir strin
 			for _, name := range st.PackageNames() {
 				for _, p := range st.Packages[name] {
 					if contains(p.Suites, su.Name) {
-						want[name+" "+p.Version] = p.Debs[arch]
+						want[name+" "+p.SuiteVersion(su.Name)] = p.DebSHA(su.Name, arch)
 					}
 				}
 			}
@@ -125,8 +127,94 @@ func VerifyTree(ctx context.Context, cfg *config.Config, st *State, genDir strin
 				fail(su.Name, "%s: falta %s en Packages", arch, k)
 			}
 		}
+		if st.schemaFor() == 2 {
+			for _, msg := range verifySources(cfg, st, su.Name, dists, genDir, shaOf) {
+				fail(su.Name, "%s", msg)
+			}
+		}
 	}
 	return errs.Err()
+}
+
+// verifySources comprueba el nivel 2 de una suite (research D10): el índice
+// Sources lista exactamente las versiones de nivel 2 del estado, con el
+// .dsc, el .debian.tar.xz y el .orig del estado, que están en el pool con
+// ese sha256, y cada .buildinfo está junto a su .deb.
+func verifySources(cfg *config.Config, st *State, suite, dists, genDir string, shaOf func(string) (string, error)) []string {
+	var msgs []string
+	data, err := readIndex(filepath.Join(dists, cfg.Repo.Component, "source", "Sources"))
+	if err != nil {
+		return []string{"falta el índice Sources: " + err.Error()}
+	}
+	type src struct {
+		dir   string
+		files map[string]string // nombre -> sha256
+	}
+	got := map[string]src{}
+	for _, stz := range parseStanzas(data) {
+		files := map[string]string{}
+		for _, line := range strings.Split(stz["Checksums-Sha256"], "\n") {
+			if f := strings.Fields(line); len(f) == 3 {
+				files[f[2]] = f[0]
+			}
+		}
+		got[stz["Package"]+" "+stz["Version"]] = src{dir: stz["Directory"], files: files}
+	}
+	want := 0
+	for _, name := range st.PackageNames() {
+		for _, p := range st.Packages[name] {
+			if !p.Level2() || !contains(p.Suites, suite) {
+				continue
+			}
+			want++
+			b := p.Builds[suite]
+			key := name + " " + b.Version
+			g, ok := got[key]
+			if !ok {
+				msgs = append(msgs, "falta "+key+" en Sources")
+				continue
+			}
+			for _, a := range p.Artifacts(name, cfg.Arches) {
+				if a.Suite != "" && a.Suite != suite {
+					continue
+				}
+				switch a.Kind {
+				case "dsc", "debian_tar", "orig":
+					if g.files[a.Name] != a.SHA256 {
+						msgs = append(msgs, fmt.Sprintf("%s: %s no coincide con el estado en Sources", key, a.Name))
+					}
+					if s, err := shaOf(filepath.Join(g.dir, a.Name)); err != nil || s != a.SHA256 {
+						msgs = append(msgs, fmt.Sprintf("%s: %s falta en el pool o no coincide", key, a.Name))
+					}
+				case "buildinfo":
+					if s, err := shaOf(filepath.Join(g.dir, a.Name)); err != nil || s != a.SHA256 {
+						msgs = append(msgs, fmt.Sprintf("%s: %s falta en el pool o no coincide", key, a.Name))
+					}
+				}
+			}
+		}
+	}
+	if len(got) != want {
+		msgs = append(msgs, fmt.Sprintf("Sources tiene %d paquetes fuente; el estado, %d", len(got), want))
+	}
+	return msgs
+}
+
+// readIndex lee un índice sin comprimir o, si no está, su variante .gz.
+func readIndex(path string) ([]byte, error) {
+	if data, err := os.ReadFile(path); err == nil {
+		return data, nil
+	}
+	fh, err := os.Open(path + ".gz")
+	if err != nil {
+		return nil, err
+	}
+	defer fh.Close()
+	zr, err := gzip.NewReader(fh)
+	if err != nil {
+		return nil, err
+	}
+	return io.ReadAll(zr)
 }
 
 // gpgvSigner verifica sig (y data, si es firma separada) con keyring y
@@ -182,6 +270,7 @@ func parseRelease(data []byte) (map[string]string, map[string]string) {
 func parseStanzas(data []byte) []map[string]string {
 	var out []map[string]string
 	cur := map[string]string{}
+	last := ""
 	for _, line := range strings.Split(string(data), "\n") {
 		if strings.TrimSpace(line) == "" {
 			if len(cur) > 0 {
@@ -191,10 +280,15 @@ func parseStanzas(data []byte) []map[string]string {
 			continue
 		}
 		if line[0] == ' ' || line[0] == '\t' {
+			// Continuación (Checksums-Sha256 de Sources): una línea por archivo.
+			if last != "" {
+				cur[last] += "\n" + strings.TrimSpace(line)
+			}
 			continue
 		}
 		k, v, _ := strings.Cut(line, ":")
 		cur[k] = strings.TrimSpace(v)
+		last = k
 	}
 	if len(cur) > 0 {
 		out = append(out, cur)

@@ -16,6 +16,7 @@ import (
 
 	"debfactory/ci/runner"
 	"debfactory/internal/build"
+	"debfactory/internal/config"
 	"debfactory/internal/forge"
 	"debfactory/internal/manifest"
 	"debfactory/internal/report"
@@ -89,6 +90,7 @@ func (r *Runner) Doctor(ctx context.Context, o Options) error {
 	}
 	checks := r.GitHubChecks(ctx, gh, o.Fix)
 	checks = append(checks, r.SiteChecks(ctx, http.DefaultClient)...)
+	checks = append(checks, r.Level2Checks()...)
 	checks = append(checks, r.HostChecks(RealHost())...)
 	failed := 0
 	for _, c := range checks {
@@ -110,6 +112,24 @@ func (r *Runner) Doctor(ctx context.Context, o Options) error {
 		return report.Newf(report.Config, "ci doctor: %d comprobaciones fallan", failed)
 	}
 	return nil
+}
+
+// Level2Checks comprueba que las compilaciones de nivel 2 simultáneas caben
+// en la RAM de la PC (specs/008-source-builds, research D2): level2.jobs ×
+// level2.tmpfs ≤ 18 GB de los 31 GB.
+func (r *Runner) Level2Checks() []Check {
+	l := r.Cfg.Level2
+	tmpfs, err := config.ParseSize(l.TmpfsOrDefault())
+	if err != nil {
+		return []Check{{Name: "tmpfs de nivel 2", Info: err.Error()}}
+	}
+	total := int64(l.JobsOrDefault()) * tmpfs
+	name := fmt.Sprintf("tmpfs de nivel 2: %d × %s", l.JobsOrDefault(), l.TmpfsOrDefault())
+	if total > config.Level2TmpfsBudget {
+		return []Check{{Name: name, Info: fmt.Sprintf("%d GB supera los %d GB que admite la PC; baja level2.jobs o level2.tmpfs",
+			total>>30, int64(config.Level2TmpfsBudget)>>30)}}
+	}
+	return []Check{{Name: name, OK: true, Info: fmt.Sprintf("%d GB de %d GB", total>>30, int64(config.Level2TmpfsBudget)>>30)}}
 }
 
 // SiteChecks comprueba, con site.enabled, que la raíz pública de

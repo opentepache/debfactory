@@ -17,6 +17,7 @@ import (
 
 	"debfactory/ci/runner"
 	"debfactory/internal/ci/citest"
+	"debfactory/internal/config"
 	"debfactory/internal/forge"
 	"debfactory/internal/report"
 	"debfactory/internal/testutil"
@@ -255,5 +256,17 @@ func TestDoctorSite(t *testing.T) {
 	r.Cfg.Site.Enabled = false
 	if cs := r.SiteChecks(ctx, srv.Client()); len(cs) != 0 {
 		t.Errorf("sin site.enabled no se comprueba: %+v", cs)
+	}
+}
+
+// TestLevel2Checks: level2.jobs × level2.tmpfs ≤ 18 GB (research D2).
+func TestLevel2Checks(t *testing.T) {
+	r := &Runner{Cfg: &config.Config{}}
+	if c := r.Level2Checks(); len(c) != 1 || !c[0].OK || !strings.Contains(c[0].Name, "3 × 6g") {
+		t.Errorf("por defecto: %+v", c)
+	}
+	r.Cfg.Level2 = config.Level2{Jobs: 4, Tmpfs: "6g"}
+	if c := r.Level2Checks(); c[0].OK || !strings.Contains(c[0].Info, "24 GB supera") {
+		t.Errorf("4 × 6g: %+v", c)
 	}
 }

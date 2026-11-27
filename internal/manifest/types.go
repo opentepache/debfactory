@@ -23,6 +23,9 @@ type Manifest struct {
 	Tag              string            `yaml:"tag"`
 	License          License           `yaml:"license"`
 	Value            string            `yaml:"value"`
+	Justification    string            `yaml:"justification"` // nivel 2 (constitución II)
+	Source           Source            `yaml:"source"`        // nivel 2
+	BuildOpts        BuildOpts         `yaml:"build"`         // nivel 2
 	ArchMap          map[string]string `yaml:"arch_map"`
 	Artifact         Artifact          `yaml:"artifact"`
 	Checksums        *Checksums        `yaml:"checksums"`
@@ -61,6 +64,18 @@ type LicenseFile struct {
 type Artifact struct {
 	URL    string `yaml:"url"`
 	Format string `yaml:"format"` // binary | zip | tar.gz
+}
+
+// Source es el tarball del código fuente de un paquete de nivel 2
+// (specs/008-source-builds, data-model §1).
+type Source struct {
+	URL    string `yaml:"url"`
+	Format string `yaml:"format"` // tar.gz | tar.xz | tar.bz2
+}
+
+// BuildOpts son los ajustes de compilación de nivel 2.
+type BuildOpts struct {
+	Tmpfs string `yaml:"tmpfs"` // p. ej. 8g; vacío = level2.tmpfs de la configuración
 }
 
 // Checksums es el archivo de checksums publicado por upstream.
@@ -156,6 +171,22 @@ type LintianOverride struct {
 	Path   string `yaml:"path"`
 	Reason string `yaml:"reason"`
 }
+
+// Level2 indica que el paquete se compila desde el código fuente.
+func (m *Manifest) Level2() bool { return m.Level == 2 }
+
+// DebianDir es la carpeta debian/ de un paquete de nivel 2, relativa a la raíz.
+func (m *Manifest) DebianDir() string { return filepath.Join("packages", m.Name, "debian") }
+
+// OrigName es el nombre del tarball original en el paquete fuente:
+// <name>_<upstream>.orig.tar.<ext> (research D6).
+func (m *Manifest) OrigName() string {
+	return fmt.Sprintf("%s_%s.orig.%s", m.Name, m.Version, m.Source.Format)
+}
+
+// SuiteVersion es la versión Debian de un paquete de nivel 2 en una suite:
+// <upstream>-0~tepache<N>+<level2_suffix> (constitución VI).
+func (m *Manifest) SuiteVersion(suffix string) string { return m.DebVersion() + "+" + suffix }
 
 // DebVersion es la versión Debian: <upstream>-0~tepache<N> (constitución VI).
 func (m *Manifest) DebVersion() string {

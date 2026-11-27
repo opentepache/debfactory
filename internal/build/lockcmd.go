@@ -60,7 +60,25 @@ func (e *Env) Lock(ctx context.Context, name string, force bool) error {
 
 	entry := &lock.Entry{Artifacts: map[string]string{}}
 	artifacts := map[string]download{}
+	if m.Level2() {
+		// Nivel 2: un solo tarball del código fuente para todas las
+		// arquitecturas y suites (FR-010); la licencia sale de él o del repo.
+		url, err := m.RenderURL(m.Source.URL, "")
+		if err != nil {
+			return fail(report.Validate, "", err)
+		}
+		d, err := get(url, "")
+		if err != nil {
+			return err
+		}
+		entry.Artifacts = nil
+		entry.SourceSHA256 = d.sha
+		artifacts[""] = d
+	}
 	for _, arch := range e.Cfg.Arches {
+		if m.Level2() {
+			break
+		}
 		url, err := m.RenderURL(m.Artifact.URL, arch)
 		if err != nil {
 			return fail(report.Validate, arch, err)
@@ -159,6 +177,21 @@ func (e *Env) lockLicense(ctx context.Context, m *manifest.Manifest, tag string,
 		}
 		return os.ReadFile(d.path)
 	}
+	if m.Level2() {
+		vars, err := m.Vars("")
+		if err != nil {
+			return nil, fail(err)
+		}
+		p, err := manifest.Render(m.License.File.Archive, vars)
+		if err != nil {
+			return nil, fail(err)
+		}
+		t, err := assemble.ExtractFile(artifacts[""].path, m.Source.Format, p)
+		if err != nil {
+			return nil, fail(fmt.Errorf("license.file.archive: %v", err))
+		}
+		return t, nil
+	}
 	var text []byte
 	for _, arch := range e.Cfg.Arches {
 		vars, err := m.Vars(arch)
@@ -192,6 +225,7 @@ func diff(old, new *lock.Entry) []string {
 	add("source_date_epoch", fmt.Sprint(old.SourceDateEpoch), fmt.Sprint(new.SourceDateEpoch))
 	add("license_sha256", old.LicenseSHA256, new.LicenseSHA256)
 	add("checksums_sha256", old.ChecksumsSHA256, new.ChecksumsSHA256)
+	add("source_sha256", old.SourceSHA256, new.SourceSHA256)
 	arches := map[string]bool{}
 	for a := range old.Artifacts {
 		arches[a] = true

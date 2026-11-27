@@ -67,3 +67,7 @@ upstream: upstream
 footer_build: Cada paquete se construye, se revisa con lintian y se instala en un contenedor limpio de cada versión antes de firmarse y publicarse.
 footer_source: Recetas y pipeline de construcción
 footer_serial: Serial del repositorio
+# Nivel 2 (specs/008-source-builds, research D13).
+source_title: código fuente
+source_intro: "Compilado desde el código fuente para cada distribución: cada suite tiene su propio binario, compilado desde el paquete fuente publicado junto a él en este repositorio."
+source_note: "Con deb-src activado en el archivo de fuentes, baja el código exacto de la versión instalada."

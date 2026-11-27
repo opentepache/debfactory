@@ -18,7 +18,7 @@ Lo escribe una persona. Campos y reglas en el JSON Schema; aquí solo se resumen
 | `artifact.url` y `checksums.url` empiezan por `https://github.com/<upstream>/releases/download/<tag renderizado>/` | `…: artifact.url: fuera de los releases de Schniz/fnm` |
 | `summary` sin artículo inicial (a/an/the) | `…: summary: no debe empezar con artículo` |
 | Claves de `exclude.suites` existen en la config | `…: exclude.suites.bullseye: suite no soportada` |
-| `level` es `1` (constitución II) | `…: level: solo se admite 1 en esta fase` |
+| `level` es `1` (constitución II) — *el nivel 2 llegó en la fase 008: specs/008-source-builds/data-model.md §1* | `…: level: solo se admite 1 en esta fase` |
 | Si `version` no está en el lockfile y este tiene otras versiones, `revision` es `1` | `…: revision: debe ser 1 para una versión upstream nueva` |
 | `license.spdx` es una expresión SPDX válida | `…: license.spdx: "MIT/Apache" no es SPDX` |
 | `lintian_overrides[].tag` no coincide con ningún patrón de `lintian.never_override_patterns` | `…: lintian_overrides[0].tag: "embedded-library" no se puede silenciar` |

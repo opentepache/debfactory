@@ -111,11 +111,8 @@ func (r *Runner) Rebuild(ctx context.Context, o Options) error {
 	}
 	if len(p.Compare) > 0 {
 		pub, _ := st.Find(ap.Package, ap.Version)
-		for _, arch := range r.Cfg.Arches {
-			if g.shas[arch] != pub.Debs[arch] {
-				x.fail(ctx, &report.Error{Package: ap.Package, Version: ap.Version, Arch: arch, Stage: report.Compare,
-					Cause: fmt.Sprintf("el .deb reconstruido en %s (sha256 %s…) no es el publicado (%s…)", short(ap.Commit), sha12(g.shas[arch]), sha12(pub.Debs[arch]))})
-			}
+		for _, e := range compareShas(ap.Package, ap.Version, g.shas, pub, r.Cfg.Arches, " (reconstruido en "+short(ap.Commit)+")") {
+			x.fail(ctx, e)
 		}
 		if len(x.errs) > 0 {
 			return x.errs.Err()

@@ -34,13 +34,24 @@
 <table>
 <thead><tr><th scope="col">{{t .T "col_distro"}}</th>{{range .M.Repo.Architectures}}<th scope="col">{{.}}</th>{{end}}</tr></thead>
 <tbody>{{range .M.Repo.Suites}}{{$suite := .Name}}
-<tr><th scope="row">{{.Label}} <span class="when">({{.Name}})</span></th>{{range $.M.Repo.Architectures}}{{if and (has $cur.Suites $suite) (has $cur.Architectures .)}}<td class="yes">{{t $.T "available"}}</td>{{else}}<td class="no">{{t $.T "not_available"}}</td>{{end}}{{end}}</tr>{{end}}
+<tr><th scope="row">{{.Label}} <span class="when">({{.Name}})</span>{{if and $cur.SuiteVersions (has $cur.Suites $suite)}} <code>{{$cur.SuiteVersion $suite}}</code>{{end}}</th>{{range $.M.Repo.Architectures}}{{if and (has $cur.Suites $suite) (has $cur.Architectures .)}}<td class="yes">{{t $.T "available"}}</td>{{else}}<td class="no">{{t $.T "not_available"}}</td>{{end}}{{end}}</tr>{{end}}
 </tbody>
 </table>
 </div>
 {{range $p.Excluded}}<p class="hint">{{tf $.T "not_on" (suiteLabel $.M .Suite)}}: <span lang="en">{{.Reason}}</span></p>{{end}}
 </div>
 </section>
+{{if $cur.Source}}
+<section aria-labelledby="h-source">
+<h2 id="h-source">{{t .T "source_title"}}</h2>
+<div class="body">
+<p>{{t .T "source_intro"}}</p>
+<div class="block">
+<div class="panel-head"><p>{{t .T "source_note"}}</p><button class="copy" type="button" hidden data-copy="cmd-source" data-done="{{t .T "copied"}}">{{t .T "copy"}}</button></div>
+<pre class="cmd" tabindex="0" aria-label="{{t .T "source_title"}}"><code id="cmd-source">{{$cur.Source}}</code></pre>
+</div>
+</div>
+</section>{{end}}
 
 {{with older $p}}<section aria-labelledby="h-older">
 <h2 id="h-older">{{t $.T "older_title"}}</h2>
@@ -63,7 +74,7 @@
 <p class="status">● {{t .T "published"}}</p>
 <dl>
 <dt>{{t .T "published_version"}}</dt><dd class="ver">{{$cur.Upstream}}</dd>
-<dt>{{t .T "debian_version"}}</dt><dd><code>{{$cur.Version}}</code></dd>
+<dt>{{t .T "debian_version"}}</dt><dd><code>{{$cur.Version}}{{if $cur.SuiteVersions}}+…{{end}}</code></dd>
 <dt>{{t .T "published_date"}}</dt><dd><time datetime="{{$cur.Published}}">{{$cur.Published}}</time></dd>
 {{if $p.License}}<dt>{{t .T "license"}}</dt><dd>{{$p.License}}</dd>{{end}}
 {{if $p.Homepage}}<dt>{{t .T "upstream"}}</dt><dd><a href="{{$p.Homepage}}" rel="noopener">{{if $p.Upstream}}{{$p.Upstream}}{{else}}{{$p.Homepage}}{{end}}</a></dd>{{end}}

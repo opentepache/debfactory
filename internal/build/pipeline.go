@@ -25,6 +25,7 @@ import (
 // Options de build.
 type Options struct {
 	Arch         string // vacío = todas las de la config
+	Suite        string // nivel 2: vacío = todas las no excluidas
 	Reproducible bool   // construir dos veces y comparar sha256
 	Jobs         int    // build --all: paquetes simultáneos (mínimo 1)
 }
@@ -40,6 +41,9 @@ func (e *Env) Build(ctx context.Context, name string, o Options) error {
 	lk, err := lock.Read(e.Root, m.Name)
 	if err != nil {
 		return report.Wrap(err, report.Lock, m.Name, m.Version, "")
+	}
+	if m.Level2() {
+		return e.buildLevel2(ctx, m, lk, o)
 	}
 	arches := e.Cfg.Arches
 	if o.Arch != "" {

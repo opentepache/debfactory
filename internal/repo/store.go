@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"debfactory/internal/fetch"
 )
@@ -20,6 +21,27 @@ func (s Store) Path(sha string) string {
 	return filepath.Join(s.Dir, "sha256", sha[:2], sha+".deb")
 }
 
+// PathFor es la ruta de un archivo publicado por su nombre y sha256: los
+// .deb como siempre y los demás (fuentes y .buildinfo de nivel 2) con
+// extensión .blob.
+func (s Store) PathFor(name, sha string) string {
+	if strings.HasSuffix(name, ".deb") {
+		return s.Path(sha)
+	}
+	return filepath.Join(s.Dir, "sha256", sha[:2], sha+".blob")
+}
+
+// HasFor indica si el almacén tiene ese archivo.
+func (s Store) HasFor(name, sha string) bool {
+	_, err := os.Stat(s.PathFor(name, sha))
+	return err == nil
+}
+
+// PutFor copia src al almacén como el archivo publicado name.
+func (s Store) PutFor(src, name, sha string) error {
+	return s.put(src, sha, s.PathFor(name, sha))
+}
+
 // Has indica si el almacén tiene ese sha256.
 func (s Store) Has(sha string) bool {
 	_, err := os.Stat(s.Path(sha))
@@ -27,8 +49,10 @@ func (s Store) Has(sha string) bool {
 }
 
 // Put copia src al almacén si su sha256 es sha. Si ya está, no hace nada.
-func (s Store) Put(src, sha string) error {
-	if s.Has(sha) {
+func (s Store) Put(src, sha string) error { return s.put(src, sha, s.Path(sha)) }
+
+func (s Store) put(src, sha, dst string) error {
+	if _, err := os.Stat(dst); err == nil {
 		return nil
 	}
 	got, err := fetch.SHA256File(src)
@@ -38,7 +62,6 @@ func (s Store) Put(src, sha string) error {
 	if got != sha {
 		return fmt.Errorf("%s: sha256 %s, se esperaba %s", src, got, sha)
 	}
-	dst := s.Path(sha)
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}

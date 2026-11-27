@@ -39,6 +39,10 @@ func (e *Env) Rebuild(ctx context.Context) error {
 	var errs report.Errors
 	for _, name := range st.PackageNames() {
 		for _, p := range st.Packages[name] {
+			if p.Level2() {
+				errs = append(errs, e.restoreLevel2(store, name, p)...)
+				continue
+			}
 			for _, arch := range e.Cfg.Arches {
 				sha := p.Debs[arch]
 				if store.Has(sha) {
@@ -74,4 +78,26 @@ func (e *Env) restoreDeb(ctx context.Context, store Store, name, version, arch, 
 		return e.Restore(ctx, store, name, version, arch, sha)
 	}
 	return fmt.Errorf("falta %s (sha %s…); reconstrúyelo con debfactory build", DebFile(name, version, arch), sha[:12])
+}
+
+// restoreLevel2 repone en el almacén los archivos que faltan de una versión
+// de nivel 2, desde dist/ si su sha coincide. Una compilación desde el
+// código fuente no se rehace aquí: se recompila con debfactory build y la
+// doble compilación garantiza el mismo resultado (FR-008).
+func (e *Env) restoreLevel2(store Store, name string, p Published) report.Errors {
+	var errs report.Errors
+	for _, a := range p.Artifacts(name, e.Cfg.Arches) {
+		if store.HasFor(a.Name, a.SHA256) {
+			continue
+		}
+		dist := filepath.Join(e.Root, "dist", a.Name)
+		if got, err := fetch.SHA256File(dist); err == nil && got == a.SHA256 {
+			if err := store.PutFor(dist, a.Name, a.SHA256); err == nil {
+				continue
+			}
+		}
+		errs = append(errs, &report.Error{Package: name, Version: p.Version, Arch: a.Suite, Stage: report.State,
+			Cause: fmt.Sprintf("falta %s (sha %s…); recompílalo con debfactory build %s", a.Name, a.SHA256[:12], name)})
+	}
+	return errs
 }

@@ -2,9 +2,8 @@
 
 ## 1. Spike (antes de todo)
 
-En los runners `ci` y `pub` reales: un contenedor de construcción de trixie arranca `sbuild
---chroot-mode=unshare` de un paquete trivial con las opciones mínimas de research D1; anotar en D1
-las opciones que funcionan, o la decisión de usar la alternativa.
+Hecho (T001): sbuild/piuparts no corren en los contenedores de los runners; se usa el contenedor de
+la suite como entorno de construcción (research D1′).
 
 ## 2. Local
 
@@ -16,7 +15,7 @@ ls testdata/project/dist/tepache-hello_*
 ```
 
 Esperado: `.dsc`, `.debian.tar.xz`, `.deb` y `.buildinfo` por suite y arquitectura; las dos
-compilaciones idénticas; lintian y piuparts aprobados; `dpkg -I` del `.deb` de bookworm depende de
+compilaciones idénticas; lintian y la prueba de ciclo de vida aprobados; `dpkg -I` del `.deb` de bookworm depende de
 `libssl3` y los de trixie y noble de `libssl3t64`.
 
 ## 3. Pruebas

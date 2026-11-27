@@ -57,6 +57,7 @@ func TestReadRejects(t *testing.T) {
 		"campo desconocido": "schema: 1\nversions:\n  1.0.0:\n    source_date_epoch: 1\n    license_sha256: " + h("a") + "\n    sha: x\n",
 		"schema":            "schema: 2\nversions: {}\n",
 		"fecha":             "schema: 1\nversions:\n  1.0.0:\n    source_date_epoch: 0\n    license_sha256: " + h("a") + "\n",
+		"hash de fuente":    "schema: 1\nversions:\n  1.0.0:\n    source_date_epoch: 1\n    license_sha256: " + h("a") + "\n    source_sha256: xyz\n",
 		"hash de artefacto": "schema: 1\nversions:\n  1.0.0:\n    source_date_epoch: 1\n    license_sha256: " + h("a") + "\n    artifacts: {amd64: " + h("A") + "}\n",
 	}
 	for name, body := range cases {
@@ -82,5 +83,22 @@ func TestComplete(t *testing.T) {
 	}
 	if err := e.Complete([]string{"amd64", "arm64"}, false); err != nil {
 		t.Error(err)
+	}
+}
+
+// TestCompleteSource: nivel 2 (specs/008-source-builds, data-model §1).
+func TestCompleteSource(t *testing.T) {
+	e := &Entry{SourceDateEpoch: 1, LicenseSHA256: h("a")}
+	if err := e.CompleteSource(); err == nil || !strings.Contains(err.Error(), "source_sha256") {
+		t.Errorf("error = %v", err)
+	}
+	e.SourceSHA256 = h("b")
+	if err := e.CompleteSource(); err != nil {
+		t.Error(err)
+	}
+	o := *e
+	o.SourceSHA256 = h("c")
+	if e.Equal(&o) {
+		t.Error("Equal ignora source_sha256")
 	}
 }

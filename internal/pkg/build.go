@@ -107,6 +107,14 @@ type BuildInfo struct {
 	Lintian        string   `json:"lintian"`
 	Overrides      []string `json:"overrides"`
 	TestCommand    string   `json:"test_command"`
+
+	// Nivel 2 (specs/008-source-builds): la suite del binario, los sha256
+	// del .dsc y del .buildinfo publicados y si la doble compilación fue
+	// idéntica. Vacíos en nivel 1, cuyo build.json no cambia (FR-014).
+	Suite           string `json:"suite,omitempty"`
+	DSCSHA256       string `json:"dsc_sha256,omitempty"`
+	BuildinfoSHA256 string `json:"buildinfo_sha256,omitempty"`
+	Reproducible    bool   `json:"reproducible,omitempty"`
 }
 
 // Marshal da el JSON indentado y con salto de línea final.

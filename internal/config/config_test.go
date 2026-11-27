@@ -96,6 +96,25 @@ func TestWatchDefaults(t *testing.T) {
 	}
 }
 
+// TestLevel2Defaults: el bloque level2 es opcional (data-model §4).
+func TestLevel2Defaults(t *testing.T) {
+	c, err := Load(testutil.ProjectRoot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Level2.JobsOrDefault() != 3 || c.Level2.TmpfsOrDefault() != "6g" || c.Level2.TmpfsMaxOrDefault() != "12g" {
+		t.Errorf("level2 = %+v", c.Level2)
+	}
+	for in, want := range map[string]int64{"6g": 6 << 30, "512m": 512 << 20} {
+		if got, err := ParseSize(in); err != nil || got != want {
+			t.Errorf("ParseSize(%s) = %d, %v", in, got, err)
+		}
+	}
+	if _, err := ParseSize("0g"); err == nil {
+		t.Error("ParseSize(0g): se esperaba error")
+	}
+}
+
 func TestLoadRejects(t *testing.T) {
 	base, err := os.ReadFile(filepath.Join(testutil.ProjectRoot(), MainFile))
 	if err != nil {
@@ -121,12 +140,16 @@ func TestLoadRejects(t *testing.T) {
 		"dos catchall":          {`version: "14"}`, `version: "14", catchall: true}`, "suites: más de una suite catchall en debian (forky, sid)"},
 		"catchall inválido":     {`catchall: true}`, `catchall: si}`, `suites.sid.catchall: "si" no es true ni false`},
 		"sufijo repetido":       {`level2_suffix: deb14,`, `level2_suffix: deb13,`, `suites.forky.level2_suffix: "deb13" repetido (también en trixie)`},
-		"fail_on incorrecto":    {`fail_on: error`, `fail_on: always`, "lintian.fail_on"},
-		"keep":                  {`keep: 3 `, `keep: 0 `, "repo.keep: mínimo 1"},
-		"fingerprint":           {`masters: [72671CD221684BF7FDCDFB3965B278975D4FE04B]`, `masters: [abc123]`, "repo.signing.masters[0]: fingerprint inválido"},
-		"subkey":                {`subkey: 84983CE038A7C73647AF0C9A15DDD1383F3A75D5`, `subkey: "84983ce038a7c73647af0c9a15ddd1383f3a75d5"`, "repo.signing.subkey: fingerprint inválido"},
-		"nombre de destino":     {`    r2:`, `    R2:`, `repo.destinations: nombre "R2" inválido`},
-		"credenciales":          {`"r2:debfactory-apt"`, `"user:secret@host:/srv"`, "repo.destinations.r2.remote: no puede contener credenciales"},
+		// Fase 008 (specs/008-source-builds/data-model.md §4).
+		"level2.tmpfs":       {"\nlintian:", "\nlevel2: {tmpfs: 6x}\nlintian:", `level2.tmpfs: "6x" no es un tamaño`},
+		"level2.tmpfs_max":   {"\nlintian:", "\nlevel2: {tmpfs: 8g, tmpfs_max: 4g}\nlintian:", "level2.tmpfs: 8g supera level2.tmpfs_max (4g)"},
+		"level2.jobs":        {"\nlintian:", "\nlevel2: {jobs: -1}\nlintian:", "level2.jobs: debe ser al menos 1"},
+		"fail_on incorrecto": {`fail_on: error`, `fail_on: always`, "lintian.fail_on"},
+		"keep":               {`keep: 3 `, `keep: 0 `, "repo.keep: mínimo 1"},
+		"fingerprint":        {`masters: [72671CD221684BF7FDCDFB3965B278975D4FE04B]`, `masters: [abc123]`, "repo.signing.masters[0]: fingerprint inválido"},
+		"subkey":             {`subkey: 84983CE038A7C73647AF0C9A15DDD1383F3A75D5`, `subkey: "84983ce038a7c73647af0c9a15ddd1383f3a75d5"`, "repo.signing.subkey: fingerprint inválido"},
+		"nombre de destino":  {`    r2:`, `    R2:`, `repo.destinations: nombre "R2" inválido`},
+		"credenciales":       {`"r2:debfactory-apt"`, `"user:secret@host:/srv"`, "repo.destinations.r2.remote: no puede contener credenciales"},
 		// Fase 003 (specs/003-ci-pipeline/contracts/config.md).
 		"validity.days":                 {`days: 30 `, `days: 7 `, "repo.validity.days debe estar entre 8 y 90"},
 		"validity.days alto":            {`days: 30 `, `days: 91 `, "repo.validity.days debe estar entre 8 y 90"},

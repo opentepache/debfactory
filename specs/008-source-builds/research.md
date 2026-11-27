@@ -34,6 +34,43 @@ de Debian, pero no necesita namespaces anidados.
 Debian (principio IX), y su modo `unshare` no necesita root ni schroot. Encerrarlo en un contenedor
 desechable sin montajes da la misma barrera que hoy tienen las pruebas de instalación.
 
+### Resultado del spike (T001, 2026-11-26, Docker de la PC, sbuild 0.89.3+deb13u4)
+
+| Prueba | Resultado |
+|---|---|
+| sbuild/mmdebstrap `unshare` con opciones por defecto | ❌ `unshare syscall failed: Operation not permitted` (seccomp de Docker) |
+| `apparmor=unconfined` | ❌ igual |
+| `seccomp=unconfined` (+ apparmor) | ❌ usuario sin privilegios: `newuidmap: write to uid_map failed`; root: `unable to unshare the mount namespace` |
+| Runners rootless | ❌ por diseño: `dfci`/`dfpub` tienen 65 536 subuids (`/etc/subuid`), el contenedor ve solo esos y un user namespace anidado no puede mapear otros 65 536 |
+| **Alternativa**: contenedor de la suite como chroot, `mk-build-deps` con red, `docker network disconnect`, `dpkg-buildpackage` | ✅ sin opciones extra; sin red durante el build (`RED: no`) |
+| bookworm/amd64 | ✅ 46 s (deps 40 s, build 3 s); `Depends: libc6, libssl3` |
+| trixie/amd64 | ✅ 62 s (deps 53 s, build 3 s); `Depends: libc6, libssl3t64` |
+| trixie/arm64 (qemu) | ✅ 349 s (deps 304 s, build 42 s); la instalación emulada domina: una imagen de construcción con `build-essential` precargado la recorta |
+| Doble compilación trixie/amd64 (otro `umask`, `TZ`, `LANG`, hostname; misma ruta) | ✅ sha256 idéntico (y al de la corrida anterior) |
+
+**Conclusión**: sbuild `unshare` dentro de los contenedores de los runners exige abrir seccomp y
+AppArmor (debilita justo la barrera que aísla el código de upstream, FR-005) y aun así no cabe en
+los 65 536 subuids del Docker rootless. piuparts tiene el mismo problema (necesita `chroot` y
+montar `/proc`, es decir `CAP_SYS_ADMIN`). **Decisión (aprobada 2026-11-26): la alternativa**, descrita
+abajo como D1′; reemplaza a D1 en todo lo que sigue.
+
+## D1′. Contenedor de la suite como entorno de construcción (decisión vigente)
+
+Cada compilación corre en un contenedor nuevo de la imagen de construcción de la suite y
+arquitectura (D16), con `--platform linux/<arch>` y `--tmpfs /build:size=<n>,exec`. Pasos:
+
+1. **Con red**: `mk-build-deps` instala las `Build-Depends` del `.dsc` desde los mirrors oficiales de
+   la suite (los que trae la imagen oficial).
+2. La herramienta **desconecta la red** del contenedor (`container.DisconnectNetwork`, como las
+   pruebas de instalación) y comprueba que no la hay.
+3. **Sin red**: `dpkg-source -x` del `.dsc` en `/build/reproducible-path/` (la ruta fija de los
+   buildd de Debian) y `dpkg-buildpackage -b` con `SOURCE_DATE_EPOCH` de la fecha del changelog.
+   Genera los `.deb`, el `.buildinfo` y el `.changes`.
+
+El contenedor **no monta** `<data>` ni credenciales: solo la entrada (el `.dsc` y sus archivos, de
+lectura) y una salida. Sin `--privileged`, sin abrir seccomp ni AppArmor. Equivale a un chroot de
+sbuild: sistema limpio de la suite, dependencias de los repos oficiales, build sin red.
+
 ## D2. tmpfs dimensionado para 31 GB
 
 **Hecho**: la PC tiene **31 GB** de RAM (constitución IX), no 64; hoy hay ~24 GB disponibles con los
@@ -66,7 +103,14 @@ Además el `.buildinfo` de un build cruzado no describe un entorno reproducible 
 posible fase futura, por paquete y con su propia verificación.
 
 **Coste medido** (fase 007, E2E): instalar en arm64 emulado es ~10× más lento que en amd64; compilar
-puede ser 10–30×. Por eso el paquete de prueba es pequeño (D14) y los tiempos se miden en T00x.
+puede ser 10–30×. Por eso el paquete de prueba es pequeño (D14).
+
+**Medido en la fase 008** (`TestE2ELevel2`, PC de 16 núcleos, imágenes ya construidas): compilar
+`tepache-hello` 3 suites × 2 arquitecturas × 2 veces, 3 min 55 s; con lintian y las pruebas de
+instalación y ciclo de vida, 6 min 11 s; publicar e instalar y recompilar con la guía en las 6
+combinaciones, 13 min 20 s en total (meta: < 15 min). Recompilar en un cliente: ~1 min en amd64 y
+~5–6 min en arm64 emulado, casi todo instalando dependencias. La primera construcción de una imagen
+arm64 tarda unos 5 min.
 
 ## D5. Red y aislamiento (FR-005)
 
@@ -109,21 +153,22 @@ del lockfile como hoy) y la carpeta `packages/<p>/debian/` con `control`, `rules
 ## D8. Doble compilación y comparación (FR-008)
 
 **Decisión**: por suite y arquitectura, dos compilaciones del mismo `.dsc` (D6) en contenedores
-distintos, la segunda con otra ruta de build (`/build/a` y `/build/b`) y otro `umask`, para detectar
-no reproducibilidad. Se
+distintos, con la misma ruta fija (`/build/reproducible-path`, la que usará quien recompile) y
+distinto entorno en la segunda (`umask 077`, `TZ`, `LANG`, hostname) para detectar no
+reproducibilidad (probado en el spike). Se
 comparan los sha256 de todos los `.deb`; si difieren, falla la etapa `compare` con los dos sha256 y,
 si está instalado en la imagen, un resumen de `diffoscope`. Se publica el `.buildinfo` de la primera.
 
 ## D9. lintian y piuparts
 
 **Decisión**: lintian sobre los `.deb` y el `.dsc` (mismas reglas que el nivel 1: `fail_on`,
-`never_override_patterns`). piuparts por suite y arquitectura como **paso aparte**, en su propio
-contenedor de la imagen de construcción, con un chroot base de la suite (`--basetgz`, creado con
-`mmdebstrap` desde el mirror oficial): instala, desinstala y purga, y comprueba que no deja
-archivos. **Nunca** con el modo Docker de piuparts ni con el socket de Docker dentro del
-contenedor: eso daría control del Docker del runner a un proceso que maneja código de upstream
-(FR-005). Las capacidades mínimas que piuparts necesita para su `chroot` y sus montajes las fija el
-spike (T001), igual que las de sbuild. Solo para nivel 2: el nivel 1 no cambia (FR-014). La prueba de instalación de siempre
+`never_override_patterns`). En lugar de piuparts (que necesita `chroot` y montar `/proc`, spike
+T001), una **prueba de ciclo de vida** equivalente en un contenedor limpio de la imagen de prueba
+de la suite, sin privilegios: registra la lista de archivos del sistema y el estado de dpkg, instala
+el `.deb`, lo desinstala (`apt-get remove`), lo purga (`apt-get purge --autoremove`) y comprueba que
+no quedan archivos nuevos fuera de los directorios volátiles (`/var/log`, `/var/cache`,
+`/var/lib/apt`, `/tmp`), que el paquete no queda en `dpkg -l` y que sus scripts de mantenimiento no
+fallan. Nunca con el socket de Docker dentro del contenedor (FR-005). Solo para nivel 2: el nivel 1 no cambia (FR-014). La prueba de instalación de siempre
 (fase 001) también corre.
 
 ## D10. Publicación con aptly: fuente y binarios (FR-009, FR-010)
@@ -146,8 +191,11 @@ y el sha256 del `.orig.tar.*` común (data-model §2). La auditoría registra lo
 ## D12. Suites nuevas para nivel 2 (FR-015)
 
 **Decisión**: `MissingSuites` (fase 007) sirve igual; para nivel 2 el plan pone la versión en
-`extend` con `level: 2`, y los gates compilan **solo** las suites que faltan (D1–D9) y publican en
-ellas. Se registra como `extend` con sus `builds` nuevos.
+`extend` y los gates compilan **todas** las suites no excluidas, como la ampliación de nivel 1
+reconstruye sus `.deb`: cada archivo ya publicado (`<suite>/<arch>` y `<suite>/dsc`) debe salir
+idéntico, y solo las suites nuevas se publican. Se registra como `extend` con el `.orig` y los
+`builds` nuevos. (Compilar solo la suite nueva ahorraría tiempo pero dejaría sin comprobar que las
+publicadas siguen saliendo iguales; se puede optimizar en otra fase.)
 
 ## D13. Sitio (FR-012)
 
@@ -175,8 +223,15 @@ TLS de pruebas que ya existe (`citest.Upstream`), con checksum en su lockfile. N
 contenedor sin montajes ni credenciales. Es el mismo modelo que las pruebas de instalación de nivel
 1, que ya ejecutan los binarios de upstream en el runner `pub`.
 
+## D17. Compresión de los `.deb`
+
+**Hecho** (E2E): el `dpkg-deb` de Ubuntu noble comprime con zstd por defecto y el lintian de Debian
+lo rechaza (`malformed-deb-archive`). **Decisión**: `DPKG_DEB_COMPRESSOR_TYPE=xz` en todas las
+compilaciones de nivel 2; la guía de recompilación fija lo mismo.
+
 ## D16. Imágenes de construcción
 
 **Decisión**: `debfactory-build/<suite>:<arch>` se construye desde la imagen de prueba de la suite
-(fase 001) con `sbuild mmdebstrap devscripts lintian piuparts` de esa suite, y se renueva cada 7
-días como las demás. Sin herramientas de terceros: todo empaquetado en Debian/Ubuntu (principio IX).
+(fase 001) con `build-essential devscripts equivs fakeroot` de esa suite precargados (en arm64
+emulado la instalación es lo más lento: 304 s de 349 s en el spike), y se renueva cada 7 días como
+las demás. Sin herramientas de terceros: todo empaquetado en Debian/Ubuntu (principio IX).

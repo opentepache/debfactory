@@ -8,9 +8,10 @@
 
 Un manifiesto de nivel 2 declara el código fuente de upstream, la justificación y una carpeta
 `debian/` estándar. Por cada suite y arquitectura, la herramienta genera el paquete fuente
-(`3.0 (quilt)`, changelog propio, versión `+<sufijo>`) y lo compila con sbuild en modo `unshare`,
-dentro de un contenedor desechable sin montajes ni credenciales, en tmpfs, dos veces para comprobar
-que es reproducible; pasa lintian, piuparts y la prueba de instalación; y publica fuente y binarios
+(`3.0 (quilt)`, changelog propio, versión `+<sufijo>`) y lo compila con `dpkg-buildpackage` en un
+contenedor limpio de la suite (dependencias de los repos oficiales, build sin red), sin montajes ni
+credenciales, en tmpfs, dos veces para comprobar que es reproducible; pasa lintian, la prueba de
+ciclo de vida (instalar, quitar, purgar) y la prueba de instalación; y publica fuente y binarios
 con aptly. El estado pasa a `schema: 2` sin tocar las entradas de nivel 1.
 
 **Ajustes al stack propuesto**:
@@ -18,15 +19,18 @@ con aptly. El estado pasa a `schema: 2` sin tocar las entradas de nivel 1.
   para eso (research D2).
 - **Compilación cruzada**: fuera de esta fase, como dice la spec; impide que `apt-get source` en un
   sistema arm64 reproduzca el binario (D4). arm64 se compila con qemu-user.
-- **sbuild `unshare` dentro de un contenedor rootless** es el mayor riesgo técnico: un spike lo
-  comprueba primero, con una alternativa documentada (D1).
+- **sbuild y piuparts**: el spike (T001) mostró que no corren dentro de los contenedores de los
+  runners sin abrir seccomp/AppArmor, y que no caben en los 65 536 subuids del Docker rootless. Se
+  aprobó la alternativa: el contenedor de la suite es el chroot y piuparts se reemplaza por una
+  prueba de ciclo de vida equivalente (research D1′, D9).
 
 ## Technical Context
 
 **Language/Version**: Go 1.26 (`GOTOOLCHAIN=local`).
 
 **Primary Dependencies**: sin dependencias Go nuevas. En imágenes de construcción, de cada suite:
-`sbuild`, `mmdebstrap`, `devscripts`, `lintian`, `piuparts`; Docker rootless y qemu-user como hoy.
+`build-essential`, `devscripts`, `equivs`, `fakeroot` (imagen de construcción por suite y
+arquitectura); lintian como hoy; Docker rootless y qemu-user como hoy.
 
 **Storage**: `repo/state.yaml` `schema: 2`; auditoría con `builds`; `.buildinfo` publicado.
 
@@ -90,7 +94,7 @@ internal/manifest/                 # tipos y validación de nivel 2; carpeta deb
 internal/lock/                     # versions.<v>.source.sha256
 internal/fetch/                    # descarga y verificación del tarball de fuente
 internal/srcpkg/                   # nuevo: changelog, .orig, dpkg-source -b
-internal/sbuild/                   # nuevo: imágenes de construcción, sbuild unshare, doble build, tmpfs, limitador
+internal/srcbuild/                 # nuevo: imágenes de construcción, contenedor de la suite, doble build, tmpfs, limitador
 internal/build/                    # despacha nivel 1 / nivel 2; build.json por suite
 internal/installtest/              # prueba el .deb de cada suite; piuparts
 internal/repo/                     # estado schema 2, Inputs/Apply/Generate con .dsc y builds por suite
@@ -103,13 +107,12 @@ testdata/fixtures/tepache-hello-1.0.0/                               # su "upstr
 docs/operacion-ci.md               # nivel 2: imágenes, tmpfs, fallos
 ```
 
-**Structure Decision**: dos paquetes nuevos (`srcpkg` y `sbuild`) para lo que no existe; el resto
+**Structure Decision**: dos paquetes nuevos (`srcpkg` y `srcbuild`) para lo que no existe; el resto
 son extensiones de los existentes, con el nivel 1 como camino por defecto sin cambios.
 
 ## Riesgos
 
-1. **sbuild `unshare` en Docker rootless** (D1): spike primero; alternativa con
-   `dpkg-buildpackage` y desconexión de red.
+1. **sbuild `unshare` en Docker rootless** (D1): resuelto por el spike con la alternativa (D1′).
 2. **Tiempo de arm64 emulado**: paquete de prueba mínimo; medir; un paquete real pesado puede
    necesitar un runner arm64 nativo (enmienda al principio IX, fuera de esta fase).
 3. **Estado `schema: 2`**: migración en la lectura (`schema: 1` sigue siendo válido y se escribe

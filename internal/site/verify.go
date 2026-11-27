@@ -23,7 +23,7 @@ func Verify(m *Model, genDir string) error {
 		for _, v := range p.Versions {
 			for _, s := range v.Suites {
 				for _, a := range v.Architectures {
-					want[strings.Join([]string{s, a, p.Name, v.Version}, " ")] = true
+					want[strings.Join([]string{s, a, p.Name, v.SuiteVersion(s)}, " ")] = true
 				}
 			}
 		}

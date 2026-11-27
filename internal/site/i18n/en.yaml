@@ -67,3 +67,7 @@ upstream: upstream
 footer_build: Every package is built, checked with lintian and installed in a clean container of each release before it is signed and published.
 footer_source: Recipes and build pipeline
 footer_serial: Repository serial
+# Nivel 2 (specs/008-source-builds, research D13).
+source_title: source code
+source_intro: "Built from source for each distribution: every suite has its own binary, built from the source package published next to it in this repository."
+source_note: "With deb-src enabled in the sources file, this downloads the exact source of the installed version."

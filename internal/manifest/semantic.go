@@ -22,13 +22,18 @@ func Check(m *Manifest, cfg *config.Config, lk *lock.File) error {
 	c.name()
 	tagOK := c.templates()
 	if tagOK {
-		c.urls()
+		if m.Level2() {
+			c.sourceURL()
+		} else {
+			c.urls()
+		}
 	}
 	c.paths()
 	c.summary()
 	c.excludes()
-	if m.Level != 1 {
-		c.add("level", "solo se admite 1 en esta fase")
+	c.levelFields()
+	if m.Level2() {
+		c.level2()
 	}
 	if _, err := license.Parse(m.License.SPDX); err != nil {
 		c.add("license.spdx", "%q no es SPDX (%v)", m.License.SPDX, err)
@@ -86,6 +91,9 @@ func (c *checker) fields() []field {
 	}
 	if m.Checksums != nil {
 		fs = append(fs, field{"checksums.url", m.Checksums.URL, urlVars})
+	}
+	if m.Level2() {
+		fs = append(fs, field{"source.url", m.Source.URL, []string{"version", "tag"}})
 	}
 	srcVars := urlVars
 	if m.Artifact.Format == "binary" {
@@ -163,6 +171,74 @@ func (c *checker) urls() {
 				break
 			}
 		}
+	}
+}
+
+// sourceURL exige que source.url sea un asset de un release o el tarball del
+// tag de https://github.com/<upstream>/ (constitución III, nivel 2).
+func (c *checker) sourceURL() {
+	url, err := c.m.RenderURL(c.m.Source.URL, "")
+	if err != nil {
+		return // ya informado en templates()
+	}
+	tag, _ := c.m.RenderedTag()
+	base := "https://github.com/" + c.m.Upstream + "/"
+	if asset, ok := strings.CutPrefix(url, base+"releases/download/"+tag+"/"); ok && safeSegment(asset) {
+		return
+	}
+	if url == base+"archive/refs/tags/"+tag+".tar.gz" && c.m.Source.Format == "tar.gz" {
+		return
+	}
+	c.add("source.url", "fuera de los releases y tags de %s", c.m.Upstream)
+}
+
+// levelFields rechaza los campos del otro nivel: en nivel 2 la carpeta
+// debian/ sustituye a artifact, install y compañía; en nivel 1 no hay código
+// fuente que compilar (specs/008-source-builds, data-model §1).
+func (c *checker) levelFields() {
+	m := c.m
+	type f struct {
+		name string
+		set  bool
+	}
+	var fs []f
+	if m.Level2() {
+		fs = []f{{"arch_map", len(m.ArchMap) > 0}, {"artifact", m.Artifact != (Artifact{})},
+			{"checksums", m.Checksums != nil}, {"install", len(m.Install) > 0},
+			{"completions", len(m.Completions.List()) > 0}, {"man", len(m.Man) > 0}}
+		for _, x := range fs {
+			if x.set {
+				c.add(x.name, "no se admite en nivel 2 (lo describe la carpeta debian/)")
+			}
+		}
+		return
+	}
+	fs = []f{{"justification", m.Justification != ""}, {"source", m.Source != (Source{})},
+		{"build", m.BuildOpts != (BuildOpts{})}}
+	for _, x := range fs {
+		if x.set {
+			c.add(x.name, "solo se admite en nivel 2")
+		}
+	}
+}
+
+// level2 son las reglas del nivel 2 que dependen de la configuración
+// (specs/008-source-builds, data-model §1).
+func (c *checker) level2() {
+	if c.m.License.File.Archive != "" && c.m.Source.Format != "tar.gz" {
+		c.add("license.file.archive", "con source.format %s usa license.file.repo (solo se lee dentro de tar.gz)", c.m.Source.Format)
+	}
+	if c.m.BuildOpts.Tmpfs == "" {
+		return
+	}
+	got, err := config.ParseSize(c.m.BuildOpts.Tmpfs)
+	if err != nil {
+		c.add("build.tmpfs", "%v", err)
+		return
+	}
+	max, _ := config.ParseSize(c.cfg.Level2.TmpfsMaxOrDefault())
+	if got > max {
+		c.add("build.tmpfs", "%s supera level2.tmpfs_max (%s)", c.m.BuildOpts.Tmpfs, c.cfg.Level2.TmpfsMaxOrDefault())
 	}
 }
 
@@ -312,6 +388,11 @@ func Validate(root string, cfg *config.Config, name string) (*Manifest, error) {
 	}
 	if err := Check(m, cfg, lk); err != nil {
 		return nil, err
+	}
+	if m.Level2() {
+		if err := CheckDebianDir(root, m); err != nil {
+			return nil, err
+		}
 	}
 	return m, nil
 }

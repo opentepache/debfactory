@@ -35,7 +35,7 @@ const usage = `uso: debfactory <orden> [opciones]
   validate [pkg…]                              valida manifiestos (sin pkg, todos)
   lock <pkg> [--force]                         genera o actualiza packages/<pkg>.lock.yaml
   lock <pkg> --prune                           borra del lockfile las versiones viejas
-  build <pkg> [--arch A] [--check-reproducible]
+  build <pkg> [--arch A] [--suite S] [--check-reproducible]   (nivel 2: --suite y doble compilación siempre)
   build --all [--check-reproducible] [--jobs N] construye en dist/
   lint <deb…>                                  pasa lintian a .deb existentes
   test <pkg> [--arch A] [--suite S] [--force] [--jobs N]
@@ -290,12 +290,12 @@ func (a *app) env() *build.Env {
 	return e
 }
 
-// build: `build <pkg> [--arch A] [--check-reproducible]` o `build --all`.
+// build: `build <pkg> [--arch A] [--suite S] [--check-reproducible]` o `build --all`.
 func (a *app) build(ctx context.Context, pos []string) error {
-	o := build.Options{Arch: a.opts.arch, Reproducible: a.opts.reproducible, Jobs: a.opts.jobs}
+	o := build.Options{Arch: a.opts.arch, Suite: a.opts.suite, Reproducible: a.opts.reproducible, Jobs: a.opts.jobs}
 	switch {
-	case a.opts.all && (len(pos) > 0 || a.opts.arch != ""):
-		return usageError{"build --all no admite paquetes ni --arch"}
+	case a.opts.all && (len(pos) > 0 || a.opts.arch != "" || a.opts.suite != ""):
+		return usageError{"build --all no admite paquetes, --arch ni --suite"}
 	case !a.opts.all && len(pos) != 1:
 		return usageError{"build necesita un paquete o --all"}
 	}

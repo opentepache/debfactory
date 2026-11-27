@@ -58,7 +58,7 @@ func TestStateInvalid(t *testing.T) {
 	files, _ := filepath.Glob("../../testdata/repo/state/*.yaml")
 	for _, f := range files {
 		name := filepath.Base(f)
-		if name == "ok.yaml" {
+		if strings.HasPrefix(name, "ok") {
 			continue
 		}
 		t.Run(name, func(t *testing.T) {
@@ -77,8 +77,36 @@ func TestStateInvalid(t *testing.T) {
 }
 
 func TestStateRoundTrip(t *testing.T) {
+	for _, f := range []string{"ok.yaml", "ok-level2.yaml"} {
+		t.Run(f, func(t *testing.T) { roundTrip(t, f) })
+	}
+}
+
+// TestStateSchemaFollowsLevel: un estado sin nivel 2 se escribe con schema 1
+// (FR-014) y uno con nivel 2 con schema 2.
+func TestStateSchemaFollowsLevel(t *testing.T) {
+	st, err := ReadState(stateRoot(t, "ok-level2.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := st.Marshal()
+	if !strings.Contains(string(data), "\nschema: 2\n") {
+		t.Fatalf("con nivel 2 se esperaba schema 2:\n%s", data)
+	}
+	delete(st.Packages, "tepache-hello")
+	data, _ = st.Marshal()
+	if !strings.Contains(string(data), "\nschema: 1\n") {
+		t.Fatalf("sin nivel 2 se esperaba schema 1:\n%s", data)
+	}
+	c := st.Clone()
+	if c.schemaFor() != 1 {
+		t.Fatal("Clone cambió el schema")
+	}
+}
+
+func roundTrip(t *testing.T, fixture string) {
 	cfg := loadCfg(t)
-	root := stateRoot(t, "ok.yaml")
+	root := stateRoot(t, fixture)
 	st, err := ReadState(root)
 	if err != nil {
 		t.Fatal(err)

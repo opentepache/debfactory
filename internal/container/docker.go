@@ -4,6 +4,7 @@
 package container
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -35,6 +36,7 @@ type Opts struct {
 	Network  string   // "none", "bridge", una red creada o vacío (la de docker)
 	Alias    string   // --network-alias (nombre en la red)
 	Name     string   // --name
+	Hostname string   // --hostname
 	Ports    []string // --publish, p. ej. "127.0.0.1:8080:80"
 	ReadOnly bool     // --read-only
 	Tmpfs    []string // --tmpfs, p. ej. "/tmp"
@@ -152,6 +154,9 @@ func runArgs(o Opts) ([]string, error) {
 	if o.Name != "" {
 		a = append(a, "--name", o.Name)
 	}
+	if o.Hostname != "" {
+		a = append(a, "--hostname", o.Hostname)
+	}
 	for _, p := range o.Ports {
 		a = append(a, "--publish", p)
 	}
@@ -225,6 +230,55 @@ func Exec(ctx context.Context, id string, env, cmd []string) (Result, error) {
 	}
 	args = append(append(args, id), cmd...)
 	return docker(ctx, nil, args...)
+}
+
+// ExecAs ejecuta cmd (sin shell) en el contenedor como user.
+func ExecAs(ctx context.Context, id, user string, env, cmd []string) (Result, error) {
+	args := []string{"exec", "--user", user}
+	for _, e := range env {
+		args = append(args, "-e", e)
+	}
+	args = append(append(args, id), cmd...)
+	return docker(ctx, nil, args...)
+}
+
+// CopyOut copia los archivos regulares del directorio dir del contenedor a
+// dst en el host, con tar por docker exec (docker cp no lee montajes tmpfs).
+// Solo acepta archivos regulares en la raíz de dir: nada de rutas, enlaces
+// ni dispositivos que el contenido del contenedor pudiera colar.
+func CopyOut(ctx context.Context, id, dir, dst string) error {
+	res, err := docker(ctx, nil, "exec", id, "tar", "-C", dir, "-cf", "-", ".")
+	if err := check(res, err, "docker exec tar"); err != nil {
+		return err
+	}
+	tr := tar.NewReader(bytes.NewReader(res.Stdout))
+	for {
+		h, err := tr.Next()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("tar de %s: %v", dir, err)
+		}
+		name := strings.TrimPrefix(h.Name, "./")
+		switch {
+		case h.Typeflag == tar.TypeDir && (name == "" || name == "."):
+			continue
+		case h.Typeflag != tar.TypeReg || name == "" || strings.Contains(name, "/") || name == "..":
+			return fmt.Errorf("tar de %s: entrada no admitida %q", dir, h.Name)
+		}
+		fh, err := os.OpenFile(filepath.Join(dst, name), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(fh, tr); err != nil {
+			fh.Close()
+			return err
+		}
+		if err := fh.Close(); err != nil {
+			return err
+		}
+	}
 }
 
 // DisconnectNetwork deja el contenedor sin red.

@@ -607,9 +607,26 @@ func (g *Git) Write(path, content string) {
 	g.t.Helper()
 	p := filepath.Join(g.Work, path)
 	os.MkdirAll(filepath.Dir(p), 0o755)
-	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+	mode := os.FileMode(0o644)
+	if strings.HasSuffix(path, "/debian/rules") {
+		mode = 0o755 // nivel 2: debian/rules es ejecutable (git guarda el bit)
+	}
+	if err := os.WriteFile(p, []byte(content), mode); err != nil {
 		g.t.Fatal(err)
 	}
+	if err := os.Chmod(p, mode); err != nil {
+		g.t.Fatal(err)
+	}
+}
+
+// ReadFile lee un archivo del clon de trabajo.
+func (g *Git) ReadFile(path string) string {
+	g.t.Helper()
+	data, err := os.ReadFile(filepath.Join(g.Work, path))
+	if err != nil {
+		g.t.Fatal(err)
+	}
+	return string(data)
 }
 
 // Commit confirma todo y devuelve el sha.

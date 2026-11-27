@@ -87,7 +87,7 @@ func TestParseErrors(t *testing.T) {
 		"required":     {"  file: {repo: LICENSE}\n", "", `packages/fnm.yaml: license: falta la propiedad "file"`},
 		"additional":   {"revision: 1\n", "revision: 1\nhomepgae: x\n", `packages/fnm.yaml: propiedad desconocida "homepgae"`},
 		"enum":         {"format: zip", "format: rar", "packages/fnm.yaml: artifact.format: valor no permitido (se admite: binary, zip, tar.gz)"},
-		"const":        {"level: 1", "level: 2", "packages/fnm.yaml: level: valor no permitido (se admite: 1)"},
+		"level enum":   {"level: 1", "level: 3", "packages/fnm.yaml: level: valor no permitido (se admite: 1, 2)"},
 		"pattern":      {"upstream: Schniz/fnm", "upstream: Schniz", "packages/fnm.yaml: upstream: no cumple el formato"},
 		"type":         {"revision: 1", "revision: uno", "packages/fnm.yaml: revision: tipo incorrecto (se esperaba integer, hay string)"},
 		"minimum":      {"revision: 1", "revision: 0", "packages/fnm.yaml: revision: demasiado pequeño (mínimo 1)"},

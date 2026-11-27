@@ -25,6 +25,9 @@ alguien lo edita a mano, la siguiente ejecución lo detecta (etapa `audit`).
 | `run` | URL de la ejecución | ✓ | ✓ | `null` |
 | `reason` | texto de una línea | — | ✓ | — |
 
+> **Fase 008**: `publish`, `import` y `extend` de un paquete de nivel 2 llevan `orig` y `builds`
+> (en `extend`, solo las suites agregadas) en lugar de `debs` (specs/008-source-builds/data-model.md §3).
+
 ## Reglas (fallo = código 1, etapa `audit`)
 
 | Regla | Mensaje |

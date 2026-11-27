@@ -12,7 +12,6 @@ import (
 	"syscall"
 
 	"debfactory/internal/build"
-	"debfactory/internal/fetch"
 	"debfactory/internal/forge"
 	"debfactory/internal/installtest"
 	"debfactory/internal/manifest"
@@ -266,24 +265,24 @@ func (r *Runner) gates(ctx context.Context, root, name string, lim installtest.L
 		return nil, err
 	}
 	var errs report.Errors
-	shas := map[string]string{}
 	for _, arch := range r.Cfg.Arches {
 		if _, err := installtest.TestPackage(ctx, root, r.Cfg, m, arch, installtest.Options{Limiter: lim}, out); err != nil {
 			var e *report.Error
-			if errors.As(err, &e) {
+			var list report.Errors
+			switch {
+			case errors.As(err, &list):
+				errs = append(errs, list...)
+			case errors.As(err, &e):
 				errs = append(errs, e)
-			} else {
+			default:
 				errs = append(errs, report.Wrap(err, report.Test, name, m.DebVersion(), arch))
 			}
-			continue
 		}
-		sha, err := fetch.SHA256File(filepath.Join(root, "dist", m.DebBase(arch)+".deb"))
-		if err != nil {
-			return nil, err
-		}
-		shas[arch] = sha
 	}
-	return shas, errs.Err()
+	if err := errs.Err(); err != nil {
+		return nil, err
+	}
+	return distShas(root, r.Cfg, m)
 }
 
 // gateResult es el resultado de los gates de un paquete.
@@ -340,18 +339,18 @@ func (r *Runner) compare(ctx context.Context, root string, st *repo.State, list 
 			errs = append(errs, report.Wrap(err, report.Compare, pv.Package, pv.Version, ""))
 			continue
 		}
-		for _, arch := range r.Cfg.Arches {
-			got, err := fetch.SHA256File(filepath.Join(root, "dist", repo.DebFile(pv.Package, pv.Version, arch)))
-			if err != nil {
-				errs = append(errs, report.Wrap(err, report.Compare, pv.Package, pv.Version, arch))
-				continue
-			}
-			if got != pub.Debs[arch] {
-				errs = append(errs, &report.Error{Package: pv.Package, Version: pv.Version, Arch: arch, Stage: report.Compare,
-					Cause: fmt.Sprintf("el .deb reconstruido (sha256 %s…) no es el publicado (%s…); una versión publicada no se reescribe: sube revision",
-						sha12(got), sha12(pub.Debs[arch]))})
-			}
+		m, err := manifest.Load(root, pv.Package)
+		if err != nil {
+			errs = append(errs, report.Wrap(err, report.Compare, pv.Package, pv.Version, ""))
+			continue
 		}
+		got, err := distShas(root, r.Cfg, m)
+		if err != nil {
+			errs = append(errs, report.Wrap(err, report.Compare, pv.Package, pv.Version, ""))
+			continue
+		}
+		errs = append(errs, compareShas(pv.Package, pv.Version, got, pub, r.Cfg.Arches,
+			"; una versión publicada no se reescribe: sube revision")...)
 	}
 	return errs
 }
@@ -432,12 +431,12 @@ func (x *run) publish(ctx context.Context, passed []gateResult, commit string) (
 				continue
 			}
 			x.Out.Line("repo: %s %s: + %s", g.ap.Package, g.ap.Version, strings.Join(added, " "))
-			entries = append(entries, Entry{Time: x.now().UTC(), Op: OpExtend, Package: g.ap.Package, Version: g.ap.Version,
-				Suites: added, Commit: c, Debs: p.Debs, Serial: st.Serial, Run: &run})
+			entries = append(entries, extendEntry(Entry{Time: x.now().UTC(), Op: OpExtend, Package: g.ap.Package,
+				Version: g.ap.Version, Suites: added, Commit: c, Serial: st.Serial, Run: &run}, p, added))
 			continue
 		}
-		entries = append(entries, Entry{Time: p.Published, Op: OpPublish, Package: g.ap.Package, Version: g.ap.Version,
-			Commit: c, Debs: p.Debs, Serial: st.Serial, Run: &run})
+		entries = append(entries, publishEntry(Entry{Time: p.Published, Op: OpPublish, Package: g.ap.Package,
+			Version: g.ap.Version, Commit: c, Serial: st.Serial, Run: &run}, p))
 	}
 	if _, err := AppendAudit(x.Root, entries...); err != nil {
 		return nil, err
@@ -599,16 +598,12 @@ func (r *Runner) Main(ctx context.Context, o Options) error {
 // research D3).
 func (x *run) sameDebs(ctx context.Context, st *repo.State, g gateResult) bool {
 	pub, _ := st.Find(g.ap.Package, g.ap.Version)
-	ok := true
-	for _, arch := range x.Cfg.Arches {
-		if g.shas[arch] != pub.Debs[arch] {
-			x.fail(ctx, &report.Error{Package: g.ap.Package, Version: g.ap.Version, Arch: arch, Stage: report.Compare,
-				Cause: fmt.Sprintf("el .deb reconstruido (sha256 %s…) no es el publicado (%s…); no se amplía a %s",
-					sha12(g.shas[arch]), sha12(pub.Debs[arch]), strings.Join(g.ap.Suites, " "))})
-			ok = false
-		}
+	errs := compareShas(g.ap.Package, g.ap.Version, g.shas, pub, x.Cfg.Arches,
+		"; no se amplía a "+strings.Join(g.ap.Suites, " "))
+	for _, e := range errs {
+		x.fail(ctx, e)
 	}
-	return ok
+	return len(errs) == 0
 }
 
 // checkCode es el paso 3b: si cambió la configuración o la herramienta

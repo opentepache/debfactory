@@ -42,7 +42,11 @@ type mainFixture struct {
 	built    []string
 }
 
-func newMainFixture(t *testing.T) *mainFixture {
+func newMainFixture(t *testing.T) *mainFixture { return newMainFixtureWith(t, nil) }
+
+// newMainFixtureWith es newMainFixture con archivos adicionales en el
+// repositorio (p. ej. el paquete de prueba de nivel 2).
+func newMainFixtureWith(t *testing.T, extra func(files map[string]string)) *mainFixture {
 	t.Helper()
 	files := map[string]string{"repo/state.yaml": emptyState, "README.md": "x\n", ToolFile: testTool + "\n"}
 	old := version.Commit
@@ -57,6 +61,9 @@ func newMainFixture(t *testing.T) *mainFixture {
 			}
 			return nil
 		})
+	}
+	if extra != nil {
+		extra(files)
 	}
 	f := &mainFixture{t: t, g: citest.GitFixture(t, files), gh: citest.NewFakeGitHub(t), failGate: map[string]bool{}}
 	cfg, err := config.Load(f.g.Work)
@@ -111,6 +118,9 @@ func (f *mainFixture) runner(sha string) *Runner {
 			if f.failGate[name] {
 				return nil, &report.Error{Package: name, Version: m.DebVersion(), Arch: "arm64", Suite: "noble",
 					Stage: report.Test, Cause: "la orden de comprobación salió con código 127"}
+			}
+			if m.Level2() {
+				return citest.FakeDistLevel2(f.t, root, f.cfg, m), nil
 			}
 			shas := citest.FakeDist(f.t, root, name, m.DebVersion(), f.cfg.Arches, suites, m.Exclude.Suites)
 			if f.alter[name] {

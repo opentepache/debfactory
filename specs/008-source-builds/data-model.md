@@ -44,8 +44,8 @@ packages/tepache-hello/debian/
 | `source.url`, `source.format` | obligatorios si `level: 2`; plantillas `{{version}}`, `{{tag}}`; formato `tar.gz`, `tar.xz` o `tar.bz2` |
 | `artifact`, `install`, `completions`, `arch_map`, `checksums` | prohibidos si `level: 2` |
 | `build.tmpfs` | opcional; ≤ `level2.tmpfs_max` de la configuración |
-| `debian/control` | `Source:` = `name`; sin `debian/changelog` |
-| lockfile | `versions.<v>.source: {url, sha256, date}` (en vez de `artifacts` por arquitectura); `date` es la publicación del release upstream y alimenta el changelog (FR-002) |
+| `debian/control` | `Source:` = `name`; exactamente un `Package:` = `name`, con `Architecture: any`; sin `debian/changelog` |
+| lockfile | `versions.<v>.source_sha256` (en vez de `artifacts` por arquitectura); la fecha del release ya está en `source_date_epoch` y alimenta el changelog (FR-002) |
 
 ## 2. Estado (`repo/state.yaml`, `schema: 2`)
 
@@ -63,20 +63,21 @@ packages:
       builds:
         bookworm:
           version: 1.0.0-0~tepache1+deb12
-          dsc: {sha256: "…"}
-          debian_tar: {sha256: "…"}
+          dsc: "…"                         # sha256
+          debian_tar: "…"
           debs: {amd64: "…", arm64: "…"}
+          buildinfo: {amd64: "…", arm64: "…"}
         trixie:
           version: 1.0.0-0~tepache1+deb13
-          dsc: {sha256: "…"}
-          debian_tar: {sha256: "…"}
+          dsc: "…"
+          debian_tar: "…"
           debs: {amd64: "…", arm64: "…"}
+          buildinfo: {amd64: "…", arm64: "…"}
 ```
 
-`suites` de una versión de nivel 2 son las claves de `builds`: al leer el estado, `Published.Suites`
-se rellena en memoria con esas claves (en el orden de la configuración), para que el código que ya
-lo usa (generación, retención, ampliación, sitio) siga funcionando, y `Validate` exige que
-coincidan. Cada `builds.<s>.<arch>` registra también el sha256 de su `.buildinfo`. La retención y el retiro trabajan
+`suites` se sigue escribiendo en una versión de nivel 2 y `Validate` exige que sea igual a las
+claves de `builds` en el orden de la configuración, para que el código que ya lo usa (generación,
+retención, ampliación, sitio) siga funcionando. La retención y el retiro trabajan
 sobre la versión base. Validación: cada `builds.<s>.version` es la base + `+<level2_suffix de s>`.
 
 ## 3. Auditoría
@@ -91,8 +92,9 @@ level2:
   jobs: 3          # compilaciones simultáneas
   tmpfs: 6g        # tmpfs por compilación
   tmpfs_max: 12g   # límite para build.tmpfs de un manifiesto
-suites:
-  bookworm: {…, mirror: "http://deb.debian.org/debian"}   # opcional; por defecto el de la distribución
 ```
+
+Sin mirror por suite: el contenedor de construcción usa los repos oficiales de la imagen oficial de
+la suite (research D1′).
 
 `ci doctor` comprueba `jobs × tmpfs ≤ 18g` (31 GB de la PC menos runners y servicios).

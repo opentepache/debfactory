@@ -18,6 +18,7 @@ const (
 	StageVersion   = "version"
 	StagePurge     = "purge"
 	StageLeftovers = "leftovers"
+	StageLifecycle = "lifecycle" // nivel 2: quitar, purgar y sin archivos nuevos
 )
 
 // suiteTimeout limita cada suite (arm64 va por emulación).
@@ -36,6 +37,11 @@ type Deb struct {
 	Arch        string
 	TestCommand string // orden y argumentos separados por espacios
 	Expect      string // subcadena que debe aparecer en la salida
+	// Lifecycle añade la prueba de ciclo de vida de nivel 2 (research D9, en
+	// lugar de piuparts): apt-get remove antes de purgar, autoremove de las
+	// dependencias y ningún archivo nuevo en el sistema fuera de los
+	// directorios volátiles.
+	Lifecycle bool
 }
 
 // RunSuite prueba el .deb en un contenedor limpio de la suite: instala con
@@ -76,6 +82,12 @@ func RunSuite(ctx context.Context, s config.Suite, d Deb) Result {
 	defer container.Remove(id)
 
 	apt := []string{"DEBIAN_FRONTEND=noninteractive"}
+	var before []string
+	if d.Lifecycle {
+		if before, err = snapshot(ctx, id); err != nil {
+			return fail(StageLifecycle, err.Error())
+		}
+	}
 	res, err := container.Exec(ctx, id, apt, []string{"apt-get", "install", "-y", "/dist/" + filepath.Base(abs)})
 	if reason, bad := failed(res, err); bad {
 		return fail(StageInstall, reason)
@@ -105,7 +117,19 @@ func RunSuite(ctx context.Context, s config.Suite, d Deb) Result {
 			strings.Join(container.TailLines([]byte(output), 3), " | ")))
 	}
 
-	res, err = container.Exec(ctx, id, apt, []string{"apt-get", "purge", "-y", d.Package})
+	if d.Lifecycle {
+		res, err = container.Exec(ctx, id, apt, []string{"apt-get", "remove", "-y", d.Package})
+		if reason, bad := failed(res, err); bad {
+			return fail(StageLifecycle, "apt-get remove: "+reason)
+		}
+	}
+	purge := []string{"apt-get", "purge", "-y", d.Package}
+	if d.Lifecycle {
+		// Tras apt-get remove el paquete queda solo con su configuración
+		// y apt ya no lo encuentra (venía de un .deb local): purga dpkg.
+		purge = []string{"dpkg", "--purge", d.Package}
+	}
+	res, err = container.Exec(ctx, id, apt, purge)
 	if reason, bad := failed(res, err); bad {
 		return fail(StagePurge, reason)
 	}
@@ -116,8 +140,67 @@ func RunSuite(ctx context.Context, s config.Suite, d Deb) Result {
 	if len(left) > 0 {
 		return fail(StageLeftovers, "quedan archivos tras purgar: "+strings.Join(left, ", "))
 	}
+	if d.Lifecycle {
+		if reason := lifecycleEnd(ctx, id, d.Package, before); reason != "" {
+			return fail(StageLifecycle, reason)
+		}
+	}
 	r.Seconds = time.Since(start).Seconds()
 	return r
+}
+
+// volatile son los directorios que cambian legítimamente al instalar y
+// purgar (registros, cachés, índices de apt y la base de dpkg).
+var volatile = []string{"/proc", "/sys", "/dev", "/run", "/tmp", "/var/tmp", "/var/log", "/var/cache",
+	"/var/lib/apt", "/var/lib/dpkg", "/var/lib/systemd", "/etc/ld.so.cache"}
+
+// snapshotScript lista los archivos del sistema fuera de los directorios
+// volátiles, que llegan como argumentos posicionales.
+const snapshotScript = `prune=""
+for p; do prune="$prune -path $p -prune -o"; done
+find / -xdev $prune -print | LC_ALL=C sort`
+
+func snapshot(ctx context.Context, id string) ([]string, error) {
+	res, err := container.Exec(ctx, id, nil, append([]string{"sh", "-c", snapshotScript, "sh"}, volatile...))
+	if reason, bad := failed(res, err); bad {
+		return nil, fmt.Errorf("lista de archivos: %s", reason)
+	}
+	return strings.Split(strings.TrimSpace(string(res.Stdout)), "\n"), nil
+}
+
+// lifecycleEnd quita las dependencias que trajo el paquete y comprueba que el
+// paquete ya no figura en dpkg y que no queda ningún archivo nuevo.
+func lifecycleEnd(ctx context.Context, id, pkg string, before []string) string {
+	apt := []string{"DEBIAN_FRONTEND=noninteractive"}
+	res, err := container.Exec(ctx, id, apt, []string{"apt-get", "autoremove", "--purge", "-y"})
+	if reason, bad := failed(res, err); bad {
+		return "apt-get autoremove --purge: " + reason
+	}
+	res, err = container.Exec(ctx, id, nil, []string{"dpkg-query", "-W", "-f=${db:Status-Status}", pkg})
+	if err == nil && res.ExitCode == 0 && strings.TrimSpace(string(res.Stdout)) != "not-installed" {
+		return fmt.Sprintf("%s sigue en dpkg (%s) tras purgar", pkg, strings.TrimSpace(string(res.Stdout)))
+	}
+	after, err := snapshot(ctx, id)
+	if err != nil {
+		return err.Error()
+	}
+	seen := make(map[string]bool, len(before))
+	for _, p := range before {
+		seen[p] = true
+	}
+	var added []string
+	for _, p := range after {
+		if !seen[p] {
+			added = append(added, p)
+		}
+	}
+	if len(added) > 0 {
+		if len(added) > 10 {
+			added = append(added[:10], fmt.Sprintf("… (%d más)", len(added)-10))
+		}
+		return "archivos nuevos tras purgar: " + strings.Join(added, ", ")
+	}
+	return ""
 }
 
 // failed resume una orden fallida con las últimas líneas de su salida.

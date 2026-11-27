@@ -27,7 +27,10 @@ type Entry struct {
 	SourceDateEpoch int64             `yaml:"source_date_epoch"`
 	LicenseSHA256   string            `yaml:"license_sha256"`
 	ChecksumsSHA256 string            `yaml:"checksums_sha256,omitempty"`
-	Artifacts       map[string]string `yaml:"artifacts"`
+	Artifacts       map[string]string `yaml:"artifacts,omitempty"`
+	// SourceSHA256 es el hash del tarball del código fuente de un paquete de
+	// nivel 2 (specs/008-source-builds, data-model §1).
+	SourceSHA256 string `yaml:"source_sha256,omitempty"`
 }
 
 // Path devuelve la ruta relativa del lockfile de un paquete.
@@ -117,6 +120,9 @@ func (e *Entry) wellFormed() error {
 	if e.ChecksumsSHA256 != "" && !hex64.MatchString(e.ChecksumsSHA256) {
 		return errors.New("checksums_sha256: no es un sha256")
 	}
+	if e.SourceSHA256 != "" && !hex64.MatchString(e.SourceSHA256) {
+		return errors.New("source_sha256: no es un sha256")
+	}
 	for arch, h := range e.Artifacts {
 		if !hex64.MatchString(h) {
 			return fmt.Errorf("artifacts.%s: no es un sha256", arch)
@@ -139,10 +145,20 @@ func (e *Entry) Complete(arches []string, needChecksums bool) error {
 	return nil
 }
 
+// CompleteSource comprueba que la entrada sirve para compilar un paquete de
+// nivel 2: hash del tarball del código fuente.
+func (e *Entry) CompleteSource() error {
+	if e.SourceSHA256 == "" {
+		return errors.New("falta source_sha256")
+	}
+	return nil
+}
+
 // Equal indica si dos entradas tienen los mismos hashes y fecha.
 func (e *Entry) Equal(o *Entry) bool {
 	if e.SourceDateEpoch != o.SourceDateEpoch || e.LicenseSHA256 != o.LicenseSHA256 ||
-		e.ChecksumsSHA256 != o.ChecksumsSHA256 || len(e.Artifacts) != len(o.Artifacts) {
+		e.ChecksumsSHA256 != o.ChecksumsSHA256 || e.SourceSHA256 != o.SourceSHA256 ||
+		len(e.Artifacts) != len(o.Artifacts) {
 		return false
 	}
 	for k, v := range e.Artifacts {

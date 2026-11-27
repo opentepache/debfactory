@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -185,5 +186,58 @@ func TestAuditExtend(t *testing.T) {
 	other := strings.Replace(string(data), `"version":"4.3.0-0~tepache1","suites"`, `"version":"9.9-0~tepache1","suites"`, 1)
 	if err := CheckAudit([]byte(other), nil, nil); err == nil || !strings.Contains(err.Error(), "extend de una versión nunca publicada") {
 		t.Errorf("versión no publicada: %v", err)
+	}
+}
+
+// TestAuditLevel2 (specs/008-source-builds, data-model §3): publish y extend
+// de nivel 2 llevan orig y builds; CheckAudit cubre cada suite del estado.
+func TestAuditLevel2(t *testing.T) {
+	h := func(c string) string { return strings.Repeat(c, 64) }
+	build := func(v, c string) repo.Build {
+		return repo.Build{Version: v, DSC: h(c), DebianTar: h(c), Debs: map[string]string{"amd64": h(c), "arm64": h(c)},
+			Buildinfo: map[string]string{"amd64": h(c), "arm64": h(c)}}
+	}
+	orig := &repo.Orig{File: "tepache-hello_1.0.0.orig.tar.gz", SHA256: h("0")}
+	ts := time.Date(2026, 12, 1, 10, 0, 0, 0, time.UTC)
+	root := t.TempDir()
+	_, err := AppendAudit(root,
+		Entry{Time: ts, Op: OpPublish, Package: "tepache-hello", Version: "1.0.0-0~tepache1", Commit: c40, Orig: orig,
+			Builds: map[string]repo.Build{"bookworm": build("1.0.0-0~tepache1+deb12", "a")}, Serial: 1, Run: runURL("u")},
+		Entry{Time: ts.Add(time.Hour), Op: OpExtend, Package: "tepache-hello", Version: "1.0.0-0~tepache1", Commit: c40,
+			Suites: []string{"trixie"}, Orig: orig,
+			Builds: map[string]repo.Build{"trixie": build("1.0.0-0~tepache1+deb13", "b")}, Serial: 2, Run: runURL("u")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(root, AuditFile))
+	if !strings.Contains(string(data), `"orig":{"file":"tepache-hello_1.0.0.orig.tar.gz"`) ||
+		!strings.Contains(string(data), `"builds":{"bookworm":{"version":"1.0.0-0~tepache1+deb12"`) {
+		t.Fatalf("formato:\n%s", data)
+	}
+	st := repo.Empty()
+	st.Packages["tepache-hello"] = []repo.Published{{Version: "1.0.0-0~tepache1", Level: 2, Orig: orig,
+		Suites: []string{"bookworm", "trixie"},
+		Builds: map[string]repo.Build{"bookworm": build("1.0.0-0~tepache1+deb12", "a"), "trixie": build("1.0.0-0~tepache1+deb13", "b")}}}
+	if err := CheckAudit(data, nil, st); err != nil {
+		t.Fatal(err)
+	}
+	// Una suite del estado sin publicación en la auditoría.
+	st.Packages["tepache-hello"][0].Suites = append(st.Packages["tepache-hello"][0].Suites, "noble")
+	st.Packages["tepache-hello"][0].Builds["noble"] = build("1.0.0-0~tepache1+u2404", "c")
+	if err := CheckAudit(data, nil, st); err == nil || !strings.Contains(err.Error(), "en noble") {
+		t.Fatalf("error = %v", err)
+	}
+	// extend que repite una suite ya publicada.
+	bad := append(slices.Clone(data), MarshalEntries([]Entry{{Seq: 3, Time: ts, Op: OpExtend, Package: "tepache-hello",
+		Version: "1.0.0-0~tepache1", Commit: c40, Suites: []string{"bookworm"}, Orig: orig,
+		Builds: map[string]repo.Build{"bookworm": build("1.0.0-0~tepache1+deb12", "d")}, Serial: 3, Run: runURL("u")}})...)
+	if err := CheckAudit(bad, nil, nil); err == nil || !strings.Contains(err.Error(), "suites ya publicadas") {
+		t.Fatalf("error = %v", err)
+	}
+	// builds sin orig.
+	noOrig := MarshalEntries([]Entry{{Seq: 1, Time: ts, Op: OpPublish, Package: "x", Version: "1-0~tepache1", Commit: c40,
+		Builds: map[string]repo.Build{"bookworm": build("1-0~tepache1+deb12", "a")}, Serial: 1, Run: runURL("u")}})
+	if _, err := ParseAudit(noOrig); err == nil || !strings.Contains(err.Error(), "orig") {
+		t.Fatalf("error = %v", err)
 	}
 }

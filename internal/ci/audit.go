@@ -44,11 +44,16 @@ type Entry struct {
 	Commit string   `json:"commit"`
 	// Tool es el commit de la herramienta que produjo la entrada
 	// (specs/004-split-repos, data-model.md §3). Las anteriores no lo tienen.
-	Tool   string            `json:"tool,omitempty"`
-	Debs   map[string]string `json:"debs,omitempty"`
-	Serial int               `json:"serial"`
-	Run    *string           `json:"run"`
-	Reason string            `json:"reason,omitempty"`
+	Tool string            `json:"tool,omitempty"`
+	Debs map[string]string `json:"debs,omitempty"`
+	// Nivel 2 (specs/008-source-builds, data-model §3): el .orig común y
+	// las compilaciones de las suites publicadas en esta operación (en
+	// extend, solo las nuevas), en lugar de debs.
+	Orig   *repo.Orig            `json:"orig,omitempty"`
+	Builds map[string]repo.Build `json:"builds,omitempty"`
+	Serial int                   `json:"serial"`
+	Run    *string               `json:"run"`
+	Reason string                `json:"reason,omitempty"`
 }
 
 // MarshalJSON escribe la entrada con las claves en orden fijo, la fecha sin
@@ -102,6 +107,12 @@ func (e Entry) MarshalJSON() ([]byte, error) {
 		b.WriteString(`"debs":`)
 		b.Write(d.Bytes())
 	}
+	if e.Orig != nil {
+		field("orig", e.Orig)
+	}
+	if len(e.Builds) > 0 {
+		field("builds", e.Builds) // encoding/json ordena las claves de los mapas
+	}
 	field("serial", e.Serial)
 	field("run", e.Run)
 	if e.Reason != "" {
@@ -148,8 +159,15 @@ func ParseAudit(data []byte) ([]Entry, error) {
 		}
 		switch e.Op {
 		case OpPublish, OpImport, OpExtend:
-			if len(e.Debs) == 0 {
+			switch {
+			case len(e.Builds) > 0:
+				if err := level2Entry(e); err != "" {
+					return nil, fail("%s", err)
+				}
+			case len(e.Debs) == 0:
 				return nil, fail("%s sin debs", e.Op)
+			case e.Orig != nil:
+				return nil, fail("orig sin builds")
 			}
 			for arch, sha := range e.Debs {
 				if !hex64.MatchString(sha) {
@@ -178,6 +196,28 @@ func ParseAudit(data []byte) ([]Entry, error) {
 		out = append(out, e)
 	}
 	return out, sc.Err()
+}
+
+// level2Entry valida los campos de nivel 2 de una entrada.
+func level2Entry(e Entry) string {
+	if len(e.Debs) > 0 {
+		return "debs y builds a la vez"
+	}
+	if e.Orig == nil || e.Orig.File == "" || !hex64.MatchString(e.Orig.SHA256) {
+		return "builds sin orig válido"
+	}
+	for su, b := range e.Builds {
+		if b.Version == "" || !hex64.MatchString(b.DSC) || !hex64.MatchString(b.DebianTar) || len(b.Debs) == 0 ||
+			len(b.Debs) != len(b.Buildinfo) {
+			return "builds." + su + ": incompleto"
+		}
+		for arch, sha := range b.Debs {
+			if !hex64.MatchString(sha) || !hex64.MatchString(b.Buildinfo[arch]) {
+				return "builds." + su + "." + arch + ": sha256 inválido"
+			}
+		}
+	}
+	return ""
 }
 
 // ReadAudit lee root/repo/audit.jsonl; si no existe devuelve nil sin error.
@@ -253,15 +293,35 @@ func CheckAudit(data, against []byte, st *repo.State) error {
 		return report.Newf(report.Audit, "%s: la línea %d difiere de la referencia (solo se permite añadir)", AuditFile, line)
 	}
 	published := map[string]map[string]string{} // "pkg version" -> arch -> sha
+	level2 := map[string]*Entry{}               // "pkg version" -> orig y builds acumulados
 	var errs report.Errors
 	for _, e := range entries {
 		key := e.Package + " " + e.Version
 		switch e.Op {
 		case OpPublish, OpImport:
 			published[key] = e.Debs
+			if len(e.Builds) > 0 {
+				acc := e
+				acc.Builds = maps.Clone(e.Builds)
+				level2[key] = &acc
+			}
 		case OpExtend:
 			// Amplía una versión ya publicada: no cambia qué versiones existen.
-			if pub, ok := published[key]; !ok || !maps.Equal(pub, e.Debs) {
+			if acc, ok := level2[key]; ok && len(e.Builds) > 0 {
+				// Nivel 2: el mismo .orig y solo suites que no tenía (FR-015).
+				bad := *acc.Orig != *e.Orig
+				for su, b := range e.Builds {
+					if _, dup := acc.Builds[su]; dup {
+						bad = true
+					}
+					acc.Builds[su] = b
+				}
+				if bad {
+					errs = append(errs, report.Newf(report.Audit, "%s:%d: extend de nivel 2 con otro .orig o con suites ya publicadas", AuditFile, e.Seq))
+				}
+				continue
+			}
+			if pub, ok := published[key]; !ok || !maps.Equal(pub, e.Debs) || len(e.Builds) > 0 {
 				errs = append(errs, report.Newf(report.Audit, "%s:%d: extend de una versión nunca publicada o con otros .deb", AuditFile, e.Seq))
 			}
 		case OpRetire:
@@ -273,6 +333,15 @@ func CheckAudit(data, against []byte, st *repo.State) error {
 	if st != nil {
 		for _, name := range st.PackageNames() {
 			for _, p := range st.Packages[name] {
+				if p.Level2() {
+					acc, ok := level2[name+" "+p.Version]
+					for _, su := range p.Suites {
+						if !ok || *acc.Orig != *p.Orig || !acc.Builds[su].Equal(p.Builds[su]) {
+							errs = append(errs, report.Newf(report.Audit, "%s: falta la publicación de %s %s en %s", AuditFile, name, p.Version, su))
+						}
+					}
+					continue
+				}
 				for arch, sha := range p.Debs {
 					if published[name+" "+p.Version][arch] != sha {
 						errs = append(errs, report.Newf(report.Audit, "%s: falta la publicación de %s %s %s", AuditFile, name, p.Version, arch))
@@ -304,8 +373,12 @@ func ImportEntries(st *repo.State, commit string) []Entry {
 		pubs := st.Packages[name]
 		for i := len(pubs) - 1; i >= 0; i-- { // state.yaml va de mayor a menor
 			p := pubs[i]
-			out = append(out, Entry{Time: p.Published, Op: OpImport, Package: name, Version: p.Version,
-				Commit: commit, Debs: p.Debs, Serial: st.Serial})
+			e := Entry{Time: p.Published, Op: OpImport, Package: name, Version: p.Version,
+				Commit: commit, Debs: p.Debs, Serial: st.Serial}
+			if p.Level2() {
+				e.Debs, e.Orig, e.Builds = nil, p.Orig, p.Builds
+			}
+			out = append(out, e)
 		}
 	}
 	return out

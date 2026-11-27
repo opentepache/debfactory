@@ -390,6 +390,12 @@ func (w *watcher) watchPackage(ctx context.Context, name string, pr *forge.PR) (
 		w.say(m.Name, m.Version, "", "omitido (watch.enabled: false)")
 		return false
 	}
+	if m.Level2() {
+		// El detector no maneja todavía el nivel 2 (specs/008-source-builds,
+		// spec: fuera de alcance): sus versiones se suben a mano.
+		w.say(m.Name, m.Version, "", "omitido (nivel 2: el detector no lo maneja todavía)")
+		return false
+	}
 	rels, err := w.releases(ctx, m.Upstream)
 	if forge.IsRateLimit(err) {
 		return true

@@ -335,3 +335,51 @@ Ubuntu (o renombrarla) es un PR en `packages`, sin cambiar la herramienta
    no cambia. La testing siguiente se agrega igual.
 6. **Retirar una suite** exige anunciarlo antes en `docs/usuario.md` (constitución); el
    procedimiento llega en otra fase.
+
+## 9. Paquetes de nivel 2 (fase 008)
+
+Un paquete de nivel 2 se compila desde el código fuente, uno por cada suite y arquitectura
+(constitución II; specs/008-source-builds). Solo se justifica cuando el binario oficial no sirve:
+upstream no publica binarios para Linux, o el programa enlaza con librerías del sistema que cambian
+entre suites (`libssl3` en bookworm, `libssl3t64` en trixie y noble).
+
+1. **El PR** en `packages`: `packages/<p>.yaml` con `level: 2`, `justification`, `source` (el
+   tarball del release o del tag en GitHub) y, en `packages/<p>/debian/`, una carpeta `debian/`
+   estándar (`control`, `rules` ejecutable, `copyright`, `source/format` = `3.0 (quilt)`), **sin
+   `changelog`**: lo genera la herramienta por suite. En esta fase, un solo paquete binario con el
+   mismo nombre que el fuente y `Architecture: any`. `debfactory lock <p>` registra el sha256 del
+   tarball (`source_sha256`). Excluye con su motivo las suites donde no compila.
+2. **La versión** lleva el sufijo de la suite: `<upstream>-0~tepache<N>+<level2_suffix>`
+   (`1.2.3-0~tepache1+deb12`, `+deb13`, `+u2404`…), para que nunca haya dos archivos distintos con
+   el mismo nombre en el pool.
+3. **Cómo se compila**: por suite, `dpkg-source -b` genera una sola vez el paquete fuente (el
+   `.orig` es el tarball de upstream byte a byte). Por suite y arquitectura, un contenedor nuevo de
+   `debfactory-build/<suite>:<arch>` instala las `Build-Depends` desde los repos oficiales de la
+   imagen, **se desconecta de la red** y compila con `dpkg-buildpackage` como usuario sin
+   privilegios en `/build/reproducible-path`, en un tmpfs. No monta `<data>` ni credenciales
+   (research D1′: sbuild y piuparts no corren dentro de Docker rootless sin abrir seccomp). Cada
+   combinación se compila **dos veces** con distinto entorno; si los `.deb` difieren, falla la etapa
+   `compare` y no se publica. Después: lintian (sobre el `.dsc` y cada `.deb`), la prueba de
+   instalación en la suite del binario y la de ciclo de vida (instalar, quitar, purgar, sin
+   archivos nuevos). Si falla en una suite no excluida, no se publica en ninguna.
+4. **RAM**: `level2.jobs` compilaciones a la vez (3), cada una con `level2.tmpfs` (6g); un
+   manifiesto puede pedir más con `build.tmpfs`, hasta `level2.tmpfs_max` (12g). `ci doctor`
+   comprueba que `jobs × tmpfs` no pase de 18 GB de los 31 GB de la PC.
+5. **arm64** va por qemu: compilar `tepache-hello` (un C mínimo) tarda unos minutos, sobre todo por
+   instalar las dependencias emuladas. Un paquete grande puede tardar mucho más; un runner arm64
+   nativo exigiría enmendar el principio IX.
+6. **Qué se publica**: por suite, el `.dsc`, el `.debian.tar.xz` y los `.deb`, con el `.orig`
+   común; los `.buildinfo` van junto a su `.deb` en el pool. El estado pasa a `schema: 2` (las
+   versiones de nivel 1 no cambian) y la auditoría registra `orig` y `builds`. `repo verify`
+   comprueba también el índice `Sources` y los `.buildinfo`.
+7. **Suite nueva**: al agregarla (§8) o dejar de excluirla, `main` recompila el paquete en todas
+   sus suites; las ya publicadas deben dar los mismos archivos y solo la nueva se publica
+   (`extend` con su compilación).
+8. **Fallos típicos**:
+   - `build`: falta una `Build-Depends` en una suite (exclúyela con su motivo) o `rules` intenta
+     descargar algo (no hay red durante la compilación).
+   - `compare`: el paquete no es reproducible (fechas, rutas, orden); se arregla en `debian/` con
+     un parche de quilt, nunca relajando la comparación.
+   - `lifecycle`: los scripts del paquete dejan archivos tras purgar.
+9. **Recompilar a mano**: `docs/recompilar-nivel2.md` del repositorio de paquetes (la prueba
+   `TestE2ELevel2` la sigue tal cual en cada suite y arquitectura).

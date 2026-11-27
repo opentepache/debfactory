@@ -75,9 +75,9 @@ func (e *Env) Publish(ctx context.Context, names []string, versions map[string]s
 			}
 			ops = append(ops, Add{Package: name, Published: in.Published})
 			if !dryRun {
-				for arch, p := range in.Paths {
-					if err := StoreFor(e.DataDir).Put(p, in.Published.Debs[arch]); err != nil {
-						errs = append(errs, &report.Error{Package: name, Version: v, Arch: arch,
+				for _, a := range in.Published.Artifacts(name, e.Cfg.Arches) {
+					if err := StoreFor(e.DataDir).PutFor(in.Source(a), a.Name, a.SHA256); err != nil {
+						errs = append(errs, &report.Error{Package: name, Version: v, Arch: a.Arch,
 							Stage: report.Inputs, Cause: err.Error()})
 					}
 				}

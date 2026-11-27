@@ -1,0 +1,40 @@
+# want: el sha256 ya está publicado como tepache-hello_1.0.0-0~tepache1+deb12_amd64.deb
+# Generado por debfactory publish/retire. No editar a mano.
+schema: 2
+serial: 8
+packages:
+  bob:
+    - version: 4.3.0-0~tepache1
+      published: 2026-11-20T10:02:11Z
+      suites: [trixie, sid, noble, resolute]
+      debs:
+        amd64: 3f11f9ac1491942250b382f211a446bda8d20ec59dd27a9899671e41cce81805
+        arm64: 9a0c11f9ac1491942250b382f211a446bda8d20ec59dd27a9899671e41cce818
+  tepache-hello:
+    - version: 1.0.0-0~tepache1
+      published: 2026-12-01T10:00:00Z
+      suites: [bookworm, trixie]
+      level: 2
+      orig: {file: tepache-hello_1.0.0.orig.tar.gz, sha256: 0000000000000000000000000000000000000000000000000000000000000000}
+      builds:
+        bookworm:
+          version: 1.0.0-0~tepache1+deb12
+          dsc: 1111111111111111111111111111111111111111111111111111111111111111
+          debian_tar: 2222222222222222222222222222222222222222222222222222222222222222
+          debs:
+            amd64: 3333333333333333333333333333333333333333333333333333333333333333
+            arm64: 4444444444444444444444444444444444444444444444444444444444444444
+          buildinfo:
+            amd64: 5555555555555555555555555555555555555555555555555555555555555555
+            arm64: 6666666666666666666666666666666666666666666666666666666666666666
+        trixie:
+          version: 1.0.0-0~tepache1+deb13
+          dsc: 7777777777777777777777777777777777777777777777777777777777777777
+          debian_tar: 8888888888888888888888888888888888888888888888888888888888888888
+          debs:
+            amd64: 3333333333333333333333333333333333333333333333333333333333333333
+            arm64: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          buildinfo:
+            amd64: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+            arm64: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+retired: []

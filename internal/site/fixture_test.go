@@ -101,7 +101,7 @@ func genDir(t *testing.T, m *Model) string {
 			for _, p := range m.Packages {
 				for _, v := range p.Versions {
 					if contains(v.Suites, s.Name) && contains(v.Architectures, a) {
-						fmt.Fprintf(&b, "Package: %s\nVersion: %s\nArchitecture: %s\n\n", p.Name, v.Version, a)
+						fmt.Fprintf(&b, "Package: %s\nVersion: %s\nArchitecture: %s\n\n", p.Name, v.SuiteVersion(s.Name), a)
 					}
 				}
 			}

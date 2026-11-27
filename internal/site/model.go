@@ -113,6 +113,18 @@ type Version struct {
 	Available     string   `json:"available"` // "Debian 12, 13, sid · Ubuntu 24.04, 26.04"
 	Missing       string   `json:"missing"`   // suites soportadas donde no está: "Debian 12"
 	Install       string   `json:"install"`
+	// Nivel 2 (specs/008-source-builds, research D13): la versión de cada
+	// suite (lleva su sufijo) y la orden para bajar el código fuente.
+	SuiteVersions map[string]string `json:"suite_versions,omitempty"`
+	Source        string            `json:"source,omitempty"`
+}
+
+// SuiteVersion es la versión del paquete en una suite.
+func (v Version) SuiteVersion(suite string) string {
+	if sv, ok := v.SuiteVersions[suite]; ok {
+		return sv
+	}
+	return v.Version
 }
 
 // Constantes de la fase 002 (docs/usuario.md del repositorio de paquetes).
@@ -247,14 +259,30 @@ func loadPackage(cfg *config.Config, root, name string, published []repo.Publish
 			}
 		}
 		for _, a := range cfg.Arches {
-			if _, ok := pub.Debs[a]; ok {
+			if pub.DebSHA(firstSuite(pub), a) != "" {
 				v.Architectures = append(v.Architectures, a)
 			}
+		}
+		if pub.Level2() {
+			v.SuiteVersions = map[string]string{}
+			for _, su := range pub.Suites {
+				v.SuiteVersions[su] = pub.SuiteVersion(su)
+			}
+			v.Install = "sudo apt install --allow-downgrades '" + name + "=" + pub.Version + "+*'"
+			v.Source = "apt-get source " + name
 		}
 		p.Versions = append(p.Versions, v)
 	}
 	slices.SortStableFunc(p.Versions, func(a, b Version) int { return CompareDebian(b.Version, a.Version) })
 	return p, nil
+}
+
+// firstSuite es la primera suite de una versión ("" si no tiene).
+func firstSuite(p repo.Published) string {
+	if len(p.Suites) == 0 {
+		return ""
+	}
+	return p.Suites[0]
 }
 
 // availability describe en texto dónde está una versión: las suites por

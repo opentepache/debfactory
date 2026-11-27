@@ -43,6 +43,9 @@ Esta fase hace realidad el nivel 2.
 - Q: Al agregar una suite, ¿los paquetes de nivel 2 publicados se compilan solos para ella? → A: sí;
   `main` compila, prueba y publica la versión actual solo para la suite nueva, con su sufijo, como
   amplía el nivel 1; si falla, queda pendiente, notificado y se reintenta (FR-012, FR-015).
+- Q: ¿Un paquete de nivel 2 puede producir varios binarios desde un fuente o binarios
+  `Architecture: all`? → A: no en esta fase; exactamente un paquete binario por fuente, con
+  `Architecture: any`; la validación rechaza lo demás (FR-003).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -200,7 +203,9 @@ mismos sha256 que los publicados y el repositorio de prueba no cambia.
   upstream). La carpeta `debian/` del manifiesto MUST NOT traer `changelog`.
 - **FR-003**: La validación MUST rechazar un manifiesto de nivel 2 sin justificación, sin código
   fuente verificable o sin los archivos obligatorios de `debian/`, y un `control` cuyo nombre de
-  paquete fuente no coincida con el del manifiesto.
+  paquete fuente no coincida con el del manifiesto. En esta fase el `control` MUST declarar
+  exactamente un paquete binario, con el mismo nombre que el fuente y `Architecture: any`; varios
+  `Package:` o `Architecture: all` se rechazan con un mensaje claro.
 
 **Construcción**
 
@@ -301,8 +306,8 @@ mismos sha256 que los publicados y el repositorio de prueba no cambia.
 - El detector de versiones (fase 005) no propone versiones nuevas de paquetes de nivel 2 en esta
   fase; el mantenedor las sube a mano con un PR.
 - **Fuera de alcance**: compilación cruzada (cada arquitectura compila en su propio entorno,
-  emulado si hace falta), paquetes fuente con varios binarios por suite más allá de lo que declare
-  el `control` estándar, parches de Debian (quilt) más allá de lo que soporte el formato estándar,
+  emulado si hace falta), paquetes fuente con varios binarios o con binarios `Architecture: all`
+  (FR-003), parches de Debian (quilt) más allá de lo que soporte el formato estándar,
   y el detector para nivel 2.
 - **Dependencias**: constitución v1.8.0 (II, III, VI, VII); fases 001 (gates), 002 (repositorio y
   pool), 003 (pipeline y auditoría), 006 (sitio) y 007 (suites configurables).

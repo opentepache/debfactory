@@ -49,6 +49,13 @@ versiones actuales a las que les falta una suite configurada no excluida, las pr
 gates y las amplía en la misma publicación (entrada `extend` en la auditoría); una que falla se
 reintenta en la ejecución siguiente. `ci rebuild` de una versión así también la amplía.
 
+Fase 008 (specs/008-source-builds, contracts/build.md): los gates de un paquete de nivel 2 generan
+el paquete fuente por suite, compilan dos veces cada suite y arquitectura en contenedores limpios
+(etapas `source`, `build`, `compare`), pasan lintian y prueban cada binario en su suite con la
+prueba de ciclo de vida (`lifecycle`). La comparación de FR-010 y la de una ampliación usan las
+claves `<suite>/<arch>` y `<suite>/dsc`: cada archivo ya publicado debe salir idéntico; solo las
+suites nuevas se publican.
+
 Fase 006 (specs/006-repo-website, research D5): con `site.enabled: true`, `ci main` (también
 sin nada que publicar), `ci retire` y `ci refresh` terminan con un paso `site` que genera el sitio
 web desde la generación vigente y lo sube a `ci.destination`. Un fallo se notifica con la etapa
