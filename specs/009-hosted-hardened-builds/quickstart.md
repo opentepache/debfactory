@@ -26,7 +26,7 @@ Requisito: `opentepache/debfactory` público y la regla de commits firmados en `
 1. PR con ghostty: `l2-source`, `l2-build` (8 combinaciones: trixie, forky × amd64, arm64 × 2) y
    `test` (4 combinaciones) corren en paralelo en runners estándar; `review` comenta Scorecard y el
    resumen. Ningún job usa runners propios.
-2. Tiempo de reloj hasta tener todos los informes < 30 min (SC-002).
+2. Desde el push hasta tener todos los artefactos e informes < 30 min (SC-002).
 3. Integrar: el runner `pub` hace `debfactory accept` (atestaciones, doble compilación, lintian,
    reconstrucción del nivel 1, prueba de humo amd64) y publica.
 

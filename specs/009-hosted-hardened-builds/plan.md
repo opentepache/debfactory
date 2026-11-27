@@ -78,8 +78,9 @@ fijada (buf y aqua; fnm y bob sin firma de upstream), tepache-hello sigue igual.
 | IX. Simplicidad | Runners estándar gratuitos sin secretos ni escritura; verificación independiente y respaldo local en la PC; un solo runner propio; `cosign`/`minisign` de Debian (1.11.0) | ✅ |
 | X. IA | Resumen con GitHub Models en job sin secretos ni escritura; lo publica un job sin IA; no bloquea | ✅ |
 
-**Gate**: pasa. Las enmiendas necesarias (III, VII, IX) ya están en la constitución 1.11.0
-(2026-11-27). Re-check tras el diseño: sin violaciones.
+**Gate**: pasa. Las enmiendas necesarias (III, VII, IX) están en la constitución 1.11.0, y la 1.11.1
+aclara que los runners de GitHub pueden construir paquetes de cualquier nivel (análisis C1).
+Re-check tras el diseño: sin violaciones.
 
 ## Project Structure
 

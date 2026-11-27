@@ -26,7 +26,7 @@ se comprueba en cada fase y al final.
 ## Phase 1: Setup (mediciones y acciones del mantenedor)
 
 - [ ] T001 **(manual-asistido)** Medir con contenedores: (a) diferencias entre `ghostty-1.4.0.tar.gz` de `release.files.ghostty.org` y el archivo del tag `v1.4.0` de GitHub (archivos añadidos o distintos, sin el directorio superior); (b) `cosign verify-blob-attestation` contra una atestación de GitHub real de `aqua_linux_amd64.tar.gz` (emisor, identidad del workflow de aqua, ref del tag). Anotar resultados en `specs/009-hosted-hardened-builds/research.md` § D9 y § D11 ("Resultado de la medición").
-- [ ] T002 **(manual)** El mantenedor: revisa el historial y hace público `opentepache/debfactory` (Settings → General); en `opentepache/packages` activa "Require signed commits" en `main` y, en ambos repositorios, "Require approval for all external contributors" para workflows de forks. Registro en `docs/operacion-ci.md` § 10 (T046).
+- [X] T002 **(manual)** El mantenedor: revisa el historial y hace público `opentepache/debfactory` (hecho 2026-11-27) y, en ambos repositorios, activa "Require approval for all external contributors" para workflows de forks. La regla "Require signed commits" en `main` de `packages` se activa en T049, cuando los commits del bot ya salgan firmados (research D19): activarla antes bloquearía las PR de estado. Registro en `docs/operacion-ci.md` § 10 (T046).
 
 ---
 
@@ -60,7 +60,7 @@ se comprueba en cada fase y al final.
 - [ ] T015 [US1] Componente `.orig-zigdeps.tar.xz` en `internal/srcpkg/srcpkg.go`: tar determinista (orden fijo, `0:0`, mtime del lockfile, `xz -9`) de las dependencias verificadas, nombre `<p>_<upstream>.orig-zigdeps.tar.xz`, extraído por `dpkg-source -x` en `zigdeps/`; `debian/upstream/toolchain` con nombre, versión, URL y sha256 por arquitectura; el script de `dpkg-source -b` lo incluye. Tests sin Docker (sha256 estable entre dos ejecuciones).
 - [ ] T016 [US1] `srcbuild` con toolchain (`internal/srcbuild/srcbuild.go`): monta el toolchain verificado en `/opt/toolchain` (solo lectura) y lo pone en `PATH` del usuario que compila; la compilación sigue sin red; `buildTimeout` configurable (`level2.timeout`, por defecto 90 min). Tests con el falso de `internal/build`.
 - [ ] T017 [US1] Paquete `ghostty` en `testdata/fixtures/ghostty/` (y luego en `packages`, T049): manifiesto (`level: 2`, `justification`, `source` de `release.files.ghostty.org` con `signing.minisign` de `PACKAGING.md`, `toolchain` Zig 0.17.0 con su llave minisign, `deps.manager: zig` con `exclude_paths: [example/]`, `exclude.suites` sid/bookworm/noble con motivo, `test: {command: "ghostty +version", expect: "1.4.0"}`) y `debian/` (`control` con los `Build-Depends` de research D14, `rules` con `zig build --system zigdeps -fno-sys=harfbuzz -Doptimize=ReleaseFast -Dcpu=baseline -Dversion-string=$(DEB_VERSION_UPSTREAM) --prefix /usr` y `DESTDIR`, `copyright` con las licencias de las dependencias).
-- [ ] T018 [P] [US1] Gate de licencias de las dependencias (research Riesgo 2) en `internal/license/`: cada dependencia de Zig con su licencia detectada (archivo LICENSE/COPYING del árbol) y SPDX en la allowlist; falla si alguna no está; el informe la lista. Tests.
+- [ ] T018 [P] [US1] Gate de licencias de las dependencias (FR-027, research Riesgo 2) en `internal/license/`: cada dependencia de Zig con su licencia detectada (archivo LICENSE/COPYING del árbol) y SPDX en la allowlist; falla si alguna no está; el informe la lista. Tests.
 - [ ] T019 [US1] E2E `TestE2EGhosttyLocal` en `internal/repotest/ghostty_test.go` (tag `e2e`, fuera de `just e2e` por duración; receta `just e2e-ghostty`): `lock` y `build --suite trixie --arch amd64` en contenedores; dos variantes idénticas; `ghostty +version` = `1.4.0` en la prueba de instalación; anota tiempo y memoria.
 
 **Checkpoint**: ghostty compila en local; las verificaciones de toolchain, dependencias y firma bloquean lo alterado.
@@ -114,6 +114,7 @@ se comprueba en cada fase y al final.
 - [ ] T036 [US7] Sitio en `internal/site/`: página `/<p>/<versión>/` con la procedencia (es/en), enlace desde la página del paquete y desde cada versión; `provenance.json` publicado junto al sitio; plantilla y textos en `internal/site/templates/` e `internal/site/i18n/`. Tests de render y de accesibilidad (`internal/repotest/a11y_test.go`).
 - [ ] T037 [US7] `debfactory verify <p> <versión> [--suite S --arch A]` en `internal/verify/verify.go` (paquete nuevo) y `cmd/debfactory/main.go`: sin credenciales; baja `provenance.json`, el `InRelease` y el `.deb` del repositorio público; verifica la firma con el keyring publicado (`gpgv`), la atestación con `cosign` y reconstruye (nivel 1) o recompila (nivel 2 siguiendo la guía) en contenedores; informa "verificado" o "no verificado: <motivo>". Tests de integración con un repositorio de prueba.
 - [ ] T038 [US7] E2E `TestE2EVerify` en `internal/repotest/verify_test.go`: publicar tepache-hello y un paquete de nivel 1 en el repositorio de prueba, servir el sitio y verificar ambos desde un contenedor limpio; alterar el `.deb` servido → "no verificado" (SC-007).
+- [ ] T051 [US7] Guía de recompilación con toolchain (FR-024a): ampliar `testdata/project/docs/recompilar-nivel2.md` con un bloque `debfactory:toolchain` (leer `debian/upstream/toolchain`, descargar, verificar sha256 y firma con `minisign`, añadir al `PATH`), y E2E `TestE2ERebuildToolchain` en `internal/repotest/level2_test.go` que la siga en un contenedor limpio con un fixture de nivel 2 con toolchain pequeño (p. ej. tepache-hello compilado con `zig cc` desde Zig oficial) y compare el sha256.
 - [ ] T039 [P] [US7] `ci doctor` en `internal/ci/doctor.go`: comprueba la regla "Require signed commits" de `main` en `packages` y que `debfactory` es público (API). Tests contra `FakeGitHub`.
 - [ ] T040 [P] [US7] Guía de verificación en `testdata/project/docs/usuario.md` (plantilla para `packages`): qué garantiza OpenTepache (integridad, procedencia, reproducibilidad, retiro rápido) y qué no (que upstream sea de fiar), cómo leer la página de procedencia y cómo usar `debfactory verify` (FR-019, FR-024).
 
@@ -142,10 +143,10 @@ se comprueba en cada fase y al final.
 
 ## Phase 9: Polish, US6 y cierre
 
-- [ ] T046 [P] `docs/operacion-ci.md` § 10 "Fase 009": modelo (GitHub compila y prueba, la PC verifica y publica), modo local, toolchains y dependencias, firmas fijadas, tarball contra tag, exclusión de arquitecturas, retiro del runner `ci`, transparencia y `verify`, acciones del mantenedor (T002).
+- [ ] T046 [P] `docs/operacion-ci.md` § 10 "Fase 009": modelo (GitHub compila y prueba, la PC verifica y publica), modo local, actualizaciones de nivel 2 por PR manual (el detector las omite), toolchains y dependencias, firmas fijadas, tarball contra tag, exclusión de arquitecturas, retiro del runner `ci`, transparencia y `verify`, acciones del mantenedor (T002).
 - [ ] T047 [P] Notas en specs anteriores: `specs/003-ci-pipeline/contracts/runner-host.md` y `workflows.md` (solo `pub`, jobs hospedados), `specs/008-source-builds/research.md` D1′/D2/D15 (dónde corre el nivel 2 ahora).
 - [ ] T048 US6: `just check` y `just e2e` en verde; `TestLevel1Unchanged` y la E2E de tepache-hello sin cambios (SC-006); `migrate layout` aplicado a `testdata/project` sin cambiar ningún `.deb`.
-- [ ] T049 **(manual)** `just tool-install`; PR en `packages`: herramienta nueva, workflows (T031), `migrate layout`, firmas de buf y aqua (T023), y ghostty (T017); comprobar en la PR los jobs hospedados, el informe de cadena de suministro, Scorecard y el resumen; integrar y comprobar la publicación de ghostty en trixie y forky (amd64, arm64), `apt install ghostty` y `ghostty +version` (SC-001, SC-002), su página de procedencia y `debfactory verify` (SC-007).
+- [ ] T049 **(manual)** `just tool-install`; activar "Require signed commits" en `main` de `packages` (agregarlo al ruleset "package"); PR en `packages`: herramienta nueva, workflows (T031), `migrate layout`, firmas de buf y aqua (T023), y ghostty (T017); comprobar en la PR los jobs hospedados, el informe de cadena de suministro, Scorecard y el resumen; integrar y comprobar la publicación de ghostty en trixie y forky (amd64, arm64), `apt install ghostty` y `ghostty +version` (SC-001, SC-002), su página de procedencia y `debfactory verify` (SC-007).
 - [ ] T050 **(manual)** Retirar el runner `ci` (`ci/runner/setup.sh --remove ci`) tras una semana sin incidentes de los workflows nuevos; `ci doctor` en verde (SC-008).
 
 ---
@@ -157,7 +158,7 @@ se comprueba en cada fase y al final.
 - US1: T011 → T012 → T013 → T014 → T015 → T016 → T017 → T019; T018 en paralelo tras T012.
 - US4: T020 y T021 tras T009; T022 tras T020, T021 y T026; T023 tras T010.
 - US2: T024–T027 tras US1; T028 → T029 → T030; T031 y T032 tras T024–T027; T033 en paralelo; T034 tras T031 y T002.
-- US7: T035 tras T029; T036 y T037 tras T035; T038 tras T037; T039 y T040 en paralelo.
+- US7: T035 tras T029; T036 y T037 tras T035; T038 tras T037; T051 tras T016 y T037; T039 y T040 en paralelo.
 - US3: tras la fase 2; T042 tras T041.
 - US5: T044 en paralelo; T045 tras T026.
 - Polish al final; T049 tras T048; T050 tras T049.

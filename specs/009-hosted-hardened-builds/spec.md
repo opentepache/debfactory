@@ -62,7 +62,7 @@ upstream `zig build --fetch` y `fetch-zig-cache.sh` no sirven); Zig 0.17.1 falla
 El mantenedor declara ghostty como paquete de nivel 2 con su toolchain de upstream (Zig 0.17.0) y
 sus opciones de compilación en la carpeta `debian/`; la herramienta verifica el toolchain y todas las
 dependencias del lenguaje antes de compilar, compila sin red en cada suite y arquitectura no
-excluida, y la versión se publica tras las pruebas locales.
+excluida, y la versión se publica tras las pruebas y la verificación independiente de la PC.
 
 **Why this priority**: es el objetivo de la fase; sin esto ghostty no se puede publicar.
 
@@ -97,8 +97,8 @@ firma y publica. Las PR corren enteras en GitHub y el runner propio de PR se ret
 crece con cada paquete y suite; además saca de la PC la ejecución de código de upstream y de PR, y
 reduce la infraestructura propia a un solo runner.
 
-**Independent Test**: una versión de tepache-hello y otra de ghostty se compilan en los runners de
-GitHub y se publican desde la PC; un artefacto sin atestación, con atestación de otro workflow o
+**Independent Test**: tepache-hello (en una PR de prueba, sin integrar: nunca va a producción) y
+ghostty (integrado y publicado desde la PC) se compilan y prueban en los runners de GitHub; un artefacto sin atestación, con atestación de otro workflow o
 commit, o con compilaciones distintas, no se publica.
 
 **Acceptance Scenarios**:
@@ -273,6 +273,9 @@ Los paquetes de nivel 1 y tepache-hello se siguen construyendo, probando y publi
   prepara una vez por versión y sirve a todas las suites y arquitecturas.
 - **FR-005**: Las opciones de compilación de cada paquete MUST vivir en su carpeta `debian/`
   estándar; la herramienta MUST NOT tener casos especiales por paquete.
+- **FR-027**: Cada dependencia del lenguaje MUST pasar el gate de licencias (principio IV): su
+  licencia se detecta en su propio árbol, MUST estar en la allowlist y se lista en
+  `debian/copyright`; si alguna no pasa, la versión falla antes de compilar.
 
 **Arquitecturas**
 
@@ -341,6 +344,9 @@ Los paquetes de nivel 1 y tepache-hello se siguen construyendo, probando y publi
   upstream y resultado de firma, procedencia y tarball contra tag; commit del manifiesto; run;
   atestación con enlace al registro público de transparencia; `.buildinfo` (nivel 2); resultados de
   pruebas por suite y arquitectura; entrada de auditoría.
+- **FR-024a**: La guía de recompilación de nivel 2 MUST incluir el paso del toolchain (leer
+  `debian/upstream/toolchain` del paquete fuente, descargarlo, verificar su sha256 y su firma y
+  ponerlo en el `PATH`), y una prueba automática MUST seguirla con un paquete que use toolchain.
 - **FR-024**: `debfactory verify <paquete> <versión> [--suite S --arch A]` MUST poder ejecutarlo un
   tercero sin credenciales: verifica la firma del repositorio, la atestación y reconstruye (nivel 1)
   o recompila (nivel 2, siguiendo la guía) para comparar el sha256; informa "verificado" o "no
@@ -378,8 +384,9 @@ Los paquetes de nivel 1 y tepache-hello se siguen construyendo, probando y publi
 
 - **SC-001**: ghostty 1.4.0 se publica en todas sus suites no excluidas para amd64 y arm64, se
   instala con `apt` en un contenedor limpio de cada una y `ghostty +version` informa `1.4.0`.
-- **SC-002**: La compilación de una versión de ghostty (todas sus suites y arquitecturas, dos veces)
-  termina en menos de 30 minutos de reloj, sin costo económico.
+- **SC-002**: Desde el push hasta tener todos los artefactos e informes de prueba de una versión de
+  ghostty (todas sus suites y arquitecturas, compilada dos veces) pasan menos de 30 minutos de reloj,
+  sin costo económico.
 - **SC-003**: El 100 % de estos casos falla antes de compilar en las pruebas: dependencia alterada,
   toolchain con otro sha256, tarball con un archivo que no está en el tag, firma con otra llave,
   procedencia de otro repositorio, artefacto sin atestación o de otro workflow.
@@ -414,4 +421,6 @@ Los paquetes de nivel 1 y tepache-hello se siguen construyendo, probando y publi
 - El resumen del cambio entre versiones lo genera GitHub Models en un job sin secretos (principio X,
   clarify); el uso gratuito tiene límites, suficientes para unas pocas actualizaciones al día.
 - Fuera de alcance: compilación cruzada, runners de pago o propios arm64, tests de upstream durante
-  la compilación, antivirus.
+  la compilación, antivirus, y que el detector de versiones (fase 005) maneje paquetes de nivel 2:
+  sigue omitiéndolos, así que las versiones nuevas de ghostty se suben por PR manual (con `debfactory
+  lock`); el resumen con IA y Scorecard aplican igual a esas PR.

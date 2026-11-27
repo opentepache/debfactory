@@ -161,7 +161,8 @@ confianza en un repositorio de terceros solo es legítima si cualquiera puede co
   hosting estático; no se introducen servicios propios que requieran infraestructura adicional.
 - **Runners de GitHub**: mientras el repositorio de paquetes sea público, los runners estándar
   gratuitos de GitHub Actions (p. ej. `ubuntu-24.04` y `ubuntu-24.04-arm`; nunca runners "larger"
-  ni de pago) MAY compilar los paquetes de nivel 2, ejecutar la matriz de pruebas de cualquier nivel
+  ni de pago) MAY construir los paquetes de cualquier nivel (incluida la compilación de los de nivel
+  2), ejecutar la matriz de pruebas de cualquier nivel
   (lintian, instalación y ciclo de vida por suite y arquitectura no excluida, `arm64` nativo) y todo
   lo de las pull requests. Reglas:
   - esos jobs MUST correr sin secretos y sin permisos de escritura sobre el repositorio (solo los de
@@ -279,4 +280,4 @@ se notifica según el principio VIII:
   de los principios I–X en su sección "Constitution Check". Toda desviación MUST justificarse en
   la tabla de seguimiento de complejidad del plan o el plan no se aprueba.
 
-**Version**: 1.11.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-27
+**Version**: 1.11.1 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-27

@@ -4,6 +4,8 @@
 
 ```text
 debfactory lock <pkg>                         # + toolchain, deps de Zig, tarball contra tag, firmas, procedencia
+# Modo job hospedado (cada orden deja sus archivos en DIR para upload-artifact):
+debfactory build <pkg> --arch A --out DIR     # nivel 1
 debfactory level2 source <pkg> --out DIR      # en job hospedado (red): verifica todo y genera los paquetes fuente
 debfactory level2 build <pkg> --suite S --arch A --variant V --source DIR --out DIR
                                               # en job hospedado: toolchain, build-deps, red cortada, dpkg-buildpackage
