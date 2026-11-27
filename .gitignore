@@ -5,3 +5,9 @@ bin/
 ci/runner/*.tar.gz
 *.test
 *.out
+
+# Archivos locales de Claude Code: nunca al repositorio (sesiones, ajustes
+# locales, memoria). Solo se versionan las skills de Spec Kit.
+.claude/*
+!.claude/skills/
+CLAUDE.local.md
