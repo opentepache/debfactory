@@ -47,6 +47,19 @@ aporta algo que el binario upstream no puede dar.
   descargarse del mismo release o del repositorio upstream fijado al tag exacto de la versión.
   Su URL MUST derivarse del repositorio y del tag declarados en el manifiesto (nunca ser libre)
   y su hash MUST registrarse en el lockfile del paquete.
+- **Nivel 2: toolchain y dependencias del lenguaje.** Además de las URLs de release declaradas, un
+  paquete de nivel 2 MAY descargar (a) un toolchain oficial de upstream declarado en el manifiesto,
+  verificado por el sha256 registrado en el lockfile y, si upstream lo firma, por su firma; y (b) las
+  dependencias que declara el gestor de paquetes del lenguaje dentro del fuente ya verificado, cada
+  una con exactamente el hash declarado por upstream y su sha256 registrado en el lockfile.
+- **Llaves de upstream fijadas.** Si upstream firma sus releases (minisign, GPG o identidad de
+  sigstore), su llave o identidad MUST fijarse en el manifiesto, en nivel 1 y nivel 2; una firma
+  ausente o de otra llave MUST hacer fallar la versión. Si upstream publica procedencia
+  (atestaciones o SLSA), MUST verificarse contra el repositorio y el tag declarados.
+- **Tarball contra tag (nivel 2).** Los archivos del tarball de release que no estén en el tag de
+  git de upstream, o que difieran, MUST hacer fallar la versión salvo los declarados en el manifiesto
+  por ruta exacta, con motivo, y con su sha256 en el lockfile.
+- Los commits a la rama `main` del repositorio de paquetes MUST ir firmados (mantenedor y App).
 - El repositorio APT y sus índices MUST ir siempre firmados con GPG.
 - La llave privada de firma MUST NOT residir en el repositorio de código ni aparecer en logs, y
   MUST tener un respaldo documentado fuera de la máquina de build.
@@ -122,7 +135,15 @@ la confianza de APT.
 - Si la prueba falla en cualquier suite o arquitectura no excluida, el paquete MUST NOT
   publicarse en ninguna.
 
-*Rationale*: un repositorio parcialmente roto es peor que una actualización retrasada.
+- **Transparencia**: la herramienta que construye, verifica y firma MUST ser pública. Cada versión
+  publicada MUST tener en el sitio su procedencia verificable: origen upstream y resultado de sus
+  verificaciones, commit del manifiesto, run que la produjo, atestación en el registro público de
+  transparencia, `.buildinfo` (nivel 2), resultados de las pruebas y su entrada de auditoría. MUST
+  existir una orden documentada con la que un tercero verifique un paquete publicado sin confiar en
+  el mantenedor ni en GitHub.
+
+*Rationale*: un repositorio parcialmente roto es peor que una actualización retrasada, y la
+confianza en un repositorio de terceros solo es legítima si cualquiera puede comprobarlo.
 
 ### VIII. Automatización sin humanos en el camino feliz
 
@@ -136,37 +157,36 @@ la confianza de APT.
 ### IX. Simplicidad operativa
 
 - Se MUST preferir herramientas estándar, maduras y empaquetadas en Debian.
-- Toda la operación MUST correr en una sola PC Debian (amd64, 16 núcleos, 31 GB RAM) más un
-  hosting estático; no se introducen servicios que requieran infraestructura adicional. Única
-  excepción, la compilación de nivel 2 (ver abajo).
-- **Compilación de nivel 2 en runners de GitHub**: los paquetes de nivel 2 MAY compilarse en
-  runners estándar hospedados por GitHub Actions (las etiquetas gratuitas para repositorios
-  públicos, p. ej. `ubuntu-24.04` y `ubuntu-24.04-arm`; nunca runners "larger" ni de pago), en
-  paralelo por suite, arquitectura y compilación, dentro del contenedor oficial de la suite. Reglas:
-  - esos jobs MUST correr sin secretos y con permisos de solo lectura;
-  - cada artefacto MUST llevar una atestación de procedencia de GitHub que el runner `pub`
-    verifique (repositorio, workflow y commit) antes de usarlo;
-  - las dos compilaciones de la doble compilación MUST correr en jobs distintos y dar el mismo
-    resultado byte a byte;
-  - las pruebas (lintian, instalación y ciclo de vida por suite y arquitectura), la firma y la
-    publicación MUST seguir en la PC del mantenedor;
-  - el repositorio de paquetes MUST ser público mientras se use esta vía; si deja de serlo, el
-    nivel 2 vuelve a compilarse en la PC;
+- Toda la operación propia MUST correr en una sola PC Debian (amd64, 16 núcleos, 31 GB RAM) más un
+  hosting estático; no se introducen servicios propios que requieran infraestructura adicional.
+- **Runners de GitHub**: mientras el repositorio de paquetes sea público, los runners estándar
+  gratuitos de GitHub Actions (p. ej. `ubuntu-24.04` y `ubuntu-24.04-arm`; nunca runners "larger"
+  ni de pago) MAY compilar los paquetes de nivel 2, ejecutar la matriz de pruebas de cualquier nivel
+  (lintian, instalación y ciclo de vida por suite y arquitectura no excluida, `arm64` nativo) y todo
+  lo de las pull requests. Reglas:
+  - esos jobs MUST correr sin secretos y sin permisos de escritura sobre el repositorio (solo los de
+    identidad y atestación);
+  - cada artefacto e informe de prueba MUST llevar una atestación de procedencia;
+  - las dos compilaciones de la doble compilación de nivel 2 MUST correr en jobs distintos;
   - si un paquete no cabe en un runner estándar (memoria, disco o tiempo), se excluye esa
     arquitectura en su manifiesto con su motivo (Alcance, exclusiones).
-
-  El nivel 1 sigue construyéndose en la PC. Esta vía no introduce servicios propios ni secretos
-  fuera de la PC.
+- **Verificación independiente en la PC**: antes de firmar, la PC (el único runner propio
+  necesario, `pub`) MUST verificar las atestaciones (repositorio, workflow y commit esperados), que
+  la doble compilación de nivel 2 sea idéntica, lintian sobre todos los `.deb`, la reconstrucción
+  local del nivel 1 con el mismo sha256 y una prueba de humo de instalación en `amd64`. Solo la PC
+  firma, publica y sincroniza.
+- **Respaldo**: si GitHub no está disponible o el repositorio de paquetes deja de ser público, la PC
+  MUST poder construir, probar y publicar todo localmente.
 - El hosting público es almacenamiento estático S3-compatible (actualmente Cloudflare R2). El
   diseño MUST ser agnóstico del proveedor: solo se usan operaciones del API S3 estándar, y el
   proveedor, endpoint y bucket se configuran, nunca se codifican.
 - Todo componente nuevo MUST poder explicarse en un párrafo y operarse con un comando documentado.
 
 *Rationale*: lo que no se puede explicar ni operar en un comando no se mantendrá en tiempo libre,
-y cambiar de proveedor de hosting no debe requerir cambiar código. Compilar desde el código fuente
-en `arm64` emulado tarda horas en la PC; los runners gratuitos lo hacen en minutos y en paralelo, y
-como no reciben secretos ni firman, la confianza en lo publicado sigue en la PC (atestación, doble
-compilación idéntica, pruebas propias).
+y cambiar de proveedor de hosting no debe requerir cambiar código. El cómputo pesado (compilar
+desde el código fuente, `arm64` nativo, la matriz de pruebas) crece con cada paquete y suite; en los
+runners gratuitos no carga la PC, y como no reciben secretos ni firman, la confianza en lo publicado
+sigue en la PC, que verifica de forma independiente antes de firmar.
 
 ### X. La IA propone, el pipeline decide
 
@@ -259,4 +279,4 @@ se notifica según el principio VIII:
   de los principios I–X en su sección "Constitution Check". Toda desviación MUST justificarse en
   la tabla de seguimiento de complejidad del plan o el plan no se aprueba.
 
-**Version**: 1.10.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-27
+**Version**: 1.11.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-27
