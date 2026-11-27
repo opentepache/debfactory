@@ -118,8 +118,9 @@ la confianza de APT.
   seguridad, licencia o copyright MUST NOT silenciarse; su lista se mantiene versionada en la
   configuración compartida.
 - Todo paquete MUST pasar una prueba de instalación real en un contenedor limpio de cada suite
-  soportada (no excluida) y de cada arquitectura soportada antes de publicarse.
-- Si la prueba falla en cualquier suite no excluida, el paquete MUST NOT publicarse en ninguna.
+  soportada no excluida y de cada arquitectura soportada no excluida antes de publicarse.
+- Si la prueba falla en cualquier suite o arquitectura no excluida, el paquete MUST NOT
+  publicarse en ninguna.
 
 *Rationale*: un repositorio parcialmente roto es peor que una actualización retrasada.
 
@@ -136,14 +137,36 @@ la confianza de APT.
 
 - Se MUST preferir herramientas estándar, maduras y empaquetadas en Debian.
 - Toda la operación MUST correr en una sola PC Debian (amd64, 16 núcleos, 31 GB RAM) más un
-  hosting estático; no se introducen servicios que requieran infraestructura adicional.
+  hosting estático; no se introducen servicios que requieran infraestructura adicional. Única
+  excepción, la compilación de nivel 2 (ver abajo).
+- **Compilación de nivel 2 en runners de GitHub**: los paquetes de nivel 2 MAY compilarse en
+  runners estándar hospedados por GitHub Actions (las etiquetas gratuitas para repositorios
+  públicos, p. ej. `ubuntu-24.04` y `ubuntu-24.04-arm`; nunca runners "larger" ni de pago), en
+  paralelo por suite, arquitectura y compilación, dentro del contenedor oficial de la suite. Reglas:
+  - esos jobs MUST correr sin secretos y con permisos de solo lectura;
+  - cada artefacto MUST llevar una atestación de procedencia de GitHub que el runner `pub`
+    verifique (repositorio, workflow y commit) antes de usarlo;
+  - las dos compilaciones de la doble compilación MUST correr en jobs distintos y dar el mismo
+    resultado byte a byte;
+  - las pruebas (lintian, instalación y ciclo de vida por suite y arquitectura), la firma y la
+    publicación MUST seguir en la PC del mantenedor;
+  - el repositorio de paquetes MUST ser público mientras se use esta vía; si deja de serlo, el
+    nivel 2 vuelve a compilarse en la PC;
+  - si un paquete no cabe en un runner estándar (memoria, disco o tiempo), se excluye esa
+    arquitectura en su manifiesto con su motivo (Alcance, exclusiones).
+
+  El nivel 1 sigue construyéndose en la PC. Esta vía no introduce servicios propios ni secretos
+  fuera de la PC.
 - El hosting público es almacenamiento estático S3-compatible (actualmente Cloudflare R2). El
   diseño MUST ser agnóstico del proveedor: solo se usan operaciones del API S3 estándar, y el
   proveedor, endpoint y bucket se configuran, nunca se codifican.
 - Todo componente nuevo MUST poder explicarse en un párrafo y operarse con un comando documentado.
 
 *Rationale*: lo que no se puede explicar ni operar en un comando no se mantendrá en tiempo libre,
-y cambiar de proveedor de hosting no debe requerir cambiar código.
+y cambiar de proveedor de hosting no debe requerir cambiar código. Compilar desde el código fuente
+en `arm64` emulado tarda horas en la PC; los runners gratuitos lo hacen en minutos y en paralelo, y
+como no reciben secretos ni firman, la confianza en lo publicado sigue en la PC (atestación, doble
+compilación idéntica, pruebas propias).
 
 ### X. La IA propone, el pipeline decide
 
@@ -184,6 +207,19 @@ reside solo en el pipeline determinista y en el mantenedor.
   upstream requiere una glibc más nueva que la de `bookworm`), documentando el motivo. Excluir una
   suite no bloquea la publicación en las demás; las suites excluidas no cuentan para la regla de
   "falla en una, no se publica en ninguna" del principio VII.
+- **Exclusión de arquitecturas por paquete**: un manifiesto MAY excluir una arquitectura
+  soportada concreta, documentando el motivo, cuando compilarla o probarla no sea viable con los
+  recursos del principio IX (p. ej. un paquete de nivel 2 que tarda más de una hora por
+  compilación en `arm64` emulado). Reglas:
+  - excluir una arquitectura no bloquea la publicación en las demás; las arquitecturas excluidas
+    no cuentan para la regla "falla en una, no se publica en ninguna" (VII) ni para el gate 6;
+  - un paquete MUST conservar al menos una arquitectura soportada;
+  - quitar la exclusión amplía la versión vigente a esa arquitectura con el mismo mecanismo que
+    una suite nueva, sin reescribir lo ya publicado;
+  - el sitio y la documentación de usuario MUST mostrar en qué arquitecturas está cada paquete.
+
+  Las arquitecturas soportadas del repositorio siguen fijas (ver arriba); excluir una en un
+  paquete no es ampliarlas ni reducirlas.
 - **Hosting público**: almacenamiento estático S3-compatible (Cloudflare R2), con diseño
   agnóstico del proveedor (ver IX).
 - **Solo versiones estables**: debfactory MUST empaquetar únicamente versiones estables y de
@@ -206,7 +242,7 @@ se notifica según el principio VIII:
 4. **Construcción** reproducible en entorno limpio (II, VII).
 5. **lintian** sin errores (VII).
 6. **Prueba de instalación** en contenedor limpio por cada suite no excluida y cada
-   arquitectura soportada (VII).
+   arquitectura soportada no excluida (VII).
 7. **Publicación atómica** en el repositorio con índices firmados con GPG (III, VI).
 
 ## Governance
@@ -223,4 +259,4 @@ se notifica según el principio VIII:
   de los principios I–X en su sección "Constitution Check". Toda desviación MUST justificarse en
   la tabla de seguimiento de complejidad del plan o el plan no se aprueba.
 
-**Version**: 1.8.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-26
+**Version**: 1.10.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-27
