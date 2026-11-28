@@ -17,6 +17,7 @@ import (
 	"debfactory/internal/report"
 	"debfactory/internal/srcbuild"
 	"debfactory/internal/srcpkg"
+	"debfactory/internal/supply"
 )
 
 // Env reúne lo que comparten lock y build.
@@ -43,7 +44,10 @@ type Env struct {
 	BinaryBuild func(ctx context.Context, spec srcbuild.Spec, out string) (*srcbuild.Binary, error)
 	// Sigstore verifica bundles de sigstore (por defecto cosign en un
 	// contenedor; las pruebas lo sustituyen).
-	Sigstore func(ctx context.Context, s *manifest.SigstoreSig, file, bundle string) error
+	Sigstore func(ctx context.Context, s *manifest.SigstoreSig, o supply.Origin, file, bundle string) error
+	// Provenance comprueba la procedencia de upstream de un archivo (por
+	// defecto, atestaciones de GitHub verificadas con cosign; specs/009).
+	Provenance func(ctx context.Context, repo, tag, file, sha256 string) (*supply.Provenance, error)
 	// ZigFetcher crea el ZigFetcher (por defecto zig fetch en un contenedor).
 	ZigFetcher ZigFetcherFactory
 }

@@ -144,3 +144,33 @@ func LicenseURL(repo, tag, p string) string {
 	}
 	return "https://" + rawHost + "/" + repo + "/" + neturl.PathEscape(tag) + "/" + strings.Join(segs, "/")
 }
+
+// Attestations devuelve los bundles de sigstore de las atestaciones de GitHub
+// del repositorio para un digest sha256 (specs/009, research D11). Sin
+// atestaciones (404) devuelve una lista vacía. Solo usa los bundles que
+// vienen en la respuesta; no sigue bundle_url (otro dominio).
+func (g *GitHub) Attestations(ctx context.Context, repo, sha256 string) ([]json.RawMessage, error) {
+	var out struct {
+		Attestations []struct {
+			Bundle json.RawMessage `json:"bundle"`
+		} `json:"attestations"`
+	}
+	code, err := g.getJSON(ctx, "/repos/"+repo+"/attestations/sha256:"+sha256, &out)
+	if err != nil {
+		return nil, err
+	}
+	switch code {
+	case http.StatusOK:
+	case http.StatusNotFound:
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("API de GitHub: atestaciones de %s: HTTP %d", repo, code)
+	}
+	var bundles []json.RawMessage
+	for _, a := range out.Attestations {
+		if len(a.Bundle) > 0 && string(a.Bundle) != "null" {
+			bundles = append(bundles, a.Bundle)
+		}
+	}
+	return bundles, nil
+}

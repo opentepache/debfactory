@@ -110,7 +110,7 @@ func TestBuildLevel2(t *testing.T) {
 	if len(f.builds) != len(suites)*2*2 {
 		t.Errorf("compilaciones = %d (%v)", len(f.builds), f.builds)
 	}
-	want := []string{"tepache-hello_1.0.0.orig.tar.gz"}
+	want := []string{"tepache-hello_1.0.0.orig.tar.gz", "tepache-hello_1.0.0.supply.json"}
 	suffix := map[string]string{"bookworm": "deb12", "trixie": "deb13", "noble": "u2404"}
 	for _, s := range suites {
 		v := "1.0.0-0~tepache1+" + suffix[s]

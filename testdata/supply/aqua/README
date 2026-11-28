@@ -1,0 +1,3 @@
+Respuesta de GET /repos/aquaproj/aqua/attestations/sha256:1cd648c1… (aqua_linux_amd64.tar.gz
+v2.66.1), grabada el 2026-11-27 sin bundle_url ni initiator. La usa
+internal/supply/provenance_test.go.

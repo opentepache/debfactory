@@ -21,6 +21,11 @@ artifact:
 checksums:
   url: https://github.com/bufbuild/buf/releases/download/{{tag}}/sha256.txt
   format: sha256sum
+signing:
+  minisign:
+    # Llave de buf (la fija también su instalador oficial, bufbuild/bufisk).
+    key: RWQ/i9xseZwBVE7pEniCNjlNOeeyp4BQgdZDLQcAohxEAH5Uj5DEKjv6
+    file: https://github.com/bufbuild/buf/releases/download/{{tag}}/sha256.txt.minisig
 install:
   - {src: "buf/bin/*", dst: /usr/bin/}
 completions:

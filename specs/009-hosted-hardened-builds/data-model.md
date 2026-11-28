@@ -122,4 +122,7 @@ anterior (`packages/<p>.yaml`) se acepta durante la transición.
 
 `{package, version, signature: {type, ok}, provenance: {present, ok, identity}, tarball_vs_tag:
 {extra: [...], declared: [...]}, toolchain: {ok}, deps: {count, ok}, scorecard: {score, low: [...]}}`;
-lo produce `level2-source` (nivel 2) o el build local (nivel 1) y lo resume el PR.
+lo produce `level2-source` (nivel 2) o el build local (nivel 1) y lo resume el PR. Archivos:
+`dist/<p>_<upstream>.supply.json` (nivel 2, uno por versión) y `dist/<p>_<versión>_<arch>.supply.json`
+(nivel 1, uno por arquitectura); `signature.type` es `none` si upstream no firma. El lockfile
+registra `provenance: {<url>: verified}` y un build no puede perder una procedencia verificada.

@@ -54,12 +54,13 @@ func (e *Env) verifySignatures(ctx context.Context, m *manifest.Manifest, arches
 	if m.Signing == nil {
 		return nil, nil
 	}
-	fail := func(err error) error { return report.Wrap(err, report.Stage("signature"), m.Name, m.Version, "") }
+	fail := func(err error) error { return report.Wrap(err, report.Signature, m.Name, m.Version, "") }
 	urls, err := signatureURLs(m, arches)
 	if err != nil {
 		return nil, fail(err)
 	}
-	v := &supply.Verifier{Root: e.Root, Pkg: m.Name, Sigstore: e.Sigstore}
+	tag, _ := m.RenderedTag()
+	v := &supply.Verifier{Root: e.Root, Pkg: m.Name, Repo: m.Upstream, Tag: tag, Sigstore: e.Sigstore}
 	out := map[string]string{}
 	for _, u := range urls {
 		target, ok := SignedTarget(u)

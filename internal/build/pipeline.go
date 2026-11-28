@@ -20,6 +20,7 @@ import (
 	"debfactory/internal/manifest"
 	"debfactory/internal/pkg"
 	"debfactory/internal/report"
+	"debfactory/internal/supply"
 )
 
 // Options de build.
@@ -150,7 +151,7 @@ func (e *Env) buildArch(ctx context.Context, m *manifest.Manifest, lk *lock.File
 	}
 	defer os.RemoveAll(work)
 
-	artifact, text, err := e.inputs(ctx, m, entry, arch)
+	artifact, text, supplyRep, err := e.inputs(ctx, m, entry, arch)
 	if err != nil {
 		return err
 	}
@@ -181,6 +182,9 @@ func (e *Env) buildArch(ctx context.Context, m *manifest.Manifest, lk *lock.File
 	if err := e.publishDist(first.deb, info, m.DebBase(arch)); err != nil {
 		return fail(report.Package, err)
 	}
+	if err := e.writeSupply(supplyRep, m.DebBase(arch)+".supply.json", work); err != nil {
+		return fail(report.Package, err)
+	}
 	e.Out.Result(m.Name, m.Version, arch, "deb", path.Join("dist", m.DebBase(arch)+".deb"))
 	for _, w := range lres.Warnings {
 		e.Out.Result(m.Name, m.Version, arch, "lintian-warning", w)
@@ -195,81 +199,87 @@ func (e *Env) buildArch(ctx context.Context, m *manifest.Manifest, lk *lock.File
 // inputs descarga y verifica el artefacto (contra el lock y, si existen,
 // contra los checksums upstream), obtiene el texto de licencia verificado y
 // pasa el gate de licencias, en ese orden (constitución, Flujo 2 y 3).
-func (e *Env) inputs(ctx context.Context, m *manifest.Manifest, entry *lock.Entry, arch string) (string, []byte, error) {
+func (e *Env) inputs(ctx context.Context, m *manifest.Manifest, entry *lock.Entry, arch string) (string, []byte, *supply.Report, error) {
 	fail := func(stage report.Stage, err error) error {
 		return report.Wrap(err, stage, m.Name, m.Version, arch)
 	}
 	url, err := m.RenderURL(m.Artifact.URL, arch)
 	if err != nil {
-		return "", nil, fail(report.Validate, err)
+		return "", nil, nil, fail(report.Validate, err)
 	}
 	artifact, _, err := e.Fetcher.Get(ctx, url, entry.Artifacts[arch])
 	if err != nil {
-		return "", nil, downloadErr(err, m, arch, "lock")
+		return "", nil, nil, downloadErr(err, m, arch, "lock")
 	}
 	signed := map[string]string{url: artifact}
 	if m.Checksums != nil {
 		curl, err := m.RenderURL(m.Checksums.URL, arch)
 		if err != nil {
-			return "", nil, fail(report.Validate, err)
+			return "", nil, nil, fail(report.Validate, err)
 		}
 		cpath, _, err := e.Fetcher.Get(ctx, curl, entry.ChecksumsSHA256)
 		if err != nil {
-			return "", nil, downloadErr(err, m, arch, "lock")
+			return "", nil, nil, downloadErr(err, m, arch, "lock")
 		}
 		data, err := os.ReadFile(cpath)
 		if err != nil {
-			return "", nil, fail(report.Verify, err)
+			return "", nil, nil, fail(report.Verify, err)
 		}
 		sums, err := fetch.ParseChecksums(data)
 		if err != nil {
-			return "", nil, fail(report.Verify, fmt.Errorf("%s: %v", path.Base(curl), err))
+			return "", nil, nil, fail(report.Verify, fmt.Errorf("%s: %v", path.Base(curl), err))
 		}
 		if err := fetch.VerifyChecksum(sums, curl, url, entry.Artifacts[arch]); err != nil {
-			return "", nil, downloadErr(err, m, arch, "lock")
+			return "", nil, nil, downloadErr(err, m, arch, "lock")
 		}
 		signed[curl] = cpath
 	}
 	// La firma fijada de upstream se vuelve a comprobar en cada build
 	// (constitución III; specs/009).
 	if _, err := e.verifySignatures(ctx, m, []string{arch}, signed, entry.Signatures); err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
+	// Procedencia de upstream (FR-016): no se puede perder respecto al lockfile.
+	_, prov, err := e.checkProvenance(ctx, m, map[string]provFile{url: {artifact, entry.Artifacts[arch]}}, entry.Provenance)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	rep := newSupplyReport(m, arch, prov)
 
 	vars, err := m.Vars(arch)
 	if err != nil {
-		return "", nil, fail(report.Validate, err)
+		return "", nil, nil, fail(report.Validate, err)
 	}
 	var text []byte
 	if m.License.File.Repo != "" {
 		p, err := manifest.Render(m.License.File.Repo, vars)
 		if err != nil {
-			return "", nil, fail(report.Validate, err)
+			return "", nil, nil, fail(report.Validate, err)
 		}
 		tag, _ := m.RenderedTag()
 		lp, _, err := e.Fetcher.Get(ctx, fetch.LicenseURL(m.Upstream, tag, p), entry.LicenseSHA256)
 		if err != nil {
-			return "", nil, downloadErr(err, m, arch, "lock")
+			return "", nil, nil, downloadErr(err, m, arch, "lock")
 		}
 		if text, err = os.ReadFile(lp); err != nil {
-			return "", nil, fail(report.License, err)
+			return "", nil, nil, fail(report.License, err)
 		}
 	} else {
 		p, err := manifest.Render(m.License.File.Archive, vars)
 		if err != nil {
-			return "", nil, fail(report.Validate, err)
+			return "", nil, nil, fail(report.Validate, err)
 		}
 		if text, err = assemble.ExtractFile(artifact, m.Artifact.Format, p); err != nil {
-			return "", nil, fail(report.License, fmt.Errorf("license.file.archive: %v", err))
+			return "", nil, nil, fail(report.License, fmt.Errorf("license.file.archive: %v", err))
 		}
 		if got := fetch.SHA256(text); got != entry.LicenseSHA256 {
-			return "", nil, downloadErr(&fetch.HashMismatch{URL: p, Expected: entry.LicenseSHA256, Got: got}, m, arch, "lock")
+			return "", nil, nil, downloadErr(&fetch.HashMismatch{URL: p, Expected: entry.LicenseSHA256, Got: got}, m, arch, "lock")
 		}
 	}
-	if err := license.Gate(text, m.License.SPDX, e.Cfg); err != nil {
-		return "", nil, fail(report.License, err)
+	if err := license.Gate(text, m.License.SPDX, e.Cfg.WithLicenses(m.PackageExceptionLicenses()...)); err != nil {
+		return "", nil, nil, fail(report.License, err)
 	}
-	return artifact, text, nil
+	return artifact, text, rep, nil
 }
 
 // assembleAndPackage extrae el artefacto en dir, resuelve los archivos y

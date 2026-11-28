@@ -20,6 +20,13 @@ artifact:
 checksums:
   url: https://github.com/aquaproj/aqua/releases/download/{{tag}}/aqua_{{version}}_checksums.txt
   format: sha256sum
+signing:
+  sigstore:
+    # aqua firma desde el workflow reutilizable de suzuki-shunsuke; debfactory
+    # exige además que el certificado registre aquaproj/aqua y el tag.
+    identity: ^https://github\.com/suzuki-shunsuke/go-release-workflow/\.github/workflows/release\.yaml@
+    issuer: https://token.actions.githubusercontent.com
+    bundle: https://github.com/aquaproj/aqua/releases/download/{{tag}}/aqua_{{version}}_checksums.txt.sigstore.json
 install:
   - {src: aqua, dst: /usr/bin/}
 completions:

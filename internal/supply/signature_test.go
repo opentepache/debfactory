@@ -122,12 +122,32 @@ func TestGPG(t *testing.T) {
 // TestSigstoreHook: el tipo sigstore usa el verificador inyectado y envuelve
 // su error.
 func TestSigstoreHook(t *testing.T) {
-	v := &Verifier{Sigstore: func(context.Context, *manifest.SigstoreSig, string, string) error {
+	var got Origin
+	v := &Verifier{Repo: "aquaproj/aqua", Tag: "v2.66.1", Sigstore: func(_ context.Context, _ *manifest.SigstoreSig, o Origin, _, _ string) error {
+		got = o
 		return errors.New("identidad ajena")
 	}}
 	err := v.Verify(context.Background(), &manifest.Signing{Sigstore: &manifest.SigstoreSig{}}, "a", "b")
 	var se *SignatureError
-	if !errors.As(err, &se) || se.Kind != "sigstore" {
-		t.Fatalf("error = %v", err)
+	if !errors.As(err, &se) || se.Kind != "sigstore" || got != (Origin{"aquaproj/aqua", "v2.66.1"}) {
+		t.Fatalf("error = %v, origen %+v", err, got)
+	}
+}
+
+// TestCosignBlobArgs: con certificados de GitHub Actions se exige además el
+// repositorio y el tag de origen (la identidad puede ser un workflow
+// reutilizable de otro repositorio, como el de aqua).
+func TestCosignBlobArgs(t *testing.T) {
+	s := &manifest.SigstoreSig{Identity: "^https://github.com/suzuki-shunsuke/go-release-workflow/", Issuer: githubIssuer}
+	args := strings.Join(CosignBlobArgs(s, Origin{"aquaproj/aqua", "v2.66.1"}), " ")
+	for _, want := range []string{"--certificate-github-workflow-repository aquaproj/aqua",
+		"--certificate-github-workflow-ref refs/tags/v2.66.1", "--certificate-identity-regexp " + s.Identity} {
+		if !strings.Contains(args, want) {
+			t.Errorf("falta %q en %s", want, args)
+		}
+	}
+	other := &manifest.SigstoreSig{Identity: "x", Issuer: "https://accounts.google.com"}
+	if a := strings.Join(CosignBlobArgs(other, Origin{"r", "t"}), " "); strings.Contains(a, "workflow-repository") {
+		t.Errorf("otro emisor: %s", a)
 	}
 }

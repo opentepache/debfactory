@@ -40,7 +40,10 @@ type Entry struct {
 	Toolchain        map[string]string `yaml:"toolchain,omitempty"`          // arch -> sha256
 	Deps             []Dep             `yaml:"deps,omitempty"`               // ordenadas por hash
 	ZigdepsSHA256    string            `yaml:"zigdeps_sha256,omitempty"`     // componente .orig-zigdeps
-	Signatures       map[string]string `yaml:"signatures,omitempty"`         // URL de la firma -> sha256
+	// Provenance: URL -> "verified" para los archivos con procedencia SLSA de
+	// upstream verificada (specs/009, FR-016); un build no la puede perder.
+	Provenance map[string]string `yaml:"provenance,omitempty"`
+	Signatures map[string]string `yaml:"signatures,omitempty"` // URL de la firma -> sha256
 }
 
 // Dep es una dependencia del gestor de paquetes del lenguaje: su URL, el hash
@@ -173,6 +176,11 @@ func (e *Entry) wellFormed() error {
 			return fmt.Errorf("signatures.%s: no es un sha256", k)
 		}
 	}
+	for k, v := range e.Provenance {
+		if v != "verified" {
+			return fmt.Errorf("provenance.%s: valor %q (solo \"verified\")", k, v)
+		}
+	}
 	for k, v := range e.Toolchain {
 		if !hex64.MatchString(v) {
 			return fmt.Errorf("toolchain.%s: no es un sha256", k)
@@ -228,6 +236,7 @@ func (e *Entry) Equal(o *Entry) bool {
 		e.TagArchiveSHA256 != o.TagArchiveSHA256 || e.ZigdepsSHA256 != o.ZigdepsSHA256 ||
 		!maps.Equal(e.ExtraFiles, o.ExtraFiles) || !maps.Equal(e.Toolchain, o.Toolchain) ||
 		!maps.Equal(e.Signatures, o.Signatures) ||
+		!maps.Equal(e.Provenance, o.Provenance) ||
 		!slices.Equal(e.Deps, o.Deps) || len(e.Artifacts) != len(o.Artifacts) {
 		return false
 	}

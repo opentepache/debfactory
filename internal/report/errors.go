@@ -46,6 +46,13 @@ const (
 	StatePRAge Stage = "state-pr-age"
 	Config     Stage = "config"
 	Compare    Stage = "compare"
+
+	// Cadena de suministro (specs/009).
+	Signature  Stage = "signature"  // firma de upstream con la llave fijada
+	TagDiff    Stage = "tagdiff"    // tarball de release contra el tag de git
+	Provenance Stage = "provenance" // procedencia SLSA de upstream
+	Toolchain  Stage = "toolchain"  // toolchain de upstream verificado
+	Deps       Stage = "deps"       // dependencias del lenguaje verificadas
 	// Tool: la herramienta en ejecución no es la que fija debfactory.version
 	// (specs/004-split-repos, contracts/herramienta.md).
 	Tool Stage = "tool"

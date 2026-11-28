@@ -38,10 +38,19 @@ type Verifier struct {
 	Root string
 	// Pkg es el nombre del paquete (key_file es relativo a packages/<p>/).
 	Pkg string
+	// Repo y Tag son el repositorio de upstream y el tag de la versión: con
+	// certificados de GitHub Actions, la firma sigstore MUST venir de ese
+	// repositorio y ese tag (extensiones de origen del certificado), no solo
+	// de la identidad fijada, que puede ser un workflow reutilizable de otro
+	// repositorio. Vacíos (p. ej. el toolchain) = sin esa comprobación.
+	Repo, Tag string
 	// Sigstore verifica un bundle de sigstore; por defecto, cosign en un
 	// contenedor de Debian.
-	Sigstore func(ctx context.Context, s *manifest.SigstoreSig, file, bundle string) error
+	Sigstore func(ctx context.Context, s *manifest.SigstoreSig, o Origin, file, bundle string) error
 }
+
+// Origin es el repositorio y el tag que debe registrar el certificado.
+type Origin struct{ Repo, Tag string }
 
 // Verify comprueba que file está firmado con la llave o identidad fijada en
 // sig; sigFile es la firma o el bundle ya descargados.
@@ -56,7 +65,7 @@ func (v *Verifier) Verify(ctx context.Context, sig *manifest.Signing, file, sigF
 		if f == nil {
 			f = CosignBlob
 		}
-		if err := f(ctx, sig.Sigstore, file, sigFile); err != nil {
+		if err := f(ctx, sig.Sigstore, Origin{v.Repo, v.Tag}, file, sigFile); err != nil {
 			return &SignatureError{Kind: "sigstore", File: file, Reason: err.Error()}
 		}
 		return nil
@@ -152,9 +161,23 @@ const CosignImageTag = "debfactory-cosign"
 
 // CosignBlob verifica un bundle de sigstore con cosign en un contenedor de
 // Debian (con red, para la raíz de confianza de sigstore).
-func CosignBlob(ctx context.Context, s *manifest.SigstoreSig, file, bundle string) error {
-	return runCosign(ctx, file, bundle, []string{"verify-blob", "--new-bundle-format",
-		"--certificate-identity-regexp", s.Identity, "--certificate-oidc-issuer", s.Issuer})
+func CosignBlob(ctx context.Context, s *manifest.SigstoreSig, o Origin, file, bundle string) error {
+	return runCosign(ctx, file, bundle, CosignBlobArgs(s, o))
+}
+
+// CosignBlobArgs son los argumentos de cosign verify-blob: identidad y
+// emisor fijados y, con certificados de GitHub Actions y un origen dado, el
+// repositorio y el ref del tag.
+func CosignBlobArgs(s *manifest.SigstoreSig, o Origin) []string {
+	args := []string{"verify-blob", "--new-bundle-format",
+		"--certificate-identity-regexp", s.Identity, "--certificate-oidc-issuer", s.Issuer}
+	if s.Issuer == githubIssuer && o.Repo != "" {
+		args = append(args, "--certificate-github-workflow-repository", o.Repo)
+		if o.Tag != "" {
+			args = append(args, "--certificate-github-workflow-ref", "refs/tags/"+o.Tag)
+		}
+	}
+	return args
 }
 
 // runCosign ejecuta cosign <args> --bundle /in/bundle /in/file.

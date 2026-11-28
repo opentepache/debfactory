@@ -130,6 +130,13 @@ func (e *Env) Lock(ctx context.Context, name string, force bool) error {
 	if entry.Signatures, err = e.verifySignatures(ctx, m, e.Cfg.Arches, files, nil); err != nil {
 		return err
 	}
+	prov := map[string]provFile{}
+	for _, d := range artifacts {
+		prov[d.url] = provFile{d.path, d.sha}
+	}
+	if entry.Provenance, _, err = e.checkProvenance(ctx, m, prov, nil); err != nil {
+		return err
+	}
 	text, err := e.lockLicense(ctx, m, tag, artifacts, get)
 	if err != nil {
 		return err
@@ -253,6 +260,12 @@ func diff(old, new *lock.Entry) []string {
 	}
 	for _, k := range unionKeys(old.ExtraFiles, new.ExtraFiles) {
 		add("extra_files."+k, old.ExtraFiles[k], new.ExtraFiles[k])
+	}
+	for _, k := range unionKeys(old.Provenance, new.Provenance) {
+		add("provenance."+k, old.Provenance[k], new.Provenance[k])
+	}
+	for _, k := range unionKeys(old.Signatures, new.Signatures) {
+		add("signatures."+k, old.Signatures[k], new.Signatures[k])
 	}
 	if !slices.Equal(old.Deps, new.Deps) {
 		out = append(out, fmt.Sprintf("deps: %d → %d dependencias o hashes distintos", len(old.Deps), len(new.Deps)))

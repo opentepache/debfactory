@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -81,7 +82,7 @@ func (e *Env) buildLevel2(ctx context.Context, m *manifest.Manifest, lk *lock.Fi
 	if e.BinaryBuild == nil {
 		e.BinaryBuild = srcbuild.Build
 	}
-	tarball, err := e.level2Inputs(ctx, m, entry)
+	tarball, supplyRep, err := e.level2Inputs(ctx, m, entry)
 	if err != nil {
 		return err
 	}
@@ -97,6 +98,7 @@ func (e *Env) buildLevel2(ctx context.Context, m *manifest.Manifest, lk *lock.Fi
 	if err != nil {
 		return err
 	}
+	supplyRep.TarballVsTag, supplyRep.Toolchain, supplyRep.Deps = extra.tag, extra.toolchain, extra.deps
 
 	// Un paquete fuente por suite (research D6). lintian sobre el .dsc corre
 	// a la vez que las compilaciones (en un fuente grande tarda minutos); si
@@ -197,6 +199,9 @@ func (e *Env) buildLevel2(ctx context.Context, m *manifest.Manifest, lk *lock.Fi
 	// Todo pasó: a dist/ (el .orig una vez, el fuente por suite, el binario
 	// por suite y arquitectura).
 	if err := e.copyDist(tarball, m.OrigName()); err != nil {
+		return fail(report.Package, "", err)
+	}
+	if err := e.writeSupply(supplyRep, m.Name+"_"+m.Version+".supply.json", work); err != nil {
 		return fail(report.Package, "", err)
 	}
 	for _, src := range sources {
@@ -302,53 +307,57 @@ func (e *Env) compileTwice(ctx context.Context, m *manifest.Manifest, spec srcbu
 // level2Inputs descarga y verifica el tarball contra el lock, obtiene el
 // texto de licencia verificado y pasa el gate de licencias, antes de
 // compilar nada (FR-006). Devuelve la ruta del tarball verificado.
-func (e *Env) level2Inputs(ctx context.Context, m *manifest.Manifest, entry *lock.Entry) (string, error) {
+func (e *Env) level2Inputs(ctx context.Context, m *manifest.Manifest, entry *lock.Entry) (string, *supply.Report, error) {
 	fail := func(stage report.Stage, err error) error { return report.Wrap(err, stage, m.Name, m.Version, "") }
 	url, err := m.RenderURL(m.Source.URL, "")
 	if err != nil {
-		return "", fail(report.Validate, err)
+		return "", nil, fail(report.Validate, err)
 	}
 	tarball, _, err := e.Fetcher.Get(ctx, url, entry.SourceSHA256)
 	if err != nil {
-		return "", downloadErr(err, m, "", "lock")
+		return "", nil, downloadErr(err, m, "", "lock")
 	}
 	if _, err := e.verifySignatures(ctx, m, nil, map[string]string{url: tarball}, entry.Signatures); err != nil {
-		return "", err
+		return "", nil, err
+	}
+	_, prov, err := e.checkProvenance(ctx, m, map[string]provFile{url: {tarball, entry.SourceSHA256}}, entry.Provenance)
+	if err != nil {
+		return "", nil, err
 	}
 	vars, err := m.Vars("")
 	if err != nil {
-		return "", fail(report.Validate, err)
+		return "", nil, fail(report.Validate, err)
 	}
 	var text []byte
 	if m.License.File.Repo != "" {
 		p, err := manifest.Render(m.License.File.Repo, vars)
 		if err != nil {
-			return "", fail(report.Validate, err)
+			return "", nil, fail(report.Validate, err)
 		}
 		tag, _ := m.RenderedTag()
 		lp, _, err := e.Fetcher.Get(ctx, fetch.LicenseURL(m.Upstream, tag, p), entry.LicenseSHA256)
 		if err != nil {
-			return "", downloadErr(err, m, "", "lock")
+			return "", nil, downloadErr(err, m, "", "lock")
 		}
 		if text, err = os.ReadFile(lp); err != nil {
-			return "", fail(report.License, err)
+			return "", nil, fail(report.License, err)
 		}
 	} else {
 		p, err := manifest.Render(m.License.File.Archive, vars)
 		if err != nil {
-			return "", fail(report.Validate, err)
+			return "", nil, fail(report.Validate, err)
 		}
 		if text, err = assemble.ExtractFile(tarball, m.Source.Format, p); err != nil {
-			return "", fail(report.License, fmt.Errorf("license.file.archive: %v", err))
+			return "", nil, fail(report.License, fmt.Errorf("license.file.archive: %v", err))
 		}
 		if got := fetch.SHA256(text); got != entry.LicenseSHA256 {
-			return "", downloadErr(&fetch.HashMismatch{URL: p, Expected: entry.LicenseSHA256, Got: got}, m, "", "lock")
+			return "", nil, downloadErr(&fetch.HashMismatch{URL: p, Expected: entry.LicenseSHA256, Got: got}, m, "", "lock")
 		}
 	}
-	if err := license.Gate(text, m.License.SPDX, e.Cfg); err != nil {
-		return "", fail(report.License, err)
+	if err := license.Gate(text, m.License.SPDX, e.Cfg.WithLicenses(m.PackageExceptionLicenses()...)); err != nil {
+		return "", nil, fail(report.License, err)
 	}
-	return tarball, nil
+	return tarball, newSupplyReport(m, "", prov), nil
 }
 
 // copyDist copia un archivo a dist/<name> de forma atómica.
@@ -373,6 +382,10 @@ type level2Extra struct {
 	components    map[string]string // componente -> tarball (zigdeps)
 	toolchainFile string            // debian/upstream/toolchain
 	toolchains    map[string]string // arch -> directorio extraído
+	// Para supply.json.
+	tag       *supply.TagReport
+	toolchain *supply.ToolchainReport
+	deps      *supply.DepsReport
 }
 
 // level2Extras vuelve a comprobar, con los valores del lockfile, el tarball
@@ -389,7 +402,7 @@ func (e *Env) level2Extras(ctx context.Context, m *manifest.Manifest, entry *loc
 		}
 		diff, err := supply.CompareTag(tarball, m.Source.Format, tagPath)
 		if err != nil {
-			return nil, fail(report.Stage("tagdiff"), err)
+			return nil, fail(report.TagDiff, err)
 		}
 		var declared []string
 		for _, f := range m.Source.ExtraFiles {
@@ -399,9 +412,11 @@ func (e *Env) level2Extras(ctx context.Context, m *manifest.Manifest, entry *loc
 		if locked == nil {
 			locked = map[string]string{}
 		}
-		if _, err := diff.CheckExtras(declared, locked); err != nil {
-			return nil, fail(report.Stage("tagdiff"), err)
+		extras, err := diff.CheckExtras(declared, locked)
+		if err != nil {
+			return nil, fail(report.TagDiff, err)
 		}
+		x.tag = &supply.TagReport{Extra: slices.Sorted(maps.Keys(extras))}
 	}
 	if m.Toolchain == nil {
 		return x, nil
@@ -424,11 +439,11 @@ func (e *Env) level2Extras(ctx context.Context, m *manifest.Manifest, entry *loc
 		}
 		r, err := supply.FetchToolchain(ctx, e.Fetcher, v, m.Toolchain, arch, want, wantSig)
 		if err != nil {
-			return nil, fail(report.Stage("toolchain"), err)
+			return nil, fail(report.Toolchain, err)
 		}
 		dir := filepath.Join(work, "toolchain-"+arch)
 		if err := supply.ExtractToolchain(ctx, r.Tarball, dir); err != nil {
-			return nil, fail(report.Stage("toolchain"), err)
+			return nil, fail(report.Toolchain, err)
 		}
 		x.toolchains[arch] = dir
 		if arch == srcbuild.HostArch() {
@@ -436,6 +451,7 @@ func (e *Env) level2Extras(ctx context.Context, m *manifest.Manifest, entry *loc
 		}
 	}
 	x.toolchainFile = toolchainFile(m, entry, e.Cfg.Arches)
+	x.toolchain = &supply.ToolchainReport{Name: m.Toolchain.Name, Version: m.Toolchain.Version, OK: true}
 	if m.Deps == nil {
 		return x, nil
 	}
@@ -448,13 +464,14 @@ func (e *Env) level2Extras(ctx context.Context, m *manifest.Manifest, entry *loc
 		return nil, err
 	}
 	if !slices.Equal(list, entry.Deps) {
-		return nil, fail(report.Stage("deps"), fmt.Errorf("las dependencias resueltas no son las del lockfile (%d frente a %d o hashes distintos); ejecuta `debfactory lock %s`",
+		return nil, fail(report.Deps, fmt.Errorf("las dependencias resueltas no son las del lockfile (%d frente a %d o hashes distintos); ejecuta `debfactory lock %s`",
 			len(list), len(entry.Deps), m.Name))
 	}
 	if sha != entry.ZigdepsSHA256 {
-		return nil, fail(report.Stage("deps"), fmt.Errorf("el componente zigdeps da %s y el lockfile dice %s", sha, entry.ZigdepsSHA256))
+		return nil, fail(report.Deps, fmt.Errorf("el componente zigdeps da %s y el lockfile dice %s", sha, entry.ZigdepsSHA256))
 	}
 	x.components = map[string]string{"zigdeps": filepath.Join(depsWork, "zigdeps.tar.xz")}
+	x.deps = &supply.DepsReport{Count: len(list), Skipped: slices.Sorted(maps.Keys(m.Deps.Skip)), OK: true}
 	return x, nil
 }
 

@@ -64,14 +64,14 @@ func (e *Env) lockLevel2(ctx context.Context, m *manifest.Manifest, entry *lock.
 		}
 		diff, err := supply.CompareTag(source, m.Source.Format, d.path)
 		if err != nil {
-			return fail(report.Stage("tagdiff"), err)
+			return fail(report.TagDiff, err)
 		}
 		var declared []string
 		for _, x := range m.Source.ExtraFiles {
 			declared = append(declared, x.Path)
 		}
 		if entry.ExtraFiles, err = diff.CheckExtras(declared, nil); err != nil {
-			return fail(report.Stage("tagdiff"), err)
+			return fail(report.TagDiff, err)
 		}
 		if len(entry.ExtraFiles) == 0 {
 			entry.ExtraFiles = nil
@@ -87,7 +87,7 @@ func (e *Env) lockLevel2(ctx context.Context, m *manifest.Manifest, entry *lock.
 	for _, arch := range e.Cfg.Arches {
 		r, err := supply.FetchToolchain(ctx, e.Fetcher, v, m.Toolchain, arch, "", "")
 		if err != nil {
-			return fail(report.Stage("toolchain"), err)
+			return fail(report.Toolchain, err)
 		}
 		entry.Toolchain[arch] = r.SHA256
 		if r.SigURL != "" {
@@ -137,7 +137,7 @@ func (e *Env) resolveDeps(ctx context.Context, m *manifest.Manifest, source, too
 		return nil, "", fail(report.Lock, fmt.Errorf("extraer el fuente: %v: %s", err, out))
 	}
 	if err := supply.ExtractToolchain(ctx, toolchainTarball, tc); err != nil {
-		return nil, "", fail(report.Stage("toolchain"), err)
+		return nil, "", fail(report.Toolchain, err)
 	}
 	factory := e.ZigFetcher
 	if factory == nil {
@@ -145,7 +145,7 @@ func (e *Env) resolveDeps(ctx context.Context, m *manifest.Manifest, source, too
 	}
 	f, closeFn, err := factory(ctx, tc, filepath.Join(work, "zigcache"))
 	if err != nil {
-		return nil, "", fail(report.Stage("deps"), err)
+		return nil, "", fail(report.Deps, err)
 	}
 	defer closeFn()
 	var store *supply.DepStore
@@ -160,7 +160,7 @@ func (e *Env) resolveDeps(ctx context.Context, m *manifest.Manifest, source, too
 	}
 	list, err := supply.ResolveZigDeps(ctx, src, m.Deps.ExcludePaths, m.Deps.Skip, f, deps, store)
 	if err != nil {
-		return nil, "", fail(report.Stage("deps"), err)
+		return nil, "", fail(report.Deps, err)
 	}
 	if err := e.depsLicenses(m, deps, list); err != nil {
 		return nil, "", fail(report.License, err)

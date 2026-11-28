@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"debfactory/internal/fetch"
+	"debfactory/internal/supply"
 	"debfactory/internal/testutil"
 )
 
@@ -84,8 +86,17 @@ func TestBuildReproducible(t *testing.T) {
 			t.Errorf("%s: %s != %s", arch, got, sha)
 		}
 	}
-	if files := h.distFiles(); len(files) != 4 {
-		t.Errorf("dist/ = %v; se esperaban 2 .deb y 2 build.json", files)
+	if files := h.distFiles(); len(files) != 6 {
+		t.Errorf("dist/ = %v; se esperaban 2 .deb, 2 build.json y 2 supply.json", files)
+	}
+	// Informe de cadena de suministro (data-model §7): example no firma ni
+	// publica procedencia (el servidor de prueba no tiene atestaciones).
+	var rep supply.Report
+	if b, err := os.ReadFile(filepath.Join(h.root, "dist", "example_1.0.0-0~tepache1_amd64.supply.json")); err != nil {
+		t.Error(err)
+	} else if json.Unmarshal(b, &rep) != nil || rep.Package != "example" || rep.Arch != "amd64" ||
+		rep.Signature.Type != "none" || rep.Provenance.Present {
+		t.Errorf("supply.json = %s", b)
 	}
 
 	if _, err := exec.LookPath("dpkg-deb"); err != nil {
