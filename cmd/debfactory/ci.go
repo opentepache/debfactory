@@ -54,7 +54,7 @@ func (a *app) ci(ctx context.Context, pos []string) error {
 		return err
 	}
 	switch sub {
-	case "plan", "matrix", "review", "pr", "main", "rebuild", "retire", "refresh", "restore-state-pr", "notify", "audit check", "doctor", "watch":
+	case "plan", "matrix", "review", "compare", "pr", "main", "rebuild", "retire", "refresh", "restore-state-pr", "notify", "audit check", "doctor", "watch":
 		return r.Dispatch(ctx, sub, a.ciOptions())
 	}
 	return usageError{fmt.Sprintf("orden de ci desconocida %q", sub)}
