@@ -134,7 +134,7 @@ func (e *Env) Lock(ctx context.Context, name string, force bool) error {
 	for _, d := range artifacts {
 		prov[d.url] = provFile{d.path, d.sha}
 	}
-	if entry.Provenance, _, err = e.checkProvenance(ctx, m, prov, nil); err != nil {
+	if entry.Provenance, _, err = e.checkProvenance(ctx, m, prov, nil, false); err != nil {
 		return err
 	}
 	text, err := e.lockLicense(ctx, m, tag, artifacts, get)

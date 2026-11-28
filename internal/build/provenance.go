@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -24,8 +25,13 @@ type provFile struct{ path, sha string }
 // un archivo que el lockfile da por verificado MUST seguir teniendo
 // procedencia válida (no se puede degradar quitando la atestación). Devuelve
 // los valores para el lockfile y el resumen para supply.json.
+//
+// building distingue un build de lock: en un build, si la API de GitHub no
+// responde (p. ej. límite de peticiones) y el lockfile no registra esa
+// procedencia como verificada, se sigue con un aviso; si la registra, falla.
+// Una atestación que no verifica falla siempre.
 func (e *Env) checkProvenance(ctx context.Context, m *manifest.Manifest, files map[string]provFile,
-	locked map[string]string) (map[string]string, *supply.Provenance, error) {
+	locked map[string]string, building bool) (map[string]string, *supply.Provenance, error) {
 	fail := func(err error) error { return report.Wrap(err, report.Provenance, m.Name, m.Version, "") }
 	tag, err := m.RenderedTag()
 	if err != nil {
@@ -50,6 +56,11 @@ func (e *Env) checkProvenance(ctx context.Context, m *manifest.Manifest, files m
 	for _, u := range urls {
 		f := files[u]
 		p, err := check(ctx, m.Upstream, tag, f.path, f.sha)
+		var pe *supply.ProvenanceError
+		if err != nil && building && !errors.As(err, &pe) && locked[u] != ProvenanceVerified {
+			e.Out.Line("%s %s: aviso: no se pudo consultar la procedencia de upstream (%v); el lockfile no la exige", m.Name, m.Version, err)
+			continue
+		}
 		if err != nil {
 			return nil, nil, fail(err)
 		}

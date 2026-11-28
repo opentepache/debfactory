@@ -323,7 +323,7 @@ func (e *Env) level2Inputs(ctx context.Context, m *manifest.Manifest, entry *loc
 	if _, err := e.verifySignatures(ctx, m, nil, map[string]string{url: tarball}, entry.Signatures); err != nil {
 		return "", nil, err
 	}
-	_, prov, err := e.checkProvenance(ctx, m, map[string]provFile{url: {tarball, entry.SourceSHA256}}, entry.Provenance)
+	_, prov, err := e.checkProvenance(ctx, m, map[string]provFile{url: {tarball, entry.SourceSHA256}}, entry.Provenance, true)
 	if err != nil {
 		return "", nil, err
 	}

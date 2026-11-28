@@ -245,7 +245,7 @@ func (e *Env) inputs(ctx context.Context, m *manifest.Manifest, entry *lock.Entr
 		return "", nil, nil, err
 	}
 	// Procedencia de upstream (FR-016): no se puede perder respecto al lockfile.
-	_, prov, err := e.checkProvenance(ctx, m, map[string]provFile{url: {artifact, entry.Artifacts[arch]}}, entry.Provenance)
+	_, prov, err := e.checkProvenance(ctx, m, map[string]provFile{url: {artifact, entry.Artifacts[arch]}}, entry.Provenance, true)
 	if err != nil {
 		return "", nil, nil, err
 	}

@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -59,5 +60,43 @@ func TestProvenanceFlow(t *testing.T) {
 	err = other.env.Lock(ctx, "example", true)
 	if err == nil || !strings.Contains(err.Error(), ": provenance:") {
 		t.Fatalf("ajena: %v", err)
+	}
+}
+
+// TestProvenanceAPIUnavailable: si la API de GitHub no responde (límite de
+// peticiones), un build sigue con un aviso cuando el lockfile no exige la
+// procedencia, y falla cuando la exige; lock falla siempre.
+func TestProvenanceAPIUnavailable(t *testing.T) {
+	ctx := context.Background()
+	down := func(context.Context, string, string, string, string) (*supply.Provenance, error) {
+		return nil, errors.New("API de GitHub: atestaciones de example/example: HTTP 403")
+	}
+	h := newHarness(t)
+	h.loadOK()
+	if err := h.env.Lock(ctx, "example", true); err != nil {
+		t.Fatal(err)
+	}
+	h.env.Provenance = down
+	if err := h.env.Build(ctx, "example", Options{}); err != nil {
+		t.Fatalf("build sin procedencia exigida: %v", err)
+	}
+	if !strings.Contains(h.out.String(), "no se pudo consultar la procedencia") {
+		t.Errorf("sin aviso:\n%s", h.out.String())
+	}
+	if err := h.env.Lock(ctx, "example", true); err == nil || !strings.Contains(err.Error(), ": provenance:") {
+		t.Errorf("lock con la API caída: %v", err)
+	}
+
+	// Con procedencia verificada en el lockfile: el build falla.
+	v := newHarness(t)
+	v.loadOK()
+	present, ok := true, true
+	v.env.Provenance = fakeProvenance(&present, &ok)
+	if err := v.env.Lock(ctx, "example", true); err != nil {
+		t.Fatal(err)
+	}
+	v.env.Provenance = down
+	if err := v.env.Build(ctx, "example", Options{}); err == nil || !strings.Contains(err.Error(), ": provenance:") {
+		t.Errorf("build con procedencia exigida: %v", err)
 	}
 }
