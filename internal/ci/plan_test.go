@@ -90,7 +90,7 @@ func TestPlanMainRepo(t *testing.T) {
 func TestPlanMainExtend(t *testing.T) {
 	cfg := testConfig(t)
 	root := fixtureRoot(t)
-	editFile(t, filepath.Join(root, "packages/buf.yaml"), "upstream:", "exclude:\n  suites:\n    forky: rompe en testing\nupstream:")
+	editFile(t, filepath.Join(root, "packages/buf/buf.yaml"), "upstream:", "exclude:\n  suites:\n    forky: rompe en testing\nupstream:")
 	st, _ := repo.ReadState(root)
 	aqua := st.Packages["aqua"][0]
 	aqua.Suites = append(aqua.Suites, "forky")
@@ -141,8 +141,8 @@ func editFile(t *testing.T, path, old, new string) {
 func TestPlanMainFixture(t *testing.T) {
 	cfg := testConfig(t)
 	root := fixtureRoot(t)
-	editFile(t, filepath.Join(root, "packages/fnm.yaml"), "revision: 1", "revision: 2")
-	editFile(t, filepath.Join(root, "packages/bob.yaml"), "version: 4.3.0", "version: 9.9.9")
+	editFile(t, filepath.Join(root, "packages/fnm/fnm.yaml"), "revision: 1", "revision: 2")
+	editFile(t, filepath.Join(root, "packages/bob/bob.yaml"), "version: 4.3.0", "version: 9.9.9")
 	st, _ := repo.ReadState(root)
 	p, err := PlanMain(root, cfg, st, Reference{Source: "main"}, "abc")
 	if err != nil {
@@ -189,7 +189,7 @@ func TestPlanPR(t *testing.T) {
 	if p := plan(); len(p.Test)+len(p.Compare)+len(p.Errors) != 0 {
 		t.Errorf("sin cambios: %s", p.Summary())
 	}
-	editFile(t, filepath.Join(root, "packages/fnm.yaml"), "revision: 1", "revision: 2")
+	editFile(t, filepath.Join(root, "packages/fnm/fnm.yaml"), "revision: 1", "revision: 2")
 	git("commit", "-qam", "fnm")
 	if p := plan(); len(p.Test) != 1 || p.Test[0].Package != "fnm" || len(p.Compare) != 0 {
 		t.Errorf("solo manifiesto: %s", p.Summary())
@@ -213,7 +213,7 @@ func TestPlanPR(t *testing.T) {
 	// Un lockfile cambiado sin subir revision: se compara (FR-010).
 	git("checkout", "-q", "main")
 	git("checkout", "-qb", "lock")
-	f, _ := os.OpenFile(filepath.Join(root, "packages/aqua.lock.yaml"), os.O_APPEND|os.O_WRONLY, 0)
+	f, _ := os.OpenFile(filepath.Join(root, "packages/aqua/aqua.lock.yaml"), os.O_APPEND|os.O_WRONLY, 0)
 	f.WriteString("# cambio\n")
 	f.Close()
 	git("commit", "-qam", "lock")

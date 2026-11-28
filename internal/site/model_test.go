@@ -64,7 +64,7 @@ func TestLoad(t *testing.T) {
 
 func TestLoadI18nAndParagraphs(t *testing.T) {
 	f := newFixture(t)
-	path := filepath.Join(f.root, "packages", "fnm.yaml")
+	path := filepath.Join(f.root, "packages", "fnm", "fnm.yaml")
 	data, _ := os.ReadFile(path)
 	extra := "i18n:\n  es:\n    summary: gestor de versiones de Node.js\n    description: |\n      Primer párrafo\n      en dos líneas.\n\n      Segundo párrafo.\n"
 	os.WriteFile(path, append(data, extra...), 0o644)

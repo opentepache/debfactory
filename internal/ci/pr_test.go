@@ -41,7 +41,7 @@ func dirEmpty(t *testing.T, dir string) bool {
 func TestCIPR(t *testing.T) {
 	f := newMainFixture(t)
 	r, summary := f.prRunner(t, func(dir string) {
-		editFile(t, filepath.Join(dir, "packages/fnm.yaml"), "revision: 1", "revision: 2")
+		editFile(t, filepath.Join(dir, "packages/fnm/fnm.yaml"), "revision: 1", "revision: 2")
 	})
 	if err := r.PR(context.Background(), Options{Base: "origin/main", Jobs: 2}); err != nil {
 		t.Fatalf("ci pr: %v\n%s", err, f.out.String())
@@ -72,7 +72,7 @@ func TestCIPRBadChecksum(t *testing.T) {
 	f := newMainFixture(t)
 	var bad, good string
 	r, _ := f.prRunner(t, func(dir string) {
-		p := filepath.Join(dir, "packages/fnm.lock.yaml")
+		p := filepath.Join(dir, "packages/fnm/fnm.lock.yaml")
 		data, _ := os.ReadFile(p)
 		m := regexp.MustCompile(`amd64: ([0-9a-f]{64})`).FindSubmatch(data)
 		if m == nil {

@@ -94,13 +94,13 @@ func TestInputsExcludedArch(t *testing.T) {
 	const v = "4.3.0-0~tepache1"
 	writeRelease(t, root, suiteNames(t), release{name: "bob", version: v,
 		debs: map[string][]byte{"amd64": []byte("deb-amd64")}})
-	src, err := os.ReadFile(filepath.Join(testutil.ProjectRoot(), "packages", "bob.yaml"))
+	src, err := os.ReadFile(filepath.Join(testutil.ProjectRoot(), "packages", "bob", "bob.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	m := strings.Replace(string(src), "exclude:\n", "exclude:\n  arches:\n    arm64: no cabe en el runner estandar\n", 1)
-	os.MkdirAll(filepath.Join(root, "packages"), 0o755)
-	os.WriteFile(filepath.Join(root, "packages", "bob.yaml"), []byte(m), 0o644)
+	os.MkdirAll(filepath.Join(root, "packages", "bob"), 0o755)
+	os.WriteFile(filepath.Join(root, "packages", "bob", "bob.yaml"), []byte(m), 0o644)
 	in, err := Inputs(root, cfg, "bob", v)
 	if err != nil {
 		t.Fatal(err)

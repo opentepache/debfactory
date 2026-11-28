@@ -68,7 +68,7 @@ func newWatchFixture(t *testing.T, pkgs ...string) *watchFixture {
 	}
 	files[config.MainFile], files[config.LicensesFile] = read(config.MainFile), read(config.LicensesFile)
 	for _, p := range pkgs {
-		files[manifest.Path(p)], files[lock.Path(p)] = read(manifest.Path(p)), read(lock.Path(p))
+		files[manifest.DirPath(p)], files[lock.DirPath(p)] = read(manifest.DirPath(p)), read(lock.DirPath(p))
 	}
 	f := &watchFixture{t: t, g: citest.GitFixture(t, files), gh: citest.NewFakeGitHub(t), up: citest.NewUpstream(t),
 		now: time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC), temp: t.TempDir(), cache: t.TempDir(),
@@ -223,17 +223,17 @@ func TestWatchProposesNewVersion(t *testing.T) {
 		}
 	}
 	// Solo cambian versión, revisión y lockfile, en un commit de la App.
-	man := f.g.RemoteFile(bobPR, "packages/bob.yaml")
+	man := f.g.RemoteFile(bobPR, "packages/bob/bob.yaml")
 	if !strings.Contains(man, "\nversion: 4.4.0\n") || !strings.Contains(man, "\nrevision: 1\n") {
 		t.Errorf("manifiesto de la rama:\n%s", man)
 	}
-	if diff, _ := f.remoteGit("diff", "--name-only", "main", bobPR); diff != "packages/bob.lock.yaml\npackages/bob.yaml" {
+	if diff, _ := f.remoteGit("diff", "--name-only", "main", bobPR); diff != "packages/bob/bob.lock.yaml\npackages/bob/bob.yaml" {
 		t.Errorf("archivos cambiados = %q", diff)
 	}
 	if author, _ := f.remoteGit("log", "-1", "--format=%an <%ae>", bobPR); author != appSlug+"[bot] <4242+"+appSlug+"[bot]@users.noreply.github.com>" {
 		t.Errorf("autor = %q", author)
 	}
-	lk, err := lock.Parse([]byte(f.g.RemoteFile(bobPR, "packages/bob.lock.yaml")), "packages/bob.lock.yaml")
+	lk, err := lock.Parse([]byte(f.g.RemoteFile(bobPR, "packages/bob/bob.lock.yaml")), "packages/bob/bob.lock.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,7 +337,7 @@ func TestWatchOnePRPerPackage(t *testing.T) {
 	if pr := f.openPR(); pr.Title != "bob: 4.3.0 → 4.6.0" || !strings.Contains(pr.Body, "version=4.6.0") {
 		t.Errorf("PR = %q", pr.Title)
 	}
-	if !strings.Contains(f.g.RemoteFile(bobPR, "packages/bob.yaml"), "version: 4.6.0") {
+	if !strings.Contains(f.g.RemoteFile(bobPR, "packages/bob/bob.yaml"), "version: 4.6.0") {
 		t.Error("la rama no pasó a 4.6.0")
 	}
 }
@@ -349,7 +349,7 @@ func TestWatchForeignCommits(t *testing.T) {
 	f.mustCycle(Options{})
 	c := f.g.Clone()
 	c.Git("checkout", "-q", "-b", "fix", "origin/"+bobPR)
-	c.Write("packages/bob.yaml", strings.Replace(c.RemoteFile(bobPR, "packages/bob.yaml"), "summary: version manager for Neovim", "summary: Neovim version manager", 1))
+	c.Write("packages/bob/bob.yaml", strings.Replace(c.RemoteFile(bobPR, "packages/bob/bob.yaml"), "summary: version manager for Neovim", "summary: Neovim version manager", 1))
 	c.Commit("ajuste del mantenedor")
 	c.Git("push", "-q", "origin", "HEAD:refs/heads/"+bobPR)
 	tip := f.g.RemoteBranch(bobPR)
@@ -391,7 +391,7 @@ func TestWatchRegeneratesOnMainChange(t *testing.T) {
 	f := newWatchFixture(t)
 	f.release(bobRepo, "4.4.0", 60, nil)
 	f.mustCycle(Options{})
-	f.commitMain("packages/bob.yaml", func(s string) string {
+	f.commitMain("packages/bob/bob.yaml", func(s string) string {
 		return strings.Replace(s, "summary: version manager for Neovim", "summary: Neovim version manager", 1)
 	})
 	f.mustCycle(Options{Force: true})
@@ -399,7 +399,7 @@ func TestWatchRegeneratesOnMainChange(t *testing.T) {
 	if _, err := f.remoteGit("merge-base", "--is-ancestor", "main", bobPR); err != nil {
 		t.Error("la rama no parte de la punta de main")
 	}
-	if man := f.g.RemoteFile(bobPR, "packages/bob.yaml"); !strings.Contains(man, "summary: Neovim version manager") || !strings.Contains(man, "version: 4.4.0") {
+	if man := f.g.RemoteFile(bobPR, "packages/bob/bob.yaml"); !strings.Contains(man, "summary: Neovim version manager") || !strings.Contains(man, "version: 4.4.0") {
 		t.Errorf("manifiesto de la rama:\n%s", man)
 	}
 	if len(f.gh.OpenPRs()) != 1 {
@@ -410,7 +410,7 @@ func TestWatchRegeneratesOnMainChange(t *testing.T) {
 // TestWatchOmitted: FR-013a, sin peticiones.
 func TestWatchOmitted(t *testing.T) {
 	f := newWatchFixture(t)
-	f.commitMain("packages/bob.yaml", func(s string) string {
+	f.commitMain("packages/bob/bob.yaml", func(s string) string {
 		return strings.Replace(s, "  auto_merge: true", "  enabled: false", 1)
 	})
 	f.release(bobRepo, "4.4.0", 60, nil)
@@ -432,7 +432,7 @@ func TestWatchPrerelease(t *testing.T) {
 		t.Fatal("una versión preliminar generó un PR o un issue")
 	}
 	// prerelease_flag: ignore acepta 4.4.0 (marca no fiable), nunca la rc.
-	f.commitMain("packages/bob.yaml", func(s string) string { return s + "  prerelease_flag: ignore\n" })
+	f.commitMain("packages/bob/bob.yaml", func(s string) string { return s + "  prerelease_flag: ignore\n" })
 	f.mustCycle(Options{Force: true})
 	f.wantOut("watch: bob 4.3.0 → 4.4.0: pr-abierto #1")
 	// US2 escenario 3: con el PR en 4.4.0, una beta no lo cambia.
@@ -455,7 +455,7 @@ func TestWatchAutoMerge(t *testing.T) {
 	})
 	t.Run("sin auto_merge", func(t *testing.T) {
 		f := newWatchFixture(t)
-		f.commitMain("packages/bob.yaml", func(s string) string { return strings.Replace(s, "  auto_merge: true", "  auto_merge: false", 1) })
+		f.commitMain("packages/bob/bob.yaml", func(s string) string { return strings.Replace(s, "  auto_merge: true", "  auto_merge: false", 1) })
 		f.release(bobRepo, "4.4.0", 60, nil)
 		f.mustCycle(Options{})
 		if pr := f.openPR(); pr.AutoMerge || !strings.Contains(pr.Body, "| Auto-merge | no (desactivado en el manifiesto) |") {
@@ -476,7 +476,7 @@ func TestWatchAutoMerge(t *testing.T) {
 			!strings.Contains(pr.Body, "**cambia**: MIT → Apache-2.0") {
 			t.Errorf("PR = %v\n%s", pr.AutoMerge, pr.Body)
 		}
-		if man := f.g.RemoteFile(bobPR, "packages/bob.yaml"); !strings.Contains(man, "  spdx: Apache-2.0\n") {
+		if man := f.g.RemoteFile(bobPR, "packages/bob/bob.yaml"); !strings.Contains(man, "  spdx: Apache-2.0\n") {
 			t.Errorf("license.spdx no cambió:\n%s", man)
 		}
 	})
@@ -546,7 +546,7 @@ func TestWatchNotifications(t *testing.T) {
 		// El mantenedor corrige el manifiesto: se vuelve a evaluar, se abre el
 		// PR y la notificación se cierra con referencia a él (FR-018, FR-019).
 		f.gh.SetIssueCreated(1, time.Now().Add(-time.Hour))
-		f.commitMain("packages/bob.yaml", func(s string) string {
+		f.commitMain("packages/bob/bob.yaml", func(s string) string {
 			s = strings.Replace(s, "bob-linux-{{arch}}.zip", "bob-{{version}}-linux-{{arch}}.zip", 1)
 			return strings.Replace(s, "arm64: arm}", "arm64: aarch64}", 1)
 		})
@@ -561,7 +561,7 @@ func TestWatchNotifications(t *testing.T) {
 	})
 	t.Run("checksums que no coinciden", func(t *testing.T) {
 		f := newWatchFixture(t)
-		f.commitMain("packages/bob.yaml", func(s string) string {
+		f.commitMain("packages/bob/bob.yaml", func(s string) string {
 			return strings.Replace(s, "  format: zip\n", "  format: zip\nchecksums:\n  url: https://github.com/MordechaiHadad/bob/releases/download/{{tag}}/checksums.txt\n  format: sha256sum\n", 1)
 		})
 		f.release(bobRepo, "4.4.0", 60, func(r *citest.Release) { r.Assets = append(r.Assets, "checksums.txt") })
@@ -679,7 +679,7 @@ func TestWatchRateLimit(t *testing.T) {
 	})
 	t.Run("100 paquetes", func(t *testing.T) {
 		f := newWatchFixture(t)
-		base := f.g.RemoteFile("main", "packages/bob.yaml")
+		base := f.g.RemoteFile("main", "packages/bob/bob.yaml")
 		c := f.g.Clone()
 		for i := range 100 {
 			name := fmt.Sprintf("p%03d", i)
@@ -746,11 +746,11 @@ func TestWatchBarrier(t *testing.T) {
 // TestSetVersion: la edición del manifiesto conserva comentarios y estilo, y
 // pone comillas si la versión se leería como un número en YAML.
 func TestSetVersion(t *testing.T) {
-	src, err := os.ReadFile(filepath.Join(testutil.ProjectRoot(), "packages/bob.yaml"))
+	src, err := os.ReadFile(filepath.Join(testutil.ProjectRoot(), "packages/bob/bob.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := setVersion(src, "packages/bob.yaml", "4.10.1")
+	out, err := setVersion(src, "packages/bob/bob.yaml", "4.10.1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -758,11 +758,11 @@ func TestSetVersion(t *testing.T) {
 	if string(out) != want {
 		t.Errorf("edición:\n%s", out)
 	}
-	out, err = setVersion(src, "packages/bob.yaml", "4.10")
+	out, err = setVersion(src, "packages/bob/bob.yaml", "4.10")
 	if err != nil || !strings.Contains(string(out), "version: \"4.10\"\n") {
 		t.Errorf("4.10 sin comillas: %v\n%s", err, out)
 	}
-	lic, err := setLicense(out, "packages/bob.yaml", "Apache-2.0")
+	lic, err := setLicense(out, "packages/bob/bob.yaml", "Apache-2.0")
 	if err != nil || !strings.Contains(string(lic), "license:\n  spdx: Apache-2.0\n") {
 		t.Errorf("license.spdx: %v\n%s", err, lic)
 	}

@@ -205,7 +205,7 @@ func TestBuildRejects(t *testing.T) {
 
 func TestLanguages(t *testing.T) {
 	f := newFixture(t)
-	path := filepath.Join(f.root, "packages", "fnm.yaml")
+	path := filepath.Join(f.root, "packages", "fnm", "fnm.yaml")
 	data, _ := os.ReadFile(path)
 	os.WriteFile(path, append(data, "i18n:\n  es:\n    summary: gestor de versiones de Node.js\n"...), 0o644)
 	m := f.load(t)

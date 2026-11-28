@@ -164,7 +164,7 @@ func (f *mainFixture) bump(names ...string) {
 	f.t.Helper()
 	c := f.g.Clone()
 	for _, name := range names {
-		p := filepath.Join(c.Work, "packages", name+".yaml")
+		p := filepath.Join(c.Work, manifest.PathIn(c.Work, name))
 		data, _ := os.ReadFile(p)
 		os.WriteFile(p, bytes.Replace(data, []byte("revision: 1"), []byte("revision: 2"), 1), 0o644)
 	}

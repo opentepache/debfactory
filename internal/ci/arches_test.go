@@ -46,7 +46,7 @@ func TestPlanExtendArches(t *testing.T) {
 		t.Errorf("plan = %s (%+v)", p.Summary(), p.Extend)
 	}
 	// Con la exclusión, nada que ampliar en arquitecturas.
-	editFile(t, filepath.Join(root, "packages/bob.yaml"), "exclude:\n", "exclude:\n  arches:\n    arm64: no cabe en el runner estandar\n")
+	editFile(t, filepath.Join(root, "packages/bob/bob.yaml"), "exclude:\n", "exclude:\n  arches:\n    arm64: no cabe en el runner estandar\n")
 	if got := MissingArches(root, cfg, st, "bob", bob.Version); len(got) != 0 {
 		t.Errorf("con exclusión: %v", got)
 	}

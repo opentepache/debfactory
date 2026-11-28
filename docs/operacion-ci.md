@@ -101,7 +101,7 @@ Para una instalación nueva:
 
 ## 2. Operación diaria
 
-- **Subir un paquete.** En `~/Develop/packages`, en una rama: edita `packages/<p>.yaml`; desde
+- **Subir un paquete.** En `~/Develop/packages`, en una rama: edita `packages/<p>/<p>.yaml` (o `packages/<p>.yaml` antes de `migrate layout`); desde
   `~/Develop/debfactory`, `just lock <p>`; commit, PR. Espera el check verde, integra. La
   ejecución de `main` construye, prueba, publica, sincroniza, verifica y abre o actualiza el PR
   de estado. Los usuarios ya tienen la versión antes de que lo integres.
@@ -343,7 +343,7 @@ Un paquete de nivel 2 se compila desde el código fuente, uno por cada suite y a
 upstream no publica binarios para Linux, o el programa enlaza con librerías del sistema que cambian
 entre suites (`libssl3` en bookworm, `libssl3t64` en trixie y noble).
 
-1. **El PR** en `packages`: `packages/<p>.yaml` con `level: 2`, `justification`, `source` (el
+1. **El PR** en `packages`: `packages/<p>/<p>.yaml` con `level: 2`, `justification`, `source` (el
    tarball del release o del tag en GitHub) y, en `packages/<p>/debian/`, una carpeta `debian/`
    estándar (`control`, `rules` ejecutable, `copyright`, `source/format` = `3.0 (quilt)`), **sin
    `changelog`**: lo genera la herramienta por suite. En esta fase, un solo paquete binario con el

@@ -51,6 +51,8 @@ type Provenance struct {
 	ManifestCommit string      `json:"manifest_commit"`
 	Run            *supply.Run `json:"run"`
 	Attestations   []struct {
+		Suite   string `json:"suite"`
+		Arch    string `json:"arch"`
 		Subject string `json:"subject"`
 		Digest  string `json:"digest"`
 	} `json:"attestations"`
@@ -144,11 +146,22 @@ func Run(ctx context.Context, o Options) (*Result, error) {
 	if err != nil {
 		return no("%v", err)
 	}
-	filename, want := findDeb(pkgs, o.Package, pv)
-	if filename == "" {
-		return no("el índice de %s/%s no tiene el .deb de la procedencia", suite, o.Arch)
+	subject, digest := "", ""
+	for _, a := range pv.Attestations {
+		if a.Arch == o.Arch && (pv.Level != 2 || a.Suite == suite) {
+			subject, digest = a.Subject, a.Digest
+		}
 	}
-	deb := filepath.Join(work, path.Base(filename))
+	filename, want := findDeb(pkgs, o.Package, digest)
+	if filename == "" {
+		var subj []string
+		for _, a := range pv.Attestations {
+			subj = append(subj, a.Subject)
+		}
+		return no("el índice de %s/%s no tiene el .deb de la procedencia (índice: %s; procedencia: %s)", suite, o.Arch,
+			strings.Join(listDebs(pkgs, o.Package), ", "), strings.Join(subj, ", "))
+	}
+	deb := filepath.Join(work, subject)
 	if err := download(ctx, o.Client, site+"/"+filename, deb); err != nil {
 		return no("%s: %v", filename, err)
 	}
@@ -156,15 +169,9 @@ func Run(ctx context.Context, o Options) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	res.Deb, res.SHA256 = path.Base(filename), sha
+	res.Deb, res.SHA256 = subject, sha
 	if sha != want {
 		return no("%s da %s y el índice firmado dice %s", res.Deb, sha, want)
-	}
-	digest := ""
-	for _, a := range pv.Attestations {
-		if a.Subject == res.Deb {
-			digest = a.Digest
-		}
 	}
 	if digest != sha {
 		return no("%s da %s y la procedencia dice %q", res.Deb, sha, digest)
@@ -210,15 +217,18 @@ func publishedKeyring(ctx context.Context, c *http.Client, site, work string) (s
 	if err != nil {
 		return "", err
 	}
-	var m struct {
-		Keyring struct {
-			Path         string   `json:"path"`
-			Fingerprints []string `json:"fingerprints"`
-		} `json:"keyring"`
+	var sm struct {
+		Repo struct {
+			Keyring struct {
+				Path         string   `json:"path"`
+				Fingerprints []string `json:"fingerprints"`
+			} `json:"keyring"`
+		} `json:"repo"`
 	}
-	if err := json.Unmarshal(b, &m); err != nil || m.Keyring.Path == "" {
-		return "", errors.New("site.json sin keyring")
+	if err := json.Unmarshal(b, &sm); err != nil || sm.Repo.Keyring.Path == "" {
+		return "", errors.New("site.json sin repo.keyring")
 	}
+	m := sm.Repo
 	k := filepath.Join(work, "keyring.gpg")
 	if err := download(ctx, c, site+"/"+strings.TrimPrefix(m.Keyring.Path, "/"), k); err != nil {
 		return "", err
@@ -299,18 +309,15 @@ func decompress(ctx context.Context, tool string, b []byte) ([]byte, error) {
 	return cmd.Output()
 }
 
-// findDeb busca en Packages el .deb del paquete que la procedencia registra
-// y devuelve su Filename y su SHA256.
-func findDeb(index []byte, pkg string, pv Provenance) (string, string) {
-	subjects := map[string]bool{}
-	for _, a := range pv.Attestations {
-		subjects[a.Subject] = true
-	}
+// findDeb busca en Packages el .deb del paquete con el digest que registra
+// la procedencia (el pool nombra los archivos por su contenido) y devuelve su
+// Filename y su SHA256.
+func findDeb(index []byte, pkg, digest string) (string, string) {
 	sc := bufio.NewScanner(bytes.NewReader(index))
 	sc.Buffer(make([]byte, 1024*1024), 16*1024*1024)
 	var name, file, sha string
 	flush := func() (string, string) {
-		if name == pkg && subjects[path.Base(file)] {
+		if name == pkg && digest != "" && sha == digest {
 			return file, sha
 		}
 		return "", ""
@@ -368,4 +375,22 @@ func readJSONFile(p string, v any) error {
 		return err
 	}
 	return json.Unmarshal(b, v)
+}
+
+// listDebs son los Filename del paquete en un índice (para el mensaje de error).
+func listDebs(index []byte, pkg string) []string {
+	var out []string
+	name := ""
+	for _, l := range strings.Split(string(index), "\n") {
+		k, v, _ := strings.Cut(l, ": ")
+		switch k {
+		case "Package":
+			name = v
+		case "Filename":
+			if name == pkg {
+				out = append(out, path.Base(v))
+			}
+		}
+	}
+	return out
 }

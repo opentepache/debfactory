@@ -28,17 +28,23 @@ func newFixture(t *testing.T) *fixture {
 	src := testutil.ProjectRoot()
 	root := t.TempDir()
 	for _, dir := range []string{"config", "packages"} {
-		entries, err := os.ReadDir(filepath.Join(src, dir))
+		// Copia recursiva: cada paquete vive en packages/<p>/ (specs/009).
+		err := filepath.WalkDir(filepath.Join(src, dir), func(p string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			rel, _ := filepath.Rel(src, p)
+			if d.IsDir() {
+				return os.MkdirAll(filepath.Join(root, rel), 0o755)
+			}
+			data, err := os.ReadFile(p)
+			if err != nil {
+				return err
+			}
+			return os.WriteFile(filepath.Join(root, rel), data, 0o644)
+		})
 		if err != nil {
 			t.Fatal(err)
-		}
-		os.MkdirAll(filepath.Join(root, dir), 0o755)
-		for _, e := range entries {
-			data, err := os.ReadFile(filepath.Join(src, dir, e.Name()))
-			if err != nil {
-				t.Fatal(err)
-			}
-			os.WriteFile(filepath.Join(root, dir, e.Name()), data, 0o644)
 		}
 	}
 	cfg, err := config.Load(root)

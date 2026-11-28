@@ -23,7 +23,7 @@ func TestBuildMatrix(t *testing.T) {
 			t.Fatalf("%v %s", err, out)
 		}
 	}
-	editFile(t, filepath.Join(root, "packages/buf.yaml"), "upstream:", "exclude:\n  arches:\n    arm64: no cabe en el runner estandar\nupstream:")
+	editFile(t, filepath.Join(root, "packages/buf/buf.yaml"), "upstream:", "exclude:\n  arches:\n    arm64: no cabe en el runner estandar\nupstream:")
 	p := &Plan{
 		Publish: []AffectedPackage{{Package: "buf", Version: "1.75.0-0~tepache1"}, {Package: "tepache-hello", Version: "1.0.0-0~tepache1"}},
 		Extend:  []AffectedPackage{{Package: "aqua", Version: "2.66.1-0~tepache1", Reason: Extend, Suites: []string{"forky"}}},

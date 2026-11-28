@@ -45,6 +45,8 @@ type ProvUpstream struct {
 
 // ProvAttestation es un .deb publicado, su digest y dónde ver su atestación.
 type ProvAttestation struct {
+	Suite    string `json:"suite,omitempty"` // nivel 2: la suite del .deb
+	Arch     string `json:"arch"`
 	Subject  string `json:"subject"`
 	Digest   string `json:"digest"`
 	RekorURL string `json:"rekor_url,omitempty"`
@@ -75,9 +77,9 @@ func ProvenancePath(data, pkg, version string) string {
 	return site.ProvenanceFile(data, pkg, version)
 }
 
-// buildProvenance reúne provenance.json de una versión ya publicada desde el
+// BuildProvenance reúne provenance.json de una versión ya publicada desde el
 // manifiesto, el lockfile, el estado y los informes de dist/.
-func buildProvenance(root string, m *manifest.Manifest, lk *lock.File, p repo.Published, commit, runURL string,
+func BuildProvenance(root string, m *manifest.Manifest, lk *lock.File, p repo.Published, commit, runURL string,
 	seq int, run *supply.Run) (*Provenance, error) {
 	hosted := run != nil
 	entry := lk.Versions[m.Version]
@@ -92,8 +94,8 @@ func buildProvenance(root string, m *manifest.Manifest, lk *lock.File, p repo.Pu
 		pv.Run = run
 	}
 	dist := filepath.Join(root, "dist")
-	att := func(file, digest string) {
-		a := ProvAttestation{Subject: file, Digest: digest}
+	att := func(suite, arch, file, digest string) {
+		a := ProvAttestation{Suite: suite, Arch: arch, Subject: file, Digest: digest}
 		if hosted {
 			a.RekorURL = RekorURL(digest)
 		}
@@ -124,7 +126,7 @@ func buildProvenance(root string, m *manifest.Manifest, lk *lock.File, p repo.Pu
 			if u, err := m.RenderURL(m.Artifact.URL, arch); err == nil {
 				pv.Upstream.Files[u] = entry.Artifacts[arch]
 			}
-			att(m.DebBase(arch)+".deb", sha)
+			att("", arch, m.DebBase(arch)+".deb", sha)
 			tests(m.DebBase(arch))
 			readSupply(m.DebBase(arch) + ".supply.json")
 		}
@@ -137,7 +139,7 @@ func buildProvenance(root string, m *manifest.Manifest, lk *lock.File, p repo.Pu
 			b := p.Builds[su]
 			for arch, sha := range b.Debs {
 				base := fmt.Sprintf("%s_%s_%s", m.Name, b.Version, arch)
-				att(base+".deb", sha)
+				att(su, arch, base+".deb", sha)
 				pv.Buildinfo = append(pv.Buildinfo, base+".buildinfo")
 				tests(base)
 			}
@@ -155,9 +157,9 @@ func buildProvenance(root string, m *manifest.Manifest, lk *lock.File, p repo.Pu
 	return pv, nil
 }
 
-// writeProvenance guarda provenance.json en <data> y devuelve su sha256, que
+// WriteProvenance guarda provenance.json en <data> y devuelve su sha256, que
 // queda en la entrada de auditoría (versionada en la rama de estado).
-func writeProvenance(data string, pv *Provenance) (string, error) {
+func WriteProvenance(data string, pv *Provenance) (string, error) {
 	b, err := json.MarshalIndent(pv, "", "  ")
 	if err != nil {
 		return "", err
@@ -207,12 +209,12 @@ func (x *run) provenance(entries []Entry, st *repo.State, commit string) error {
 			r := x.accept.Run
 			hostedRun = &r
 		}
-		pv, err := buildProvenance(x.Root, m, lk, p, e.Commit, run, len(old)+i+1, hostedRun)
+		pv, err := BuildProvenance(x.Root, m, lk, p, e.Commit, run, len(old)+i+1, hostedRun)
 		if err != nil {
 			return err
 		}
 		pv.Repository = x.Cfg.CI.Repository
-		if e.Provenance, err = writeProvenance(x.Repo.DataDir, pv); err != nil {
+		if e.Provenance, err = WriteProvenance(x.Repo.DataDir, pv); err != nil {
 			return err
 		}
 	}

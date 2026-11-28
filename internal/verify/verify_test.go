@@ -54,14 +54,14 @@ func newRepo(t *testing.T, deb []byte, provDigest string, run *supply.Run) *repo
 		"--clearsign", "-o", filepath.Join(dir, "InRelease"), filepath.Join(dir, "Release"))
 	f.files["/dists/trixie/InRelease"], _ = os.ReadFile(filepath.Join(dir, "InRelease"))
 	f.files["/keyring.gpg"] = gpg(t, home, "--export", master)
-	f.files["/site.json"] = []byte(fmt.Sprintf(`{"keyring":{"path":"keyring.gpg","fingerprints":[%q]}}`, master))
+	f.files["/site.json"] = []byte(fmt.Sprintf(`{"repo":{"keyring":{"path":"keyring.gpg","fingerprints":[%q]}}}`, master))
 	runJSON := "null"
 	if run != nil {
 		runJSON = fmt.Sprintf(`{"repo":%q,"workflow":%q,"ref":%q,"commit":%q}`, run.Repo, run.Workflow, run.Ref, run.Commit)
 	}
 	f.files["/packages/bob/4.3.0-0~tepache1/provenance.json"] = []byte(fmt.Sprintf(`{"package":"bob","repository":"opentepache/packages",
 "version":"4.3.0-0~tepache1","level":1,"manifest_commit":"%s","run":%s,
-"attestations":[{"subject":%q,"digest":%q}],"tests":[{"suite":"trixie","arch":"amd64","status":"pass"}]}`,
+"attestations":[{"arch":"amd64","subject":%q,"digest":%q}],"tests":[{"suite":"trixie","arch":"amd64","status":"pass"}]}`,
 		strings.Repeat("a", 40), runJSON, debName, provDigest))
 	f.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if b, ok := f.files[r.URL.Path]; ok {
@@ -131,7 +131,7 @@ func TestVerifyProvenanceAndAttestation(t *testing.T) {
 	ctx := context.Background()
 	deb := []byte("contenido del .deb")
 	f := newRepo(t, deb, strings.Repeat("0", 64), nil)
-	if res, _ := Run(ctx, f.opts()); res.Verified || !strings.Contains(res.Reason, "la procedencia dice") {
+	if res, _ := Run(ctx, f.opts()); res.Verified || !strings.Contains(res.Reason, "no tiene el .deb de la procedencia") {
 		t.Errorf("procedencia: %+v", res)
 	}
 	run := &supply.Run{Repo: "opentepache/packages", Workflow: ".github/workflows/main.yml", Ref: "refs/heads/main", Commit: "c0ffee"}

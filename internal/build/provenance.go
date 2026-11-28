@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"debfactory/internal/fetch"
 	"debfactory/internal/manifest"
 	"debfactory/internal/report"
 	"debfactory/internal/supply"
@@ -32,7 +33,11 @@ func (e *Env) checkProvenance(ctx context.Context, m *manifest.Manifest, files m
 	}
 	check := e.Provenance
 	if check == nil {
-		a := &supply.Attestor{List: e.GitHub.Attestations}
+		gh := e.GitHub
+		if gh == nil {
+			gh = &fetch.GitHub{} // API pública, sin token
+		}
+		a := &supply.Attestor{List: gh.Attestations}
 		check = a.Check
 	}
 	urls := make([]string, 0, len(files))
