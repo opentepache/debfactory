@@ -1,0 +1,83 @@
+schema: 1
+name: ghostty
+version: 1.4.0
+revision: 1
+level: 2
+justification: |
+  Upstream publishes no Linux binaries; it is built from source with Zig against the GTK4 and
+  libadwaita of each suite.
+summary: fast, native, feature-rich terminal emulator
+description: |
+  Ghostty is a terminal emulator that uses platform-native UI and GPU acceleration.
+homepage: https://ghostty.org
+section: x11
+upstream: ghostty-org/ghostty
+license:
+  spdx: MIT
+  file: {repo: LICENSE}
+value: Not in Debian or Ubuntu; upstream publishes no Linux packages; griffo-free is behind (1.3.1, amd64 only).
+source:
+  url: https://release.files.ghostty.org/{{version}}/ghostty-{{version}}.tar.gz
+  format: tar.gz
+  extra_files:
+    - {path: VERSION, reason: version file written when packaging the release}
+    - {path: src/apprt/gtk/ghostty_resources.c, reason: GTK resources compiled when packaging the release}
+    - {path: src/apprt/gtk/ghostty_resources.h, reason: GTK resources compiled when packaging the release}
+    - {path: src/build/framegen/framedata.compressed, reason: frame data generated when packaging the release}
+signing:
+  minisign:
+    key: RWQlAjJC23149WL2sEpT/l0QKy7hMIFhYdQOFy0Z7z7PbneUgvlsnYcV
+    file: https://release.files.ghostty.org/{{version}}/ghostty-{{version}}.tar.gz.minisig
+toolchain:
+  name: zig
+  version: 0.17.0
+  url: https://ziglang.org/download/{{version}}/zig-{{arch}}-linux-{{version}}.tar.xz
+  arch_map: {amd64: x86_64, arm64: aarch64}
+  signing:
+    minisign:
+      key: RWSGOq2NVecA2UPNdBUZykf1CCb147pkmdtYxgb3Ti+JO/wCYvhbAb/U
+      file: https://ziglang.org/download/{{version}}/zig-{{arch}}-linux-{{version}}.tar.xz.minisig
+deps:
+  manager: zig
+  exclude_paths: [example/, test/]
+  skip:
+    sentry: "sentry solo se activa en macOS e iOS (src/build/Config.zig: sentry = false en Linux)"
+    breakpad: "solo lo usa sentry, que no se compila en Linux"
+    zig_js: "solo para el destino wasm32"
+    zig_objc: "solo para destinos Darwin (macOS, iOS)"
+    macos: "solo para destinos Darwin (macOS, iOS)"
+    libintl: "solo se incluye en Darwin; en Linux se usa la de glibc"
+    zlib: "con --system se usa la zlib del sistema (zlib1g-dev)"
+    libpng: "con --system se usa la libpng del sistema (libpng-dev)"
+    libxml2: "con --system fontconfig usa la libxml2 del sistema"
+test:
+  command: ghostty +version
+  expect: "1.4.0"
+exclude:
+  suites:
+    sid: frequent library transitions break the build; forky covers it
+    bookworm: GTK 4.8 and libadwaita 1.2 are too old
+    noble: no gtk4-layer-shell
+license_exceptions:
+  - dependency: freetype
+    licenses: [GPL-2.0-or-later]
+    file: docs/GPLv2.TXT
+    reason: "FreeType tiene licencia dual FTL o GPL-2.0-or-later; LICENSE.TXT solo remite a los dos textos"
+  - dependency: harfbuzz
+    licenses: [MIT-Modern-Variant]
+    reason: "HarfBuzz usa la licencia 'Old MIT' (MIT-Modern-Variant), que la detección no reconoce"
+  - dependency: iterm2_themes
+    licenses: [MIT]
+    repo_file: licenses/iterm2-color-schemes.txt
+    reason: "el tarball de temas no incluye licencia; es la colección iTerm2-Color-Schemes (MIT; cada tema conserva la de su autor)"
+  - dependency: gobject
+    licenses: [MIT]
+    repo_file: licenses/zig-gobject.txt
+    reason: "bindings generados por ghostty-org/zig-gobject (MIT); el tarball no incluye la licencia"
+  - dependency: bindings
+    licenses: [MIT]
+    repo_file: licenses/dear-bindings.txt
+    reason: "bindings de Dear ImGui generados con dear_bindings (MIT, igual que Dear ImGui); el tarball no incluye la licencia"
+  - dependency: spirv_cross
+    licenses: [CC-BY-4.0]
+    reason: "SPIRV-Cross es Apache-2.0; CC-BY-4.0 cubre solo README.md y CODE_OF_CONDUCT.adoc (documentación, no se compila)"

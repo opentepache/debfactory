@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -30,6 +31,7 @@ func (e *Env) Lock(ctx context.Context, name string, force bool) error {
 	if err != nil {
 		return err
 	}
+	e = e.forManifest(m)
 	fail := func(stage report.Stage, arch string, err error) error {
 		return report.Wrap(err, stage, m.Name, m.Version, arch)
 	}
@@ -116,6 +118,18 @@ func (e *Env) Lock(ctx context.Context, name string, force bool) error {
 		entry.ChecksumsSHA256 = d.sha
 	}
 
+	files := map[string]string{}
+	for _, d := range artifacts {
+		files[d.url] = d.path
+	}
+	if m.Checksums != nil {
+		for _, d := range pending {
+			files[d.url] = d.path
+		}
+	}
+	if entry.Signatures, err = e.verifySignatures(ctx, m, e.Cfg.Arches, files, nil); err != nil {
+		return err
+	}
 	text, err := e.lockLicense(ctx, m, tag, artifacts, get)
 	if err != nil {
 		return err
@@ -125,15 +139,21 @@ func (e *Env) Lock(ctx context.Context, name string, force bool) error {
 	if check == nil {
 		check = license.Gate
 	}
-	if err := check(text, m.License.SPDX, e.Cfg); err != nil {
+	if err := check(text, m.License.SPDX, e.Cfg.WithLicenses(m.PackageExceptionLicenses()...)); err != nil {
 		return fail(report.License, "", err)
 	}
 
-	published, err := e.GitHub.PublishedAt(ctx, m.Upstream, tag)
+	rel, err := e.GitHub.Release(ctx, m.Upstream, tag)
 	if err != nil {
 		return fail(report.Lock, "", err)
 	}
-	entry.SourceDateEpoch = published.Unix()
+	entry.SourceDateEpoch = rel.PublishedAt.Unix()
+	e.warnUnpinned(m, rel)
+	if m.Level2() {
+		if err := e.lockLevel2(ctx, m, entry, artifacts[""].path, get); err != nil {
+			return err
+		}
+	}
 
 	if old, ok := lk.Versions[m.Version]; ok && !old.Equal(entry) && !force {
 		return &report.Error{Package: m.Name, Version: m.Version, Stage: report.Lock,
@@ -151,7 +171,7 @@ func (e *Env) Lock(ctx context.Context, name string, force bool) error {
 	if err := lk.Write(e.Root, m.Name); err != nil {
 		return fail(report.Lock, "", err)
 	}
-	e.Out.Result(m.Name, m.Version, "", "lock", lock.Path(m.Name))
+	e.Out.Result(m.Name, m.Version, "", "lock", lock.PathIn(e.Root, m.Name))
 	return nil
 }
 
@@ -226,6 +246,17 @@ func diff(old, new *lock.Entry) []string {
 	add("license_sha256", old.LicenseSHA256, new.LicenseSHA256)
 	add("checksums_sha256", old.ChecksumsSHA256, new.ChecksumsSHA256)
 	add("source_sha256", old.SourceSHA256, new.SourceSHA256)
+	add("tag_archive_sha256", old.TagArchiveSHA256, new.TagArchiveSHA256)
+	add("zigdeps_sha256", old.ZigdepsSHA256, new.ZigdepsSHA256)
+	for _, k := range unionKeys(old.Toolchain, new.Toolchain) {
+		add("toolchain."+k, old.Toolchain[k], new.Toolchain[k])
+	}
+	for _, k := range unionKeys(old.ExtraFiles, new.ExtraFiles) {
+		add("extra_files."+k, old.ExtraFiles[k], new.ExtraFiles[k])
+	}
+	if !slices.Equal(old.Deps, new.Deps) {
+		out = append(out, fmt.Sprintf("deps: %d → %d dependencias o hashes distintos", len(old.Deps), len(new.Deps)))
+	}
 	arches := map[string]bool{}
 	for a := range old.Artifacts {
 		arches[a] = true
@@ -288,4 +319,21 @@ func (e *Env) Prune(name string) error {
 	}
 	e.Out.Result(m.Name, m.Version, "", "prune", fmt.Sprintf("versiones borradas: %d", removed))
 	return nil
+}
+
+// unionKeys son las claves de a y b, ordenadas.
+func unionKeys(a, b map[string]string) []string {
+	keys := map[string]bool{}
+	for k := range a {
+		keys[k] = true
+	}
+	for k := range b {
+		keys[k] = true
+	}
+	out := make([]string, 0, len(keys))
+	for k := range keys {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

@@ -510,7 +510,7 @@ func TestWatchNotifications(t *testing.T) {
 	t.Run("licencia fuera de la allowlist", func(t *testing.T) {
 		f := newWatchFixture(t)
 		f.release(bobRepo, "4.4.0", 60, nil)
-		f.up.Serve("https://raw.githubusercontent.com/"+bobRepo+"/v4.4.0/LICENSE", []byte(testutil.ZlibText))
+		f.up.Serve("https://raw.githubusercontent.com/"+bobRepo+"/v4.4.0/LICENSE", []byte(testutil.WTFPLText))
 		f.mustCycle(Options{})
 		f.wantOut("watch: bob 4.3.0 → 4.4.0: notificado watch-license #1")
 		downloads := f.up.Downloads()
@@ -520,8 +520,8 @@ func TestWatchNotifications(t *testing.T) {
 		}
 		is := f.gh.OpenIssues()
 		if len(is) != 1 || is[0].Title != "fallo: bob 4.4.0 en watch-license" || len(is[0].Comments) != 0 ||
-			!strings.Contains(is[0].Body, "licencia Zlib fuera de config/licenses.yaml") ||
-			!strings.Contains(is[0].Body, "declarada: MIT") || !strings.Contains(is[0].Body, "detectada: Zlib (cobertura 100 %)") {
+			!strings.Contains(is[0].Body, "licencia WTFPL fuera de config/licenses.yaml") ||
+			!strings.Contains(is[0].Body, "declarada: MIT") || !strings.Contains(is[0].Body, "detectada: WTFPL (cobertura 100 %)") {
 			t.Errorf("issues = %+v", is)
 		}
 		if f.up.Downloads() != downloads || len(f.gh.OpenPRs()) != 0 {
@@ -614,7 +614,7 @@ func TestWatchNotifications(t *testing.T) {
 	t.Run("una versión nueva cierra las notificaciones viejas", func(t *testing.T) {
 		f := newWatchFixture(t)
 		f.release(bobRepo, "4.4.0", 60, nil)
-		f.up.Serve("https://raw.githubusercontent.com/"+bobRepo+"/v4.4.0/LICENSE", []byte(testutil.ZlibText))
+		f.up.Serve("https://raw.githubusercontent.com/"+bobRepo+"/v4.4.0/LICENSE", []byte(testutil.WTFPLText))
 		f.mustCycle(Options{})
 		f.release(bobRepo, "4.4.1", 50, nil)
 		f.mustCycle(Options{Force: true})

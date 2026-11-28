@@ -102,3 +102,39 @@ func TestCompleteSource(t *testing.T) {
 		t.Error("Equal ignora source_sha256")
 	}
 }
+
+// TestPhase009Fields (specs/009, data-model §2): toolchain, dependencias,
+// archivo del tag, extras y componente zigdeps.
+func TestPhase009Fields(t *testing.T) {
+	e := &Entry{SourceDateEpoch: 1, LicenseSHA256: h("a"), SourceSHA256: h("b"), TagArchiveSHA256: h("c"),
+		ExtraFiles: map[string]string{"VERSION": h("d")}, Toolchain: map[string]string{"amd64": h("e"), "arm64": h("f")},
+		Deps:          []Dep{{URL: "https://x/a.tar.gz", Hash: "a-0.1.0-AAA", SHA256: h("1")}, {URL: "git+https://x/b#c", Hash: "b-0.2.0-BBB", SHA256: h("2")}},
+		ZigdepsSHA256: h("3")}
+	if err := e.wellFormed(); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	os.Mkdir(filepath.Join(root, "packages"), 0o755)
+	f := &File{Schema: 1, Versions: map[string]*Entry{"1.4.0": e}}
+	if err := f.Write(root, "x"); err != nil {
+		t.Fatal(err)
+	}
+	back, err := Read(root, "x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !back.Versions["1.4.0"].Equal(e) {
+		t.Fatalf("ida y vuelta: %+v", back.Versions["1.4.0"])
+	}
+	bad := *e
+	bad.Deps = []Dep{e.Deps[1], e.Deps[0]}
+	if err := bad.wellFormed(); err == nil || !strings.Contains(err.Error(), "ordenadas") {
+		t.Errorf("deps desordenadas: %v", err)
+	}
+	other := *e
+	other.Deps = append([]Dep{}, e.Deps...)
+	other.Deps[0].SHA256 = h("9")
+	if e.Equal(&other) {
+		t.Error("Equal ignora deps")
+	}
+}

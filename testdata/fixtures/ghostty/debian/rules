@@ -1,0 +1,36 @@
+#!/usr/bin/make -f
+# Compila con el toolchain de upstream que deja debfactory en el PATH
+# (debian/upstream/toolchain) y las dependencias de Zig del componente
+# .orig-zigdeps (extraído en zigdeps/), sin red (specs/009, research D3).
+include /usr/share/dpkg/pkg-info.mk
+
+export ZIG_GLOBAL_CACHE_DIR := $(CURDIR)/.zig-global-cache
+ZIG_FLAGS := --system $(CURDIR)/zigdeps -fno-sys=harfbuzz \
+	-Doptimize=ReleaseFast -Dcpu=baseline \
+	-Dversion-string=$(DEB_VERSION_UPSTREAM) \
+	--cache-dir $(CURDIR)/.zig-cache --prefix /usr
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+
+override_dh_auto_build:
+
+override_dh_auto_install:
+	DESTDIR=$(CURDIR)/debian/ghostty zig build $(ZIG_FLAGS)
+	# upstream instala siempre libghostty-vt (sin opción para evitarlo); este
+	# paquete lleva solo la terminal. El .a de Zig tampoco lo acepta strip.
+	rm -rf debian/ghostty/usr/lib/libghostty-vt* debian/ghostty/usr/lib/pkgconfig \
+		debian/ghostty/usr/include
+	rmdir --ignore-fail-on-non-empty debian/ghostty/usr/lib
+	# Zig deja como RUNPATH los directorios de pkg-config (p. ej.
+	# /usr/lib/<triplete>), que son los del enlazador: sobra y Debian no lo admite.
+	patchelf --remove-rpath debian/ghostty/usr/bin/ghostty
+
+override_dh_auto_test:
+
+override_dh_dwz:
+
+override_dh_auto_clean:
+	rm -rf .zig-cache .zig-global-cache zig-out

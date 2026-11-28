@@ -39,7 +39,24 @@ toolchain:
 deps:
   manager: zig                  # único valor en esta fase
   exclude_paths: [example/]     # árboles de upstream que no forman parte del build
+  skip:                         # dependencias que el build no usa (FR-002): no van al fuente
+    sentry: "sentry solo se activa en macOS e iOS"
 ```
+
+### Excepciones de licencia (constitución 1.12.0, FR-027)
+
+```yaml
+license_exceptions:
+  - dependency: freetype        # nombre en build.zig.zon; omitido = el propio paquete
+    licenses: [GPL-2.0-or-later] # de allowed o de exception_only (config/licenses.yaml)
+    file: docs/GPLv2.TXT        # opcional: texto dentro de la dependencia
+    # repo_file: licenses/x.txt # o un texto guardado en packages/<p>/ si upstream no lo trae
+    reason: "<motivo, ≥ 10 caracteres>"
+```
+
+Reglas: una excepción por dependencia; `file` y `repo_file` excluyentes y sin `..`; la del propio
+paquete solo lleva `licenses` y `reason`; una excepción que no corresponde a ninguna dependencia
+resuelta hace fallar el `lock`. El lockfile registra el `name` de cada dependencia.
 
 `source.url` de nivel 2 admite, además de GitHub, el dominio de releases de upstream declarado en
 `homepage` (caso ghostty), siempre con firma fijada.

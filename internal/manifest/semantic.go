@@ -31,6 +31,8 @@ func Check(m *Manifest, cfg *config.Config, lk *lock.File) error {
 	c.paths()
 	c.summary()
 	c.excludes()
+	c.phase009()
+	c.licenseExceptions()
 	c.levelFields()
 	if m.Level2() {
 		c.level2()
@@ -189,7 +191,115 @@ func (c *checker) sourceURL() {
 	if url == base+"archive/refs/tags/"+tag+".tar.gz" && c.m.Source.Format == "tar.gz" {
 		return
 	}
+	// El dominio de releases propio de upstream (el de homepage) solo vale con
+	// la firma de upstream fijada (specs/009, data-model §1).
+	if h := homepageHost(c.m.Homepage); h != "" && h != "github.com" && (hostOf(url) == h || strings.HasSuffix(hostOf(url), "."+h)) {
+		if c.m.Signing == nil {
+			c.add("source.url", "fuera de GitHub: solo se admite con signing fijado")
+		}
+		return
+	}
 	c.add("source.url", "fuera de los releases y tags de %s", c.m.Upstream)
+}
+
+// homepageHost es el dominio de homepage sin "www.".
+func homepageHost(u string) string {
+	return strings.TrimPrefix(hostOf(u), "www.")
+}
+
+// hostOf extrae el host de una URL https.
+func hostOf(u string) string {
+	rest, ok := strings.CutPrefix(u, "https://")
+	if !ok {
+		return ""
+	}
+	h, _, _ := strings.Cut(rest, "/")
+	return strings.ToLower(h)
+}
+
+// phase009 son las reglas de la fase 009 (specs/009-hosted-hardened-builds,
+// data-model §1): arquitecturas excluidas, firma de upstream, toolchain,
+// dependencias y archivos extra del tarball.
+func (c *checker) phase009() {
+	m := c.m
+	if len(m.Exclude.Arches) > 0 {
+		for a := range m.Exclude.Arches {
+			if !slices.Contains(c.cfg.Arches, a) {
+				c.add("exclude.arches."+a, "arquitectura no soportada")
+			}
+		}
+		if len(m.Arches(c.cfg.Arches)) == 0 {
+			c.add("exclude.arches", "debe quedar al menos una arquitectura")
+		}
+	}
+	if m.Signing != nil {
+		c.signingURL("signing", m.Signing, m.Upstream)
+	}
+	if t := m.Toolchain; t != nil {
+		for _, arch := range c.cfg.Arches {
+			if _, err := t.RenderURL(t.URL, arch); err != nil {
+				c.add("toolchain.url", "%v", err)
+				break
+			}
+		}
+		if t.Signing != nil && hostOf(t.Signing.URL()) != hostOf(t.URL) {
+			c.add("toolchain.signing", "la firma debe venir del mismo sitio que el toolchain (%s)", hostOf(t.URL))
+		}
+		if t.Signing != nil && t.Signing.GPG != nil && hasDotDot(t.Signing.GPG.KeyFile) {
+			c.add("toolchain.signing.gpg.key_file", "ruta inválida")
+		}
+	}
+	if m.Deps != nil {
+		for i, p := range m.Deps.ExcludePaths {
+			if path.IsAbs(p) || hasDotDot(p) {
+				c.add(fmt.Sprintf("deps.exclude_paths[%d]", i), "ruta inválida %q", p)
+			}
+		}
+	}
+	seen := map[string]bool{}
+	for i, f := range m.Source.ExtraFiles {
+		at := fmt.Sprintf("source.extra_files[%d].path", i)
+		switch {
+		case path.IsAbs(f.Path) || hasDotDot(f.Path) || strings.Contains(f.Path, "\\"):
+			c.add(at, "ruta inválida %q (relativa al árbol del fuente, sin \"..\")", f.Path)
+		case IsGlob(f.Path):
+			c.add(at, "sin comodines: cada archivo por su ruta exacta")
+		case seen[f.Path]:
+			c.add(at, "%s repetido", f.Path)
+		}
+		seen[f.Path] = true
+	}
+}
+
+// signingURL exige que la firma venga del mismo origen que lo firmado: los
+// releases del tag en GitHub o, en nivel 2, el sitio de releases de upstream.
+func (c *checker) signingURL(field string, s *Signing, upstream string) {
+	tmpl := s.URL()
+	vars := Vars{"version": c.m.Version, "arch": "x"}
+	if tag, err := c.m.RenderedTag(); err == nil {
+		vars["tag"] = tag
+	}
+	url, err := Render(tmpl, vars)
+	if err != nil {
+		c.add(field, "%v", err)
+		return
+	}
+	prefix := "https://github.com/" + upstream + "/releases/download/" + vars["tag"] + "/"
+	if strings.HasPrefix(url, prefix) {
+		return
+	}
+	if c.m.Level2() && hostOf(url) == hostOf(mustRender(c.m, c.m.Source.URL)) {
+		return
+	}
+	c.add(field, "la firma debe venir del release de %s o del mismo sitio que el fuente", upstream)
+	if s.GPG != nil && hasDotDot(s.GPG.KeyFile) {
+		c.add(field+".gpg.key_file", "ruta inválida")
+	}
+}
+
+func mustRender(m *Manifest, tmpl string) string {
+	u, _ := m.RenderURL(tmpl, "")
+	return u
 }
 
 // levelFields rechaza los campos del otro nivel: en nivel 2 la carpeta
@@ -213,8 +323,9 @@ func (c *checker) levelFields() {
 		}
 		return
 	}
-	fs = []f{{"justification", m.Justification != ""}, {"source", m.Source != (Source{})},
-		{"build", m.BuildOpts != (BuildOpts{})}}
+	fs = []f{{"justification", m.Justification != ""},
+		{"source", m.Source.URL != "" || m.Source.Format != "" || len(m.Source.ExtraFiles) > 0},
+		{"build", m.BuildOpts != (BuildOpts{})}, {"toolchain", m.Toolchain != nil}, {"deps", m.Deps != nil}}
 	for _, x := range fs {
 		if x.set {
 			c.add(x.name, "solo se admite en nivel 2")
@@ -395,4 +506,44 @@ func Validate(root string, cfg *config.Config, name string) (*Manifest, error) {
 		}
 	}
 	return m, nil
+}
+
+// licenseExceptions valida las excepciones de licencia del paquete
+// (constitución IV, 1.12.0): cada licencia en allowed o exception_only, una
+// sola excepción por dependencia, rutas relativas sin "..", y las de
+// dependencias solo en paquetes con deps.
+func (c *checker) licenseExceptions() {
+	m := c.m
+	seen := map[string]bool{}
+	for i, x := range m.LicenseExceptions {
+		at := fmt.Sprintf("license_exceptions[%d]", i)
+		if seen[x.Dependency] {
+			c.add(at+".dependency", "hay más de una excepción para %q", x.Dependency)
+		}
+		seen[x.Dependency] = true
+		if x.Dependency == "" && (x.File != "" || x.RepoFile != "") {
+			c.add(at, "una excepción del propio paquete solo lleva licenses y reason")
+		}
+		if x.Dependency != "" && m.Deps == nil {
+			c.add(at+".dependency", "el paquete no declara deps")
+		}
+		if m.Deps != nil {
+			if _, skipped := m.Deps.Skip[x.Dependency]; skipped && x.Dependency != "" {
+				c.add(at+".dependency", "%q está en deps.skip: no va en el fuente", x.Dependency)
+			}
+		}
+		if x.File != "" && x.RepoFile != "" {
+			c.add(at, "file y repo_file son excluyentes")
+		}
+		for _, f := range []struct{ name, v string }{{"file", x.File}, {"repo_file", x.RepoFile}} {
+			if f.v != "" && (path.IsAbs(f.v) || slices.Contains(strings.Split(f.v, "/"), "..")) {
+				c.add(at+"."+f.name, "ruta relativa sin \"..\": %q", f.v)
+			}
+		}
+		for _, id := range x.Licenses {
+			if !c.cfg.LicenseExceptable(id) {
+				c.add(at+".licenses", "%s no está en allowed ni en exception_only de %s", id, config.LicensesFile)
+			}
+		}
+	}
 }

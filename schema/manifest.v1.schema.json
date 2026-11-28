@@ -174,6 +174,28 @@
             "tar.xz",
             "tar.bz2"
           ]
+        },
+        "extra_files": {
+          "description": "Archivos del tarball que no están (o difieren) en el tag de git, por ruta exacta y con motivo.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "reason"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 10
+              }
+            }
+          }
         }
       }
     },
@@ -186,6 +208,89 @@
           "description": "Tamaño del tmpfs de compilación, p. ej. 8g; ≤ level2.tmpfs_max.",
           "type": "string",
           "pattern": "^[1-9][0-9]*[mg]$"
+        }
+      }
+    },
+    "signing": {
+      "$ref": "#/$defs/signing"
+    },
+    "toolchain": {
+      "description": "Nivel 2: toolchain oficial de upstream (constitución III).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "url",
+        "arch_map"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9][A-Za-z0-9.+-]*$"
+        },
+        "url": {
+          "description": "Plantilla con {{version}} y {{arch}}.",
+          "type": "string",
+          "pattern": "^https://"
+        },
+        "arch_map": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "amd64",
+            "arm64"
+          ],
+          "properties": {
+            "amd64": {
+              "type": "string",
+              "minLength": 1
+            },
+            "arm64": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "signing": {
+          "$ref": "#/$defs/signing"
+        }
+      }
+    },
+    "deps": {
+      "description": "Nivel 2: dependencias del gestor de paquetes del lenguaje.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manager"
+      ],
+      "properties": {
+        "manager": {
+          "enum": [
+            "zig"
+          ]
+        },
+        "exclude_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-][A-Za-z0-9._/-]*/$"
+          }
+        },
+        "skip": {
+          "description": "Dependencias (nombre en build.zig.zon) que el build del paquete no usa, con su motivo (≥ 10 caracteres): no se bajan ni van al paquete fuente; si alguna hacía falta, la compilación sin red falla.",
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9_.@-]+$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 10
+          }
         }
       }
     },
@@ -301,9 +406,24 @@
       "properties": {
         "suites": {
           "$ref": "#/$defs/reasons"
+        },
+        "arches": {
+          "description": "Arquitecturas excluidas con su motivo (constitución 1.9.0); al menos una MUST quedar.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "amd64": {
+              "type": "string",
+              "minLength": 10
+            },
+            "arm64": {
+              "type": "string",
+              "minLength": 10
+            }
+          }
         }
       },
-      "description": "Solo se pueden excluir suites (constitución, Alcance); toda arquitectura soportada se construye y se prueba."
+      "description": "Suites y arquitecturas excluidas, cada una con su motivo (constitución, Alcance)."
     },
     "test": {
       "description": "Por defecto: '<primer ejecutable en /usr/bin> --version' y la salida debe contener {{version}}.",
@@ -392,6 +512,48 @@
           }
         }
       }
+    },
+    "license_exceptions": {
+      "description": "Excepciones de licencia que valen solo para este paquete (constitución IV): para el propio paquete (sin dependency) o para una dependencia del lenguaje. Solo licencias de allowed o exception_only de config/licenses.yaml.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "licenses",
+          "reason"
+        ],
+        "properties": {
+          "dependency": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.@-]+$",
+            "description": "Nombre de la dependencia en build.zig.zon; omitido = el paquete."
+          },
+          "licenses": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9.+-]+$"
+            }
+          },
+          "file": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Ruta del texto de licencia dentro de la dependencia."
+          },
+          "repo_file": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Ruta, relativa a packages/<p>/, de un texto de licencia guardado en el repositorio cuando upstream no lo incluye."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10
+          }
+        }
+      }
     }
   },
   "$defs": {
@@ -451,6 +613,79 @@
       "additionalProperties": {
         "type": "string",
         "minLength": 10
+      }
+    },
+    "signing": {
+      "description": "Llave o identidad de firma de upstream fijada (constitución III); exactamente una.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "minisign": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "key",
+            "file"
+          ],
+          "properties": {
+            "key": {
+              "type": "string",
+              "pattern": "^RW[A-Za-z0-9+/]{40,}={0,2}$"
+            },
+            "file": {
+              "type": "string",
+              "pattern": "^https://"
+            }
+          }
+        },
+        "gpg": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fingerprint",
+            "key_file",
+            "file"
+          ],
+          "properties": {
+            "fingerprint": {
+              "type": "string",
+              "pattern": "^[0-9A-F]{40}$"
+            },
+            "key_file": {
+              "type": "string",
+              "minLength": 1
+            },
+            "file": {
+              "type": "string",
+              "pattern": "^https://"
+            }
+          }
+        },
+        "sigstore": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "identity",
+            "issuer",
+            "bundle"
+          ],
+          "properties": {
+            "identity": {
+              "type": "string",
+              "minLength": 1
+            },
+            "issuer": {
+              "type": "string",
+              "pattern": "^https://"
+            },
+            "bundle": {
+              "type": "string",
+              "pattern": "^https://"
+            }
+          }
+        }
       }
     }
   }

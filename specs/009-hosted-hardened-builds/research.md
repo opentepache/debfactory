@@ -154,8 +154,14 @@ cualquier otro, o uno declarado cuyo sha256 cambió, falla. Archivos del tag que
 tarball (p. ej. `export-ignore`) no fallan. Se repite en cada compilación con los archivos del
 lockfile.
 
-**Pendiente de medir** (tasks, primera tarea): qué trae de más el tarball de ghostty 1.4.0 respecto
-del tag.
+**Resultado de la medición (T001, 2026-11-27)**: el tarball de release de ghostty 1.4.0 (5934
+archivos) frente al archivo del tag `v1.4.0` (5930, sha256 `2e2a2516…`) trae solo **4 archivos de
+más** y ninguno distinto ni faltante: `VERSION`, `src/apprt/gtk/ghostty_resources.c`,
+`src/apprt/gtk/ghostty_resources.h` y `src/build/framegen/framedata.compressed`. Son generados al
+empaquetar y van a `source.extra_files` con su motivo. Nota de riesgo: `ghostty_resources.c` es un
+blob de recursos de GTK compilado a C, el tipo de archivo donde podría esconderse algo; queda fijado
+por sha256 y cualquier cambio entre versiones vuelve a revisión. Regenerarlo desde los `.blp`/`.ui`
+y compararlo se anota como mejora futura.
 
 ## D10. Llaves de firma fijadas (FR-015)
 
@@ -171,8 +177,20 @@ ghostty (minisign); fnm y bob no firman.
 ## D11. Procedencia de upstream (FR-016)
 
 **Decisión**: para cada artefacto o tarball, la herramienta consulta las atestaciones de GitHub de
-`upstream` por su digest (API pública) y, si hay, las verifica con `cosign` exigiendo identidad en
-`https://github.com/<upstream>/` y la ref del tag; si no hay, el informe dice "sin procedencia".
+`upstream` por su digest (API pública), elige las de tipo `https://slsa.dev/provenance/v1` y las
+verifica con `cosign verify-blob-attestation --new-bundle-format --type slsaprovenance1` exigiendo
+emisor `https://token.actions.githubusercontent.com`, **repositorio y ref de origen** con
+`--certificate-github-workflow-repository <upstream>` y `--certificate-github-workflow-ref
+refs/tags/<tag>`; la identidad del firmante (`--certificate-identity-regexp`) se acepta de
+cualquier workflow de GitHub salvo que el manifiesto fije uno. Si no hay atestaciones, el informe
+dice "sin procedencia".
+
+**Resultado de la medición (T001)**: con el `cosign` de trixie y la atestación real de
+`aqua_linux_amd64.tar.gz` (v2.66.1): repositorio y tag correctos → OK; otro repositorio → falla;
+otro tag → falla; otro archivo → falla. aqua firma desde un workflow **reutilizable de otro
+repositorio** (`suzuki-shunsuke/go-release-workflow`), por eso la identidad del certificado no es la
+de aqua y la verificación MUST basarse en las extensiones de origen, no en la identidad. La primera
+atestación de aqua (tipo `release/v0.2`, solo con sello de tiempo) se ignora.
 aqua publica atestaciones; su `multiple.intoto.jsonl` (SLSA) no se usa porque las atestaciones de
 GitHub ya lo cubren.
 

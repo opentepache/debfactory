@@ -1,0 +1,3 @@
+Archivos de test/recurse/ de libxml2 2.11.5 (MIT): XML "billion laughs" con
+entidades de parámetro externas que colgaba la revisión debian/copyright/dep5 de
+lintian (specs/009). Los usa internal/lint/bomb_e2e_test.go.

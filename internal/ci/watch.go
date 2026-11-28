@@ -264,7 +264,7 @@ func (w *watcher) cycle(ctx context.Context, only string, force bool) error {
 	}
 	if !full {
 		if !slices.Contains(names, only) {
-			return &InputError{fmt.Sprintf("--package %q: no existe %s", only, manifest.Path(only))}
+			return &InputError{fmt.Sprintf("--package %q: no existe %s", only, manifest.PathIn(w.Root, only))}
 		}
 		names = []string{only}
 	}
@@ -603,11 +603,11 @@ func (w *watcher) ownBranch(ctx context.Context, branch string) (bool, error) {
 // branchVersion es la versión del manifiesto en la rama del PR ("" si no se
 // puede leer).
 func (w *watcher) branchVersion(ctx context.Context, branch, name string) string {
-	data, err := (&StatePR{Root: w.Root}).show(ctx, "origin/"+branch, manifest.Path(name))
+	data, err := (&StatePR{Root: w.Root}).show(ctx, "origin/"+branch, manifest.PathIn(w.Root, name))
 	if err != nil || data == nil {
 		return ""
 	}
-	m, err := manifest.Parse(data, manifest.Path(name))
+	m, err := manifest.Parse(data, manifest.PathIn(w.Root, name))
 	if err != nil {
 		return ""
 	}
@@ -624,7 +624,7 @@ func (w *watcher) basedOnMain(ctx context.Context, branch string) bool {
 // manifestChangedSince indica si el manifiesto del paquete cambió en main
 // después de t (FR-018: una notificación deja de suprimir los reintentos).
 func (w *watcher) manifestChangedSince(ctx context.Context, name string, t time.Time) bool {
-	out, err := w.git(ctx, w.Root, "log", "-1", "--first-parent", "--format=%cI", "origin/main", "--", manifest.Path(name))
+	out, err := w.git(ctx, w.Root, "log", "-1", "--first-parent", "--format=%cI", "origin/main", "--", manifest.PathIn(w.Root, name))
 	if err != nil || out == "" {
 		return false
 	}
@@ -751,7 +751,7 @@ func (w *watcher) prepare(ctx context.Context, m *manifest.Manifest, cand *watch
 		w.git(context.Background(), w.Root, "worktree", "remove", "--force", dir)
 		return nil
 	}
-	rel := manifest.Path(m.Name)
+	rel := manifest.PathIn(w.Root, m.Name)
 	data, err := os.ReadFile(filepath.Join(dir, rel))
 	if err == nil {
 		data, err = setVersion(data, rel, cand.To)
@@ -782,7 +782,7 @@ func (w *watcher) prepare(ctx context.Context, m *manifest.Manifest, cand *watch
 	}
 	lk, err := lock.Read(dir, m.Name)
 	if err == nil && lk.Versions[cand.To] == nil {
-		err = fmt.Errorf("%s: falta la entrada de %s", lock.Path(m.Name), cand.To)
+		err = fmt.Errorf("%s: falta la entrada de %s", lock.PathIn(w.Root, m.Name), cand.To)
 	}
 	if err != nil {
 		w.cycleErr(m.Name, err)
@@ -846,11 +846,11 @@ func dash(s string) string {
 
 // branchLock lee la entrada de version del lockfile de la rama del PR.
 func (w *watcher) branchLock(ctx context.Context, branch, name, version string) *lock.Entry {
-	data, err := (&StatePR{Root: w.Root}).show(ctx, "origin/"+branch, lock.Path(name))
+	data, err := (&StatePR{Root: w.Root}).show(ctx, "origin/"+branch, lock.PathIn(w.Root, name))
 	if err != nil || data == nil {
 		return nil
 	}
-	f, err := lock.Parse(data, lock.Path(name))
+	f, err := lock.Parse(data, lock.PathIn(w.Root, name))
 	if err != nil {
 		return nil
 	}
@@ -957,7 +957,7 @@ func (w *watcher) commitAndPush(ctx context.Context, dir, name, branch, title st
 		}
 		w.botEmail = email
 	}
-	if _, err := w.git(ctx, dir, "add", manifest.Path(name), lock.Path(name)); err != nil {
+	if _, err := w.git(ctx, dir, "add", manifest.PathIn(w.Root, name), lock.PathIn(w.Root, name)); err != nil {
 		return err
 	}
 	cmd := exec.CommandContext(ctx, "git", "-C", dir, "commit", "-q", "-m", title,

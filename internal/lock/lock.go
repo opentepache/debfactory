@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -31,14 +33,47 @@ type Entry struct {
 	// SourceSHA256 es el hash del tarball del código fuente de un paquete de
 	// nivel 2 (specs/008-source-builds, data-model §1).
 	SourceSHA256 string `yaml:"source_sha256,omitempty"`
+
+	// Fase 009 (specs/009-hosted-hardened-builds, data-model §2).
+	TagArchiveSHA256 string            `yaml:"tag_archive_sha256,omitempty"` // archivo del tag de git
+	ExtraFiles       map[string]string `yaml:"extra_files,omitempty"`        // ruta -> sha256
+	Toolchain        map[string]string `yaml:"toolchain,omitempty"`          // arch -> sha256
+	Deps             []Dep             `yaml:"deps,omitempty"`               // ordenadas por hash
+	ZigdepsSHA256    string            `yaml:"zigdeps_sha256,omitempty"`     // componente .orig-zigdeps
+	Signatures       map[string]string `yaml:"signatures,omitempty"`         // URL de la firma -> sha256
+}
+
+// Dep es una dependencia del gestor de paquetes del lenguaje: su URL, el hash
+// que declara upstream y el sha256 del árbol extraído (tar determinista).
+type Dep struct {
+	Name   string `yaml:"name"` // nombre en build.zig.zon (el primero visto)
+	URL    string `yaml:"url"`
+	Hash   string `yaml:"hash"`
+	SHA256 string `yaml:"sha256"`
 }
 
 // Path devuelve la ruta relativa del lockfile de un paquete.
 func Path(name string) string { return filepath.Join("packages", name+".lock.yaml") }
 
+// DirPath es la ruta del lockfile en la ubicación autocontenida (specs/009,
+// research D21): packages/<name>/<name>.lock.yaml.
+func DirPath(name string) string { return filepath.Join("packages", name, name+".lock.yaml") }
+
+// PathIn devuelve la ruta del lockfile bajo root: la autocontenida si el
+// paquete usa esa ubicación (existe su carpeta con el manifiesto o el
+// lockfile) y si no la anterior.
+func PathIn(root, name string) string {
+	for _, p := range []string{DirPath(name), filepath.Join("packages", name, name+".yaml")} {
+		if _, err := os.Stat(filepath.Join(root, p)); err == nil {
+			return DirPath(name)
+		}
+	}
+	return Path(name)
+}
+
 // Read lee el lockfile del paquete bajo root. Si no existe, devuelve uno vacío.
 func Read(root, name string) (*File, error) {
-	rel := Path(name)
+	rel := PathIn(root, name)
 	data, err := os.ReadFile(filepath.Join(root, rel))
 	if errors.Is(err, os.ErrNotExist) {
 		return &File{Schema: 1, Versions: map[string]*Entry{}}, nil
@@ -88,7 +123,7 @@ func (f *File) Write(root, name string) error {
 	if err := enc.Close(); err != nil {
 		return err
 	}
-	path := filepath.Join(root, Path(name))
+	path := filepath.Join(root, PathIn(root, name))
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".lock-*")
 	if err != nil {
 		return err
@@ -122,6 +157,38 @@ func (e *Entry) wellFormed() error {
 	}
 	if e.SourceSHA256 != "" && !hex64.MatchString(e.SourceSHA256) {
 		return errors.New("source_sha256: no es un sha256")
+	}
+	for _, f := range []struct{ name, v string }{{"tag_archive_sha256", e.TagArchiveSHA256}, {"zigdeps_sha256", e.ZigdepsSHA256}} {
+		if f.v != "" && !hex64.MatchString(f.v) {
+			return fmt.Errorf("%s: no es un sha256", f.name)
+		}
+	}
+	for k, v := range e.ExtraFiles {
+		if !hex64.MatchString(v) {
+			return fmt.Errorf("extra_files.%s: no es un sha256", k)
+		}
+	}
+	for k, v := range e.Signatures {
+		if !hex64.MatchString(v) {
+			return fmt.Errorf("signatures.%s: no es un sha256", k)
+		}
+	}
+	for k, v := range e.Toolchain {
+		if !hex64.MatchString(v) {
+			return fmt.Errorf("toolchain.%s: no es un sha256", k)
+		}
+	}
+	prev := ""
+	for i, d := range e.Deps {
+		switch {
+		case d.URL == "" || d.Hash == "":
+			return fmt.Errorf("deps[%d]: url y hash son obligatorios", i)
+		case !hex64.MatchString(d.SHA256):
+			return fmt.Errorf("deps[%d].sha256: no es un sha256", i)
+		case d.Hash <= prev:
+			return fmt.Errorf("deps[%d]: deben ir ordenadas por hash y sin repetir", i)
+		}
+		prev = d.Hash
 	}
 	for arch, h := range e.Artifacts {
 		if !hex64.MatchString(h) {
@@ -158,7 +225,10 @@ func (e *Entry) CompleteSource() error {
 func (e *Entry) Equal(o *Entry) bool {
 	if e.SourceDateEpoch != o.SourceDateEpoch || e.LicenseSHA256 != o.LicenseSHA256 ||
 		e.ChecksumsSHA256 != o.ChecksumsSHA256 || e.SourceSHA256 != o.SourceSHA256 ||
-		len(e.Artifacts) != len(o.Artifacts) {
+		e.TagArchiveSHA256 != o.TagArchiveSHA256 || e.ZigdepsSHA256 != o.ZigdepsSHA256 ||
+		!maps.Equal(e.ExtraFiles, o.ExtraFiles) || !maps.Equal(e.Toolchain, o.Toolchain) ||
+		!maps.Equal(e.Signatures, o.Signatures) ||
+		!slices.Equal(e.Deps, o.Deps) || len(e.Artifacts) != len(o.Artifacts) {
 		return false
 	}
 	for k, v := range e.Artifacts {

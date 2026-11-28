@@ -44,6 +44,9 @@ type Config struct {
 
 	// Licenses es la allowlist de config/licenses.yaml (constitución IV).
 	Licenses []string `yaml:"-"`
+	// ExceptionOnly son licencias libres (OSI o FSF) que solo valen con una
+	// excepción del manifiesto de un paquete (exception_only; constitución IV).
+	ExceptionOnly []string `yaml:"-"`
 }
 
 // Suite es una distribución soportada.
@@ -72,8 +75,19 @@ type Lintian struct {
 	Image                 string   `yaml:"image"`
 	FailOn                string   `yaml:"fail_on"`
 	NeverOverridePatterns []string `yaml:"never_override_patterns"`
+	// Timeout de una ejecución de lintian; 0 = 30 minutos. Al superarlo,
+	// falla cerrado (specs/009: un XML malicioso del fuente lo colgaba).
+	Timeout Duration `yaml:"timeout"`
 
 	neverOverride []*regexp.Regexp
+}
+
+// TimeoutOrDefault devuelve lintian.timeout o 30 minutos.
+func (l Lintian) TimeoutOrDefault() time.Duration {
+	if l.Timeout > 0 {
+		return time.Duration(l.Timeout)
+	}
+	return 30 * time.Minute
 }
 
 // Repo es un repositorio APT comunitario conocido (constitución V).
@@ -138,9 +152,21 @@ type Watch struct {
 // Level2 configura la compilación de paquetes de nivel 2
 // (specs/008-source-builds, data-model §4). Todos los campos son opcionales.
 type Level2 struct {
-	Jobs     int    `yaml:"jobs"`      // compilaciones simultáneas; 3
-	Tmpfs    string `yaml:"tmpfs"`     // tmpfs por compilación; 6g
-	TmpfsMax string `yaml:"tmpfs_max"` // límite de build.tmpfs de un manifiesto; 12g
+	Jobs     int      `yaml:"jobs"`      // compilaciones simultáneas; 3
+	Tmpfs    string   `yaml:"tmpfs"`     // tmpfs por compilación; 6g
+	TmpfsMax string   `yaml:"tmpfs_max"` // límite de build.tmpfs de un manifiesto; 12g
+	Timeout  Duration `yaml:"timeout"`   // por compilación; 90m (specs/009)
+	// ParallelVariants compila las dos variantes de cada combinación a la
+	// vez (doble de memoria; ghostty usa ~12 GB por compilación).
+	ParallelVariants bool `yaml:"parallel_variants"`
+}
+
+// TimeoutOrDefault devuelve level2.timeout o 90 minutos.
+func (l Level2) TimeoutOrDefault() time.Duration {
+	if l.Timeout > 0 {
+		return time.Duration(l.Timeout)
+	}
+	return 90 * time.Minute
 }
 
 // Valores por defecto y límite del bloque level2 (research D2: 31 GB de RAM).
@@ -445,8 +471,9 @@ func (c *CI) RequireRepository() error {
 }
 
 type licensesFile struct {
-	Schema  int      `yaml:"schema"`
-	Allowed []string `yaml:"allowed"`
+	Schema        int      `yaml:"schema"`
+	Allowed       []string `yaml:"allowed"`
+	ExceptionOnly []string `yaml:"exception_only"`
 }
 
 // Load lee y valida los dos archivos de config/ bajo root.
@@ -468,7 +495,12 @@ func Load(root string) (*Config, error) {
 	if len(l.Allowed) == 0 {
 		return nil, configErr(LicensesFile, "allowed: la lista está vacía")
 	}
-	c.Licenses = l.Allowed
+	for _, id := range l.ExceptionOnly {
+		if slices.Contains(l.Allowed, id) {
+			return nil, configErr(LicensesFile, fmt.Sprintf("exception_only: %s ya está en allowed", id))
+		}
+	}
+	c.Licenses, c.ExceptionOnly = l.Allowed, l.ExceptionOnly
 	return &c, nil
 }
 
@@ -485,6 +517,23 @@ func (c *Config) Suite(name string) (Suite, bool) {
 // LicenseAllowed indica si el identificador SPDX está en la allowlist.
 func (c *Config) LicenseAllowed(id string) bool {
 	return slices.Contains(c.Licenses, id)
+}
+
+// LicenseExceptable indica si una excepción de un manifiesto puede permitir
+// la licencia: debe estar en allowed o en exception_only (constitución IV).
+func (c *Config) LicenseExceptable(id string) bool {
+	return slices.Contains(c.Licenses, id) || slices.Contains(c.ExceptionOnly, id)
+}
+
+// WithLicenses devuelve una copia de la configuración cuya allowlist suma
+// las licencias de las excepciones de un paquete (no cambia la global).
+func (c *Config) WithLicenses(ids ...string) *Config {
+	if len(ids) == 0 {
+		return c
+	}
+	cp := *c
+	cp.Licenses = append(slices.Clone(c.Licenses), ids...)
+	return &cp
 }
 
 // Overridable indica si una etiqueta de lintian se puede silenciar

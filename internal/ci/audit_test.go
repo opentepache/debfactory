@@ -241,3 +241,37 @@ func TestAuditLevel2(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+// TestAuditArchesToolchain (specs/009, data-model §5): extend con arches y
+// toolchain en publish.
+func TestAuditArchesToolchain(t *testing.T) {
+	ts := time.Date(2026, 12, 1, 10, 0, 0, 0, time.UTC)
+	root := t.TempDir()
+	tc := &Toolchain{Name: "zig", Version: "0.17.0", SHA256: map[string]string{"amd64": sha1, "arm64": sha2}}
+	_, err := AppendAudit(root,
+		Entry{Time: ts, Op: OpPublish, Package: "fnm", Version: "1.0-0~tepache1", Commit: c40,
+			Debs: map[string]string{"amd64": sha1}, Serial: 1, Run: runURL("u")},
+		Entry{Time: ts, Op: OpExtend, Package: "fnm", Version: "1.0-0~tepache1", Commit: c40, Arches: []string{"arm64"},
+			Debs: map[string]string{"arm64": sha2}, Serial: 2, Run: runURL("u")},
+		Entry{Time: ts, Op: OpPublish, Package: "x", Version: "1-0~tepache1", Commit: c40, Debs: map[string]string{"amd64": strings.Repeat("3", 64)},
+			Toolchain: tc, Serial: 3, Run: runURL("u")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(root, AuditFile))
+	if !strings.Contains(string(data), `"arches":["arm64"]`) || !strings.Contains(string(data), `"toolchain":{"name":"zig"`) {
+		t.Fatalf("formato:\n%s", data)
+	}
+	st := repo.Empty()
+	st.Packages["fnm"] = []repo.Published{{Version: "1.0-0~tepache1", Suites: []string{"trixie"}, Debs: map[string]string{"amd64": sha1, "arm64": sha2}}}
+	st.Packages["x"] = []repo.Published{{Version: "1-0~tepache1", Suites: []string{"trixie"}, Arches: []string{"amd64"}, Debs: map[string]string{"amd64": strings.Repeat("3", 64)}}}
+	if err := CheckAudit(data, nil, st); err != nil {
+		t.Fatal(err)
+	}
+	// extend que cambia un .deb ya publicado.
+	bad := append(slices.Clone(data), MarshalEntries([]Entry{{Seq: 4, Time: ts, Op: OpExtend, Package: "fnm", Version: "1.0-0~tepache1",
+		Commit: c40, Arches: []string{"arm64"}, Debs: map[string]string{"amd64": sha2}, Serial: 4, Run: runURL("u")}})...)
+	if err := CheckAudit(bad, nil, nil); err == nil || !strings.Contains(err.Error(), "cambia un .deb publicado") {
+		t.Fatalf("error = %v", err)
+	}
+}

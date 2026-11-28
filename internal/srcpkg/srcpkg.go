@@ -6,13 +6,18 @@
 package srcpkg
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"debfactory/internal/supply"
 )
 
 // Input describe el paquete fuente de una suite.
@@ -26,6 +31,19 @@ type Input struct {
 	Orig       string // tarball de upstream verificado (host)
 	OrigName   string // <name>_<upstream>.orig.tar.<ext>
 	DebianDir  string // packages/<name>/debian (host)
+
+	// Fase 009 (specs/009-hosted-hardened-builds, research D3).
+	// Components son tarballs adicionales del paquete fuente ya preparados:
+	// nombre del componente -> archivo (p. ej. "zigdeps" -> …orig-zigdeps.tar.xz).
+	Components map[string]string
+	// Toolchain es el contenido de debian/upstream/toolchain (vacío si no hay).
+	Toolchain string
+}
+
+// ComponentName es el nombre del tarball de un componente:
+// <name>_<upstream>.orig-<componente>.tar.xz.
+func ComponentName(name, upstream, component string) string {
+	return fmt.Sprintf("%s_%s.orig-%s.tar.xz", name, upstream, component)
 }
 
 // Changelog es el debian/changelog de una suite (FR-002, research D6). La
@@ -83,6 +101,19 @@ func Prepare(in Input, dir string) error {
 	if err := os.WriteFile(filepath.Join(deb, "changelog"), Changelog(in), 0o644); err != nil {
 		return err
 	}
+	if in.Toolchain != "" {
+		if err := os.MkdirAll(filepath.Join(deb, "upstream"), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(deb, "upstream", "toolchain"), []byte(in.Toolchain), 0o644); err != nil {
+			return err
+		}
+	}
+	for comp, src := range in.Components {
+		if err := copyFile(src, filepath.Join(dir, ComponentName(in.Name, in.Upstream, comp)), 0o644); err != nil {
+			return err
+		}
+	}
 	format := filepath.Join(deb, "source", "format")
 	if _, err := os.Stat(format); os.IsNotExist(err) {
 		if err := os.MkdirAll(filepath.Dir(format), 0o755); err != nil {
@@ -110,12 +141,16 @@ const Script = `set -eu
 cd /build
 mkdir "$2"
 tar -xf "/in/$1" -C "$2" --strip-components=1
+for c in /in/*.orig-*.tar.*; do
+  [ -e "$c" ] || continue
+  tar -xf "$c" -C "$2"
+  cp "$c" .
+done
 cp -r /in/debian "$2/debian"
 cp "/in/$1" .
 dpkg-source -b "$2"
 mkdir -p "$3"
-cp ./*.dsc ./*.debian.tar.* "$3/"
-cp "$1" "$3/"
+cp ./*.dsc ./*.debian.tar.* ./*.orig*.tar.* "$3/"
 `
 
 func copyFile(src, dst string, mode os.FileMode) error {
@@ -131,6 +166,31 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	if _, err := io.Copy(out, in); err != nil {
 		out.Close()
 		return err
+	}
+	return out.Close()
+}
+
+// BuildComponent escribe en dst el tarball determinista de un componente
+// (research D3): el árbol de dir bajo <componente>/, orden fijo, dueño 0:0,
+// mtime fijo y xz -9 de un solo hilo (xz de Debian), para que sea el mismo
+// archivo en todas las suites y en cada ejecución.
+func BuildComponent(ctx context.Context, dir, component string, mtime time.Time, dst string) error {
+	var tarBuf bytes.Buffer
+	if err := supply.WriteTree(&tarBuf, dir, component, mtime); err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, "xz", "-9", "-T1", "-c")
+	cmd.Stdin = &tarBuf
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	cmd.Stdout = out
+	var errb bytes.Buffer
+	cmd.Stderr = &errb
+	if err := cmd.Run(); err != nil {
+		out.Close()
+		return fmt.Errorf("xz: %v: %s", err, errb.String())
 	}
 	return out.Close()
 }

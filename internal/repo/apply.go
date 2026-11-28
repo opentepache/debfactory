@@ -63,7 +63,7 @@ func differentArtifacts(old, p Published) []string {
 		slices.Sort(diff)
 		return diff
 	}
-	if old.Orig == nil || p.Orig == nil || *old.Orig != *p.Orig {
+	if old.Orig == nil || p.Orig == nil || !EqualOrig(old.Orig, p.Orig) {
 		diff = append(diff, "orig")
 	}
 	for _, su := range p.Suites {

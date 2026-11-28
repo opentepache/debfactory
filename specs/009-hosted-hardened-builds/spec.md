@@ -265,7 +265,11 @@ Los paquetes de nivel 1 y tepache-hello se siguen construyendo, probando y publi
 - **FR-002**: La herramienta MUST resolver el cierre transitivo de las dependencias declaradas por el
   gestor de paquetes del lenguaje (primero Zig: los archivos de dependencias del árbol del fuente y
   de cada dependencia ya obtenida, excluyendo ejemplos que no forman parte del build), obtener cada
-  una por separado y exigir que dé exactamente el hash declarado por upstream.
+  una por separado y exigir que dé exactamente el hash declarado por upstream. El manifiesto MAY
+  omitir dependencias que el build del paquete no usa (`deps.skip`: nombre y motivo, p. ej. las
+  que solo se piden para macOS o las que `--system` sustituye por bibliotecas del sistema): no se
+  obtienen ni van al paquete fuente; cada nombre MUST aparecer en algún archivo de dependencias, y
+  si alguna hacía falta, la compilación sin red falla (falla cerrado).
 - **FR-003**: El lockfile MUST registrar cada dependencia del lenguaje (URL, hash declarado, sha256
   del archivo); generarlo es una orden explícita (`lock`), nunca el build; cualquier diferencia
   posterior MUST hacer fallar la versión.
@@ -273,9 +277,15 @@ Los paquetes de nivel 1 y tepache-hello se siguen construyendo, probando y publi
   prepara una vez por versión y sirve a todas las suites y arquitecturas.
 - **FR-005**: Las opciones de compilación de cada paquete MUST vivir en su carpeta `debian/`
   estándar; la herramienta MUST NOT tener casos especiales por paquete.
-- **FR-027**: Cada dependencia del lenguaje MUST pasar el gate de licencias (principio IV): su
-  licencia se detecta en su propio árbol, MUST estar en la allowlist y se lista en
-  `debian/copyright`; si alguna no pasa, la versión falla antes de compilar.
+- **FR-027**: Cada dependencia del lenguaje incluida en el paquete fuente (se compile o no en el
+  binario) MUST pasar el gate de licencias (principio IV, constitución 1.12.0): su texto de
+  licencia se busca en su propio árbol (archivos `LICENSE*`, `COPYING*`, `COPYRIGHT*`, `OFL*` sin
+  distinguir mayúsculas, y `LICENSES/`), cada licencia detectada MUST estar en la allowlist o en
+  una excepción del manifiesto (`license_exceptions`: dependencia, licencias SPDX de `allowed` o
+  `exception_only`, motivo y, si hace falta, `file` dentro de la dependencia o `repo_file` guardado
+  en `packages/<p>/`); sin texto de licencia, con una licencia no permitida o con una excepción
+  que no corresponde a ninguna dependencia, la versión falla antes de compilar. Las licencias de
+  las dependencias se listan en `debian/copyright`.
 
 **Arquitecturas**
 

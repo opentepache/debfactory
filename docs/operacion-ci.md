@@ -360,11 +360,20 @@ entre suites (`libssl3` en bookworm, `libssl3t64` en trixie y noble).
    (research D1′: sbuild y piuparts no corren dentro de Docker rootless sin abrir seccomp). Cada
    combinación se compila **dos veces** con distinto entorno; si los `.deb` difieren, falla la etapa
    `compare` y no se publica. Después: lintian (sobre el `.dsc` y cada `.deb`), la prueba de
-   instalación en la suite del binario y la de ciclo de vida (instalar, quitar, purgar, sin
-   archivos nuevos). Si falla en una suite no excluida, no se publica en ninguna.
+   instalación en la suite del binario y la de ciclo de vida (se instalan antes las dependencias
+   del `.deb`; luego instalar, quitar, purgar y sin archivos nuevos: así se mide solo el paquete,
+   porque APT nunca quita paquetes protegidos como `systemd-sysv`). Si falla en una suite no
+   excluida, no se publica en ninguna. lintian del `.dsc` corre a la vez que las compilaciones y,
+   si falla, las cancela; nada llega a `dist/` sin haberlo pasado.
 4. **RAM**: `level2.jobs` compilaciones a la vez (3), cada una con `level2.tmpfs` (6g); un
    manifiesto puede pedir más con `build.tmpfs`, hasta `level2.tmpfs_max` (12g). `ci doctor`
-   comprueba que `jobs × tmpfs` no pase de 18 GB de los 31 GB de la PC.
+   comprueba que `jobs × tmpfs` no pase de 18 GB de los 31 GB de la PC. Con
+   `level2.parallel_variants: true` las dos compilaciones de cada combinación van a la vez (doble de
+   memoria: ghostty usa ~12 GB por compilación); por defecto van una tras otra.
+   `level2.timeout` limita cada compilación (90m) y `lintian.timeout` cada lintian (30m; falla
+   cerrado).
+   Las dependencias de Zig verificadas se guardan en `<caché>/zigdeps/<hash>`; un build reutiliza
+   una copia solo si su árbol da exactamente el sha256 del lockfile (`lock` siempre las baja).
 5. **arm64** va por qemu: compilar `tepache-hello` (un C mínimo) tarda unos minutos, sobre todo por
    instalar las dependencias emuladas. Un paquete grande puede tardar mucho más; un runner arm64
    nativo exigiría enmendar el principio IX.

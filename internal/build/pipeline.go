@@ -26,6 +26,8 @@ import (
 type Options struct {
 	Arch         string // vacío = todas las de la config
 	Suite        string // nivel 2: vacío = todas las no excluidas
+	Disk         bool   // nivel 2: compilar en el disco del contenedor, sin tmpfs (runners de GitHub; specs/009)
+	Parallel     bool   // nivel 2: las dos variantes a la vez (además de level2.parallel_variants)
 	Reproducible bool   // construir dos veces y comparar sha256
 	Jobs         int    // build --all: paquetes simultáneos (mínimo 1)
 }
@@ -133,11 +135,11 @@ func (e *Env) buildArch(ctx context.Context, m *manifest.Manifest, lk *lock.File
 	entry, ok := lk.Versions[m.Version]
 	if !ok {
 		return fail(report.Lock, fmt.Errorf("no hay entrada para %s en %s; ejecuta `debfactory lock %s`",
-			m.Version, lock.Path(m.Name), m.Name))
+			m.Version, lock.PathIn(e.Root, m.Name), m.Name))
 	}
 	if err := entry.Complete(e.Cfg.Arches, m.Checksums != nil); err != nil {
 		return fail(report.Lock, fmt.Errorf("entrada incompleta para %s en %s (%v); ejecuta `debfactory lock %s`",
-			m.Version, lock.Path(m.Name), err, m.Name))
+			m.Version, lock.PathIn(e.Root, m.Name), err, m.Name))
 	}
 	if err := os.MkdirAll(e.Workdir, 0o700); err != nil {
 		return fail(report.Assemble, err)
@@ -173,7 +175,7 @@ func (e *Env) buildArch(ctx context.Context, m *manifest.Manifest, lk *lock.File
 	if info.ManifestSHA256, err = fetch.SHA256File(filepath.Join(e.Root, m.File)); err != nil {
 		return fail(report.Package, err)
 	}
-	if info.LockSHA256, err = fetch.SHA256File(filepath.Join(e.Root, lock.Path(m.Name))); err != nil {
+	if info.LockSHA256, err = fetch.SHA256File(filepath.Join(e.Root, lock.PathIn(e.Root, m.Name))); err != nil {
 		return fail(report.Package, err)
 	}
 	if err := e.publishDist(first.deb, info, m.DebBase(arch)); err != nil {
@@ -205,6 +207,7 @@ func (e *Env) inputs(ctx context.Context, m *manifest.Manifest, entry *lock.Entr
 	if err != nil {
 		return "", nil, downloadErr(err, m, arch, "lock")
 	}
+	signed := map[string]string{url: artifact}
 	if m.Checksums != nil {
 		curl, err := m.RenderURL(m.Checksums.URL, arch)
 		if err != nil {
@@ -225,6 +228,12 @@ func (e *Env) inputs(ctx context.Context, m *manifest.Manifest, entry *lock.Entr
 		if err := fetch.VerifyChecksum(sums, curl, url, entry.Artifacts[arch]); err != nil {
 			return "", nil, downloadErr(err, m, arch, "lock")
 		}
+		signed[curl] = cpath
+	}
+	// La firma fijada de upstream se vuelve a comprobar en cada build
+	// (constitución III; specs/009).
+	if _, err := e.verifySignatures(ctx, m, []string{arch}, signed, entry.Signatures); err != nil {
+		return "", nil, err
 	}
 
 	vars, err := m.Vars(arch)
@@ -406,10 +415,22 @@ func ListPackages(root string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	seen := map[string]bool{}
 	var names []string
 	for _, f := range files {
-		if !strings.HasSuffix(f, ".lock.yaml") {
-			names = append(names, manifest.FileName(f))
+		if n := manifest.FileName(f); !strings.HasSuffix(f, ".lock.yaml") && !seen[n] {
+			names, seen[n] = append(names, n), true
+		}
+	}
+	// Ubicación autocontenida: packages/<p>/<p>.yaml (specs/009, research D21).
+	dirs, err := filepath.Glob(filepath.Join(root, "packages", "*", "*.yaml"))
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range dirs {
+		n := filepath.Base(filepath.Dir(f))
+		if manifest.FileName(f) == n && !seen[n] {
+			names, seen[n] = append(names, n), true
 		}
 	}
 	sort.Strings(names)

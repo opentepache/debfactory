@@ -22,8 +22,9 @@ import (
 // github.com y pueden redirigir a los almacenes de assets de GitHub; el texto
 // de licencia se descarga de raw.githubusercontent.com.
 var (
-	artifactHosts = []string{"github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"}
-	originHosts   = []string{"github.com", rawHost}
+	artifactHosts = []string{"github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com",
+		"codeload.github.com"} // archivos de tags (/archive/refs/tags/…; specs/009)
+	originHosts = []string{"github.com", rawHost}
 )
 
 const rawHost = "raw.githubusercontent.com"
@@ -35,6 +36,27 @@ const DefaultTimeout = 10 * time.Minute
 type Fetcher struct {
 	Client *http.Client
 	Cache  string
+	// Extra son orígenes https adicionales que declara un manifiesto (sitio de
+	// releases de upstream, sitio del toolchain; specs/009). Solo valen como
+	// origen y como destino de sus propias redirecciones.
+	Extra []string
+}
+
+// WithHosts devuelve una copia del Fetcher que además admite esos hosts.
+func (f *Fetcher) WithHosts(hosts ...string) *Fetcher {
+	c := *f
+	c.Extra = append(slices.Clone(f.Extra), hosts...)
+	client := *f.Client
+	extra := c.Extra
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if req.URL.Scheme == "https" && slices.Contains(extra, req.URL.Hostname()) &&
+			slices.Contains(extra, via[0].URL.Hostname()) && len(via) < 10 {
+			return nil
+		}
+		return checkRedirect(req, via)
+	}
+	c.Client = &client
+	return &c
 }
 
 // New crea un Fetcher con un cliente que solo sigue redirecciones https a
@@ -103,7 +125,7 @@ func (f *Fetcher) Get(ctx context.Context, url, expected string) (string, string
 	if err != nil {
 		return "", "", fmt.Errorf("URL inválida %q: %w", url, err)
 	}
-	if u.Scheme != "https" || !slices.Contains(originHosts, u.Hostname()) {
+	if u.Scheme != "https" || !slices.Contains(originHosts, u.Hostname()) && !slices.Contains(f.Extra, u.Hostname()) {
 		return "", "", &HostError{URL: url, Host: u.Scheme + "://" + u.Host}
 	}
 	tmp, sha, err := f.download(ctx, url)

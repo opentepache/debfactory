@@ -47,18 +47,21 @@ func git(ctx context.Context, root string, args ...string) ([]byte, error) {
 // FindCommit devuelve el commit más reciente cuyo packages/<name>.yaml
 // declara version (versión Debian completa).
 func FindCommit(ctx context.Context, root, name, version string) (string, error) {
-	rel := "packages/" + name + ".yaml"
-	out, err := git(ctx, root, "log", "--format=%H", "--", rel)
+	// Las dos ubicaciones del manifiesto (specs/009, research D21).
+	rels := []string{"packages/" + name + ".yaml", "packages/" + name + "/" + name + ".yaml"}
+	out, err := git(ctx, root, append([]string{"log", "--format=%H", "--"}, rels...)...)
 	if err != nil {
 		return "", err
 	}
 	for _, c := range strings.Fields(string(out)) {
-		data, err := git(ctx, root, "show", c+":"+rel)
-		if err == nil && manifestVersion(data) == version {
-			return c, nil
+		for _, rel := range rels {
+			data, err := git(ctx, root, "show", c+":"+rel)
+			if err == nil && manifestVersion(data) == version {
+				return c, nil
+			}
 		}
 	}
-	return "", fmt.Errorf("ningún commit de %s declara la versión %s", rel, version)
+	return "", fmt.Errorf("ningún commit de %s declara la versión %s", rels[0], version)
 }
 
 // Func devuelve un repo.Env.Restore que construye con newEnv(root), un

@@ -33,7 +33,8 @@ const usage = `uso: debfactory <orden> [opciones]
 
 Órdenes:
   validate [pkg…]                              valida manifiestos (sin pkg, todos)
-  lock <pkg> [--force]                         genera o actualiza packages/<pkg>.lock.yaml
+  lock <pkg> [--force]                         genera o actualiza el lockfile del paquete
+  migrate layout                               pasa cada paquete a packages/<pkg>/ (manifiesto, lockfile, debian/)
   lock <pkg> --prune                           borra del lockfile las versiones viejas
   build <pkg> [--arch A] [--suite S] [--check-reproducible]   (nivel 2: --suite y doble compilación siempre)
   build --all [--check-reproducible] [--jobs N] construye en dist/
@@ -134,6 +135,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fs.BoolVar(&o.prune, "prune", false, "")
 	case "build":
 		fs.StringVar(&o.arch, "arch", "", "")
+		fs.StringVar(&o.suite, "suite", "", "")
 		fs.BoolVar(&o.all, "all", false, "")
 		fs.BoolVar(&o.reproducible, "check-reproducible", false, "")
 		fs.IntVar(&o.jobs, "jobs", defaultJobs(), "")
@@ -162,6 +164,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fs.StringVar(&o.addr, "addr", "127.0.0.1:8080", "")
 		fs.StringVar(&o.dest, "dest", "", "")
 		fs.BoolVar(&o.dryRun, "dry-run", false, "")
+	case "migrate":
 	case "ci":
 		fs.StringVar(&o.envFile, "env-file", "", "")
 		fs.StringVar(&o.mode, "mode", "", "")
@@ -273,6 +276,11 @@ func (a *app) dispatch(ctx context.Context, cmd string, pos []string) error {
 		return a.ci(ctx, pos)
 	case "site":
 		return a.site(ctx, pos)
+	case "migrate":
+		if len(pos) != 1 || pos[0] != "layout" {
+			return usageError{"migrate necesita: layout"}
+		}
+		return build.MigrateLayout(ctx, a.opts.root, a.p)
 	}
 	return usageError{"orden no implementada: " + cmd}
 }

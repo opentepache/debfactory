@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	"debfactory/internal/config"
+	"debfactory/internal/lint"
 	"debfactory/internal/pkg"
+	"debfactory/internal/report"
 	"debfactory/internal/srcbuild"
 	"debfactory/internal/srcpkg"
 )
@@ -175,28 +177,41 @@ func TestBuildLevel2Failures(t *testing.T) {
 		"no reproducible":  {func(h *harness, f *fakeLevel2) { f.unstable = "trixie/arm64" }, "compare"},
 		"no compila":       {func(h *harness, f *fakeLevel2) { f.broken = "noble/amd64" }, "build"},
 		"tarball alterado": {func(h *harness, f *fakeLevel2) { h.serve(level2URL, []byte("otra cosa")) }, "verify"},
-	}
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
-			h := newHarness(t)
-			f := h.loadLevel2()
-			c.setup(h, f)
-			err := h.env.Build(context.Background(), "tepache-hello", Options{})
-			if err == nil || !strings.Contains(err.Error(), ": "+c.stage+":") {
-				t.Fatalf("error = %v (se esperaba la etapa %s)", err, c.stage)
-			}
-			if d := h.distFiles(); len(d) != 0 {
-				t.Errorf("dist/ no está vacío: %v", d)
-			}
-			if c.stage == "verify" && len(f.sources) > 0 {
-				t.Error("se generó el fuente con un tarball sin verificar")
-			}
-			if c.stage == "build" {
-				var errs interface{ Unwrap() []error }
-				if !errors.As(err, &errs) && !strings.Contains(err.Error(), "make: *** error") {
-					t.Errorf("sin el final del log: %v", err)
+		// lintian del .dsc corre a la vez que las compilaciones: si falla,
+		// las cancela y nada llega a dist/.
+		"lintian del fuente": {func(h *harness, f *fakeLevel2) {
+			ok := h.env.Lint
+			h.env.Lint = func(ctx context.Context, cfg *config.Config, p string) (*lint.Result, error) {
+				if strings.HasSuffix(p, ".dsc") && strings.Contains(p, "+deb13") {
+					return nil, &report.Error{Stage: report.Lintian, Cause: "E: fuente roto"}
 				}
+				return ok(ctx, cfg, p)
 			}
-		})
+		}, "lintian"},
+	}
+	for _, parallel := range []bool{false, true} {
+		for name, c := range cases {
+			t.Run(fmt.Sprintf("%s/paralelo=%v", name, parallel), func(t *testing.T) {
+				h := newHarness(t)
+				f := h.loadLevel2()
+				c.setup(h, f)
+				err := h.env.Build(context.Background(), "tepache-hello", Options{Parallel: parallel})
+				if err == nil || !strings.Contains(err.Error(), ": "+c.stage+":") {
+					t.Fatalf("error = %v (se esperaba la etapa %s)", err, c.stage)
+				}
+				if d := h.distFiles(); len(d) != 0 {
+					t.Errorf("dist/ no está vacío: %v", d)
+				}
+				if c.stage == "verify" && len(f.sources) > 0 {
+					t.Error("se generó el fuente con un tarball sin verificar")
+				}
+				if c.stage == "build" {
+					var errs interface{ Unwrap() []error }
+					if !errors.As(err, &errs) && !strings.Contains(err.Error(), "make: *** error") {
+						t.Errorf("sin el final del log: %v", err)
+					}
+				}
+			})
+		}
 	}
 }

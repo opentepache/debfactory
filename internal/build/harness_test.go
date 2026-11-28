@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -39,6 +40,7 @@ type harness struct {
 	out    bytes.Buffer
 	errb   bytes.Buffer
 	linted []string
+	lintMu sync.Mutex // lintian se llama desde varias goroutines (nivel 2)
 }
 
 func newHarness(t *testing.T) *harness {
@@ -79,7 +81,9 @@ func newHarness(t *testing.T) *harness {
 		GitHub:  &fetch.GitHub{Client: h.srv.Client(), API: h.srv.URL},
 		Out:     &report.Printer{Out: &h.out, Err: &h.errb},
 		Lint: func(_ context.Context, _ *config.Config, deb string) (*lint.Result, error) {
+			h.lintMu.Lock()
 			h.linted = append(h.linted, deb)
+			h.lintMu.Unlock()
 			return &lint.Result{}, nil
 		},
 		Generate: func(context.Context, string, string, []string) ([]byte, error) {

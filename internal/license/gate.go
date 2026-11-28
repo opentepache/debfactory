@@ -65,3 +65,13 @@ func compatible(id string, terms []Term) bool {
 func (d Detection) String() string {
 	return fmt.Sprintf("%v (%.1f %%)", d.IDs, d.Coverage)
 }
+
+// Matches indica si el identificador detectado corresponde a alguno de ids,
+// con la misma equivalencia de las licencias GNU versionadas que el gate.
+func Matches(detected string, ids []string) bool {
+	terms := make([]Term, len(ids))
+	for i, id := range ids {
+		terms[i] = Term{ID: id}
+	}
+	return compatible(detected, terms)
+}

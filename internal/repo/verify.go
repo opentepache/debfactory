@@ -90,7 +90,7 @@ func VerifyTree(ctx context.Context, cfg *config.Config, st *State, genDir strin
 			want := map[string]string{} // "pkg version" -> sha
 			for _, name := range st.PackageNames() {
 				for _, p := range st.Packages[name] {
-					if contains(p.Suites, su.Name) {
+					if contains(p.Suites, su.Name) && contains(p.ArchList(cfg.Arches), arch) {
 						want[name+" "+p.SuiteVersion(su.Name)] = p.DebSHA(su.Name, arch)
 					}
 				}

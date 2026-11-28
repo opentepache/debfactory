@@ -43,7 +43,7 @@ func (e *Env) Rebuild(ctx context.Context) error {
 				errs = append(errs, e.restoreLevel2(store, name, p)...)
 				continue
 			}
-			for _, arch := range e.Cfg.Arches {
+			for _, arch := range p.ArchList(e.Cfg.Arches) {
 				sha := p.Debs[arch]
 				if store.Has(sha) {
 					continue

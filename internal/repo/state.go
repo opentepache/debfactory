@@ -49,6 +49,11 @@ type Published struct {
 	// Nivel 2 (specs/008-source-builds, data-model §2): Version es la versión
 	// base sin sufijo; cada suite tiene su compilación y Suites son las
 	// claves de Builds en el orden de la configuración.
+	// Arches son las arquitecturas de la versión cuando el manifiesto excluye
+	// alguna (specs/009, constitución 1.9.0); vacío = todas las de la
+	// configuración, y así el estado de siempre no cambia.
+	Arches []string `yaml:"arches,omitempty"`
+
 	Level  int              `yaml:"level,omitempty"`
 	Orig   *Orig            `yaml:"orig,omitempty"`
 	Builds map[string]Build `yaml:"builds,omitempty"`
@@ -58,6 +63,23 @@ type Published struct {
 type Orig struct {
 	File   string `yaml:"file" json:"file"`
 	SHA256 string `yaml:"sha256" json:"sha256"`
+	// Components son los tarballs adicionales del paquete fuente, p. ej. las
+	// dependencias del lenguaje (zigdeps; specs/009, research D3).
+	Components map[string]OrigComponent `yaml:"components,omitempty" json:"components,omitempty"`
+}
+
+// OrigComponent es un tarball adicional del paquete fuente.
+type OrigComponent struct {
+	File   string `yaml:"file" json:"file"`
+	SHA256 string `yaml:"sha256" json:"sha256"`
+}
+
+// EqualOrig compara dos .orig con sus componentes.
+func EqualOrig(a, b *Orig) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.File == b.File && a.SHA256 == b.SHA256 && maps.Equal(a.Components, b.Components)
 }
 
 // Build es la compilación de una versión de nivel 2 en una suite.
@@ -87,6 +109,7 @@ type Artifact struct {
 // .deb; en nivel 2, el .orig común y, por suite, el .dsc, el .debian.tar.xz,
 // los .deb y los .buildinfo (research D10).
 func (p Published) Artifacts(pkg string, arches []string) []Artifact {
+	arches = p.ArchList(arches)
 	if !p.Level2() {
 		out := make([]Artifact, 0, len(arches))
 		for _, a := range arches {
@@ -95,6 +118,10 @@ func (p Published) Artifacts(pkg string, arches []string) []Artifact {
 		return out
 	}
 	out := []Artifact{{Name: p.Orig.File, SHA256: p.Orig.SHA256, Kind: "orig"}}
+	for _, k := range slices.Sorted(maps.Keys(p.Orig.Components)) {
+		c := p.Orig.Components[k]
+		out = append(out, Artifact{Name: c.File, SHA256: c.SHA256, Kind: "orig"})
+	}
 	for _, su := range p.Suites {
 		b := p.Builds[su]
 		out = append(out,
@@ -111,6 +138,15 @@ func (p Published) Artifacts(pkg string, arches []string) []Artifact {
 
 // Level2 indica que la versión se compiló desde el código fuente.
 func (p Published) Level2() bool { return p.Level == 2 }
+
+// ArchList son las arquitecturas de la versión: Arches o, si está vacío, las
+// de la configuración.
+func (p Published) ArchList(cfg []string) []string {
+	if len(p.Arches) > 0 {
+		return p.Arches
+	}
+	return cfg
+}
 
 // SuiteVersion es la versión Debian de p en una suite: la de su compilación
 // en nivel 2 y la versión común en nivel 1.
@@ -243,7 +279,11 @@ func (s *State) Validate(cfg *config.Config) error {
 			if p.Orig != nil || len(p.Builds) > 0 {
 				return stateErr("%s: orig y builds solo existen en nivel 2", at)
 			}
-			for _, arch := range cfg.Arches {
+			arches, err := p.validArches(cfg, at)
+			if err != nil {
+				return err
+			}
+			for _, arch := range arches {
 				sha, ok := p.Debs[arch]
 				if !ok {
 					return stateErr("%s.debs: falta %s", at, arch)
@@ -258,8 +298,8 @@ func (s *State) Validate(cfg *config.Config) error {
 				names[sha] = file
 			}
 			for arch := range p.Debs {
-				if !slices.Contains(cfg.Arches, arch) {
-					return stateErr("%s.debs: arquitectura %q no está en config", at, arch)
+				if !slices.Contains(arches, arch) {
+					return stateErr("%s.debs: arquitectura %q no está en config ni en arches", at, arch)
 				}
 			}
 		}
@@ -303,6 +343,18 @@ func (p Published) validateLevel2(cfg *config.Config, pkg, at string, names map[
 	if err := claim("orig", p.Orig.SHA256, p.Orig.File); err != nil {
 		return err
 	}
+	for k, c := range p.Orig.Components {
+		if c.File == "" {
+			return stateErr("%s.orig.components.%s.file: obligatorio", at, k)
+		}
+		if err := claim("orig.components."+k, c.SHA256, c.File); err != nil {
+			return err
+		}
+	}
+	arches, err := p.validArches(cfg, at)
+	if err != nil {
+		return err
+	}
 	var order []string
 	for _, su := range cfg.Suites {
 		if _, ok := p.Builds[su.Name]; ok {
@@ -332,7 +384,7 @@ func (p Published) validateLevel2(cfg *config.Config, pkg, at string, names map[
 		if err := claim("builds."+name+".debian_tar", b.DebianTar, DebianTarFile(pkg, b.Version)); err != nil {
 			return err
 		}
-		for _, arch := range cfg.Arches {
+		for _, arch := range arches {
 			if err := claim("builds."+name+".debs."+arch, b.Debs[arch], DebFile(pkg, b.Version, arch)); err != nil {
 				return err
 			}
@@ -340,11 +392,32 @@ func (p Published) validateLevel2(cfg *config.Config, pkg, at string, names map[
 				return err
 			}
 		}
-		if len(b.Debs) != len(cfg.Arches) || len(b.Buildinfo) != len(cfg.Arches) {
-			return stateErr("%s: debs y buildinfo deben tener exactamente %v", bat, cfg.Arches)
+		if len(b.Debs) != len(arches) || len(b.Buildinfo) != len(arches) {
+			return stateErr("%s: debs y buildinfo deben tener exactamente %v", bat, arches)
 		}
 	}
 	return nil
+}
+
+// validArches comprueba arches (subconjunto de la configuración, en su orden,
+// no vacío si se declara) y devuelve las arquitecturas de la versión.
+func (p Published) validArches(cfg *config.Config, at string) ([]string, error) {
+	if len(p.Arches) == 0 {
+		return cfg.Arches, nil
+	}
+	var order []string
+	for _, a := range cfg.Arches {
+		if slices.Contains(p.Arches, a) {
+			order = append(order, a)
+		}
+	}
+	if !slices.Equal(order, p.Arches) {
+		return nil, stateErr("%s.arches: %v debe ser un subconjunto de %v en ese orden", at, p.Arches, cfg.Arches)
+	}
+	if slices.Equal(p.Arches, cfg.Arches) {
+		return nil, stateErr("%s.arches: con todas las arquitecturas se omite", at)
+	}
+	return p.Arches, nil
 }
 
 // schemaOf comprueba que la versión base no lleve sufijo de suite.
@@ -415,6 +488,7 @@ func (s *State) Clone() *State {
 		out := make([]Published, len(vs))
 		for i, p := range vs {
 			p.Suites = slices.Clone(p.Suites)
+			p.Arches = slices.Clone(p.Arches)
 			debs := map[string]string{}
 			for k, v := range p.Debs {
 				debs[k] = v
@@ -422,6 +496,7 @@ func (s *State) Clone() *State {
 			p.Debs = debs
 			if p.Orig != nil {
 				o := *p.Orig
+				o.Components = maps.Clone(o.Components)
 				p.Orig = &o
 			}
 			if p.Builds != nil {
@@ -478,6 +553,9 @@ func (s *State) Marshal() ([]byte, error) {
 			fmt.Fprintf(&b, "    - version: %s\n", scalar(p.Version))
 			fmt.Fprintf(&b, "      published: %s\n", p.Published.UTC().Format(time.RFC3339))
 			fmt.Fprintf(&b, "      suites: [%s]\n", strings.Join(p.Suites, ", "))
+			if len(p.Arches) > 0 {
+				fmt.Fprintf(&b, "      arches: [%s]\n", strings.Join(p.Arches, ", "))
+			}
 			if p.Level2() {
 				marshalLevel2(&b, p)
 				continue
@@ -506,7 +584,15 @@ func (s *State) Marshal() ([]byte, error) {
 // builds van en el orden de suites (que ya es el de la configuración).
 func marshalLevel2(b *strings.Builder, p Published) {
 	fmt.Fprintf(b, "      level: 2\n")
-	fmt.Fprintf(b, "      orig: {file: %s, sha256: %s}\n", scalar(p.Orig.File), p.Orig.SHA256)
+	if len(p.Orig.Components) == 0 {
+		fmt.Fprintf(b, "      orig: {file: %s, sha256: %s}\n", scalar(p.Orig.File), p.Orig.SHA256)
+	} else {
+		fmt.Fprintf(b, "      orig:\n        file: %s\n        sha256: %s\n        components:\n", scalar(p.Orig.File), p.Orig.SHA256)
+		for _, k := range slices.Sorted(maps.Keys(p.Orig.Components)) {
+			c := p.Orig.Components[k]
+			fmt.Fprintf(b, "          %s: {file: %s, sha256: %s}\n", k, scalar(c.File), c.SHA256)
+		}
+	}
 	b.WriteString("      builds:\n")
 	for _, su := range p.Suites {
 		bd := p.Builds[su]

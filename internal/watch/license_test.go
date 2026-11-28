@@ -39,7 +39,7 @@ func TestLicenseChange(t *testing.T) {
 		{"mismo texto con otro año", "MIT", mitOtherYear, LicenseSame, "", ""},
 		{"GPL declarada -only", "GPL-3.0-only", gpl, LicenseSame, "", ""},
 		{"cambio a Apache-2.0 permitido", "MIT", apache, LicenseChanged, "Apache-2.0", ""},
-		{"cambio a zlib fuera de la allowlist", "MIT", []byte(testutil.ZlibText), LicenseBlocked, "", "licencia Zlib fuera de config/licenses.yaml"},
+		{"cambio a WTFPL fuera de la allowlist", "MIT", []byte(testutil.WTFPLText), LicenseBlocked, "", "licencia WTFPL fuera de config/licenses.yaml"},
 		{"cambio a GPL sin -only/-or-later", "MIT", gpl, LicenseBlocked, "", "no distingue -only de -or-later"},
 		{"no identificable", "MIT", []byte("Todos los derechos reservados.\n"), LicenseBlocked, "", "no identificable"},
 		{"varias licencias", "MIT", append(append([]byte{}, mit...), apache...), LicenseBlocked, "", "varias licencias"},

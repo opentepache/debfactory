@@ -41,6 +41,9 @@ type Entry struct {
 	Version string    `json:"version"`
 	// Suites son las suites agregadas; solo en extend.
 	Suites []string `json:"suites,omitempty"`
+	// Arches son las arquitecturas agregadas al quitar una exclusión; solo en
+	// extend (specs/009, data-model §5).
+	Arches []string `json:"arches,omitempty"`
 	Commit string   `json:"commit"`
 	// Tool es el commit de la herramienta que produjo la entrada
 	// (specs/004-split-repos, data-model.md §3). Las anteriores no lo tienen.
@@ -51,9 +54,18 @@ type Entry struct {
 	// extend, solo las nuevas), en lugar de debs.
 	Orig   *repo.Orig            `json:"orig,omitempty"`
 	Builds map[string]repo.Build `json:"builds,omitempty"`
-	Serial int                   `json:"serial"`
-	Run    *string               `json:"run"`
-	Reason string                `json:"reason,omitempty"`
+	// Toolchain de upstream con el que se compiló (nivel 2, specs/009).
+	Toolchain *Toolchain `json:"toolchain,omitempty"`
+	Serial    int        `json:"serial"`
+	Run       *string    `json:"run"`
+	Reason    string     `json:"reason,omitempty"`
+}
+
+// Toolchain es el toolchain de upstream registrado en la auditoría.
+type Toolchain struct {
+	Name    string            `json:"name"`
+	Version string            `json:"version"`
+	SHA256  map[string]string `json:"sha256"` // arch -> sha256
 }
 
 // MarshalJSON escribe la entrada con las claves en orden fijo, la fecha sin
@@ -77,6 +89,9 @@ func (e Entry) MarshalJSON() ([]byte, error) {
 	field("version", e.Version)
 	if len(e.Suites) > 0 {
 		field("suites", e.Suites)
+	}
+	if len(e.Arches) > 0 {
+		field("arches", e.Arches)
 	}
 	field("commit", e.Commit)
 	if e.Tool != "" {
@@ -112,6 +127,9 @@ func (e Entry) MarshalJSON() ([]byte, error) {
 	}
 	if len(e.Builds) > 0 {
 		field("builds", e.Builds) // encoding/json ordena las claves de los mapas
+	}
+	if e.Toolchain != nil {
+		field("toolchain", e.Toolchain)
 	}
 	field("serial", e.Serial)
 	field("run", e.Run)
@@ -177,8 +195,18 @@ func ParseAudit(data []byte) ([]Entry, error) {
 			if (e.Op == OpPublish || e.Op == OpExtend) && e.Run == nil {
 				return nil, fail("%s sin run", e.Op)
 			}
-			if e.Op == OpExtend && len(e.Suites) == 0 {
-				return nil, fail("extend sin suites")
+			if e.Op == OpExtend && len(e.Suites) == 0 && len(e.Arches) == 0 {
+				return nil, fail("extend sin suites ni arches")
+			}
+			if t := e.Toolchain; t != nil {
+				if t.Name == "" || t.Version == "" || len(t.SHA256) == 0 {
+					return nil, fail("toolchain incompleto")
+				}
+				for a, h := range t.SHA256 {
+					if !hex64.MatchString(h) {
+						return nil, fail("toolchain.sha256.%s: sha256 inválido", a)
+					}
+				}
 			}
 		case OpRetire:
 			if e.Reason == "" {
@@ -308,20 +336,49 @@ func CheckAudit(data, against []byte, st *repo.State) error {
 		case OpExtend:
 			// Amplía una versión ya publicada: no cambia qué versiones existen.
 			if acc, ok := level2[key]; ok && len(e.Builds) > 0 {
-				// Nivel 2: el mismo .orig y solo suites que no tenía (FR-015).
-				bad := *acc.Orig != *e.Orig
+				// Nivel 2: el mismo .orig; suites que no tenía (FR-015) o, al
+				// agregar arquitecturas, solo los archivos de esas
+				// arquitecturas en las suites ya publicadas (specs/009).
+				bad := !repo.EqualOrig(acc.Orig, e.Orig)
 				for su, b := range e.Builds {
-					if _, dup := acc.Builds[su]; dup {
+					old, dup := acc.Builds[su]
+					switch {
+					case !dup:
+						acc.Builds[su] = b
+					case len(e.Arches) == 0 || old.Version != b.Version || old.DSC != b.DSC || old.DebianTar != b.DebianTar:
 						bad = true
+					default:
+						merged := old
+						merged.Debs, merged.Buildinfo = maps.Clone(old.Debs), maps.Clone(old.Buildinfo)
+						for a, h := range b.Debs {
+							if _, had := old.Debs[a]; had && old.Debs[a] != h || !slices.Contains(e.Arches, a) && !had {
+								bad = true
+							}
+							merged.Debs[a], merged.Buildinfo[a] = h, b.Buildinfo[a]
+						}
+						acc.Builds[su] = merged
 					}
-					acc.Builds[su] = b
 				}
 				if bad {
-					errs = append(errs, report.Newf(report.Audit, "%s:%d: extend de nivel 2 con otro .orig o con suites ya publicadas", AuditFile, e.Seq))
+					errs = append(errs, report.Newf(report.Audit, "%s:%d: extend de nivel 2 con otro .orig, suites ya publicadas u otros archivos", AuditFile, e.Seq))
 				}
 				continue
 			}
-			if pub, ok := published[key]; !ok || !maps.Equal(pub, e.Debs) || len(e.Builds) > 0 {
+			pub, ok := published[key]
+			switch {
+			case !ok || len(e.Builds) > 0:
+				errs = append(errs, report.Newf(report.Audit, "%s:%d: extend de una versión nunca publicada o con otros .deb", AuditFile, e.Seq))
+			case len(e.Arches) > 0:
+				// Nivel 1: agrega los .deb de las arquitecturas nuevas.
+				merged := maps.Clone(pub)
+				for a, h := range e.Debs {
+					if old, had := pub[a]; had && old != h || !slices.Contains(e.Arches, a) && !had {
+						errs = append(errs, report.Newf(report.Audit, "%s:%d: extend con arquitecturas que cambia un .deb publicado", AuditFile, e.Seq))
+					}
+					merged[a] = h
+				}
+				published[key] = merged
+			case !maps.Equal(pub, e.Debs):
 				errs = append(errs, report.Newf(report.Audit, "%s:%d: extend de una versión nunca publicada o con otros .deb", AuditFile, e.Seq))
 			}
 		case OpRetire:
@@ -336,7 +393,7 @@ func CheckAudit(data, against []byte, st *repo.State) error {
 				if p.Level2() {
 					acc, ok := level2[name+" "+p.Version]
 					for _, su := range p.Suites {
-						if !ok || *acc.Orig != *p.Orig || !acc.Builds[su].Equal(p.Builds[su]) {
+						if !ok || !repo.EqualOrig(acc.Orig, p.Orig) || !acc.Builds[su].Equal(p.Builds[su]) {
 							errs = append(errs, report.Newf(report.Audit, "%s: falta la publicación de %s %s en %s", AuditFile, name, p.Version, su))
 						}
 					}

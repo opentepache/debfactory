@@ -14,3 +14,19 @@ allowed:
   - LGPL-2.1-or-later
   - LGPL-3.0-only
   - LGPL-3.0-or-later
+  # Constitución 1.12.0: permisivas y compatibles con GPL; libres según la OSI, la FSF o
+  # Debian main.
+  - Zlib
+  - libpng-2.0
+  - 0BSD
+  - CC0-1.0
+  - OFL-1.1
+  - HPND-sell-variant
+  - MIT-Modern-Variant
+  - curl
+  - MIT-CMU
+# Libres (OSI, FSF o Debian main) pero solo con una excepción en el manifiesto del paquete.
+exception_only:
+  - BSD-4-Clause-UC
+  - APSL-2.0
+  - CC-BY-4.0 # solo para archivos que no son código (documentación, datos)

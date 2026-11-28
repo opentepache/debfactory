@@ -336,11 +336,16 @@ func changedFiles(ctx context.Context, root, rng string) ([]string, error) {
 	return strings.Fields(out), nil
 }
 
-// packageOf reconoce packages/<p>.yaml y packages/<p>.lock.yaml.
+// packageOf reconoce packages/<p>.yaml, packages/<p>.lock.yaml y cualquier
+// archivo de packages/<p>/ (manifiesto y lockfile autocontenidos, carpeta
+// debian/ de nivel 2; specs/009, research D21).
 func packageOf(path string) (string, bool) {
 	rest, ok := strings.CutPrefix(path, "packages/")
-	if !ok || strings.Contains(rest, "/") {
+	if !ok {
 		return "", false
+	}
+	if dir, _, nested := strings.Cut(rest, "/"); nested {
+		return dir, dir != ""
 	}
 	if n, ok := strings.CutSuffix(rest, ".lock.yaml"); ok {
 		return n, true

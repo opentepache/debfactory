@@ -118,7 +118,7 @@ func Generate(ctx context.Context, cfg *config.Config, st *State, store Store, d
 					files = append(files, add...)
 					continue
 				}
-				for _, arch := range cfg.Arches {
+				for _, arch := range p.ArchList(cfg.Arches) {
 					path := store.Path(p.Debs[arch])
 					if !store.Has(p.Debs[arch]) {
 						return "", fail("falta en el almacén %s (sha %s); ejecuta `debfactory repo rebuild`",

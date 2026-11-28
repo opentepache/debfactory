@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"debfactory/internal/report"
@@ -37,6 +38,7 @@ type Opts struct {
 	Alias    string   // --network-alias (nombre en la red)
 	Name     string   // --name
 	Hostname string   // --hostname
+	User     string   // --user, p. ej. "1000:1000"
 	Ports    []string // --publish, p. ej. "127.0.0.1:8080:80"
 	ReadOnly bool     // --read-only
 	Tmpfs    []string // --tmpfs, p. ej. "/tmp"
@@ -157,6 +159,9 @@ func runArgs(o Opts) ([]string, error) {
 	if o.Hostname != "" {
 		a = append(a, "--hostname", o.Hostname)
 	}
+	if o.User != "" {
+		a = append(a, "--user", o.User)
+	}
 	for _, p := range o.Ports {
 		a = append(a, "--publish", p)
 	}
@@ -187,7 +192,15 @@ func runArgs(o Opts) ([]string, error) {
 
 // Run ejecuta Cmd en un contenedor efímero. Un código distinto de 0 de la
 // orden va en Result.ExitCode; err solo indica un fallo de docker.
+// runSeq numera los contenedores de Run de este proceso.
+var runSeq atomic.Int64
+
 func Run(ctx context.Context, o Opts) (Result, error) {
+	// Con nombre propio: si se cancela ctx, matar al cliente de docker no
+	// detiene el contenedor, así que se elimina por nombre (specs/009).
+	if o.Name == "" {
+		o.Name = fmt.Sprintf("debfactory-%d-%d", os.Getpid(), runSeq.Add(1))
+	}
 	extra, err := runArgs(o)
 	if err != nil {
 		return Result{}, err
@@ -195,6 +208,11 @@ func Run(ctx context.Context, o Opts) (Result, error) {
 	args := append([]string{"run", "--rm", "--pull", "never"}, extra...)
 	args = append(append(args, o.Image), o.Cmd...)
 	res, err := docker(ctx, nil, args...)
+	if ctx.Err() != nil {
+		rmCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		_, _ = docker(rmCtx, nil, "rm", "-f", o.Name)
+		cancel()
+	}
 	if err == nil && res.ExitCode == 125 {
 		err = fmt.Errorf("docker run %s: %s", o.Image, strings.Join(TailLines(res.Stderr, 15), "\n"))
 	}

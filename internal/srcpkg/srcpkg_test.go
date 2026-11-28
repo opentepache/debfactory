@@ -1,10 +1,13 @@
 package srcpkg
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"debfactory/internal/installtest"
 )
@@ -91,5 +94,52 @@ func TestVersionOrder(t *testing.T) {
 		if !ok {
 			t.Errorf("se esperaba %s %s %s", c.a, c.op, c.b)
 		}
+	}
+}
+
+// TestBuildComponentStable (research D3): el componente zigdeps es el mismo
+// archivo en dos ejecuciones y lleva el directorio del componente.
+func TestBuildComponentStable(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "uucode-0.2.0-ZZjB"), 0o755)
+	os.WriteFile(filepath.Join(dir, "uucode-0.2.0-ZZjB", "build.zig"), []byte("x"), 0o644)
+	mtime := time.Unix(1767225600, 0).UTC()
+	a, b := filepath.Join(t.TempDir(), "a.tar.xz"), filepath.Join(t.TempDir(), "b.tar.xz")
+	for _, p := range []string{a, b} {
+		if err := BuildComponent(context.Background(), dir, "zigdeps", mtime, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	da, _ := os.ReadFile(a)
+	db, _ := os.ReadFile(b)
+	if len(da) == 0 || string(da) != string(db) {
+		t.Fatal("el componente no es determinista")
+	}
+	out, err := exec.Command("tar", "-tJf", a).Output()
+	if err != nil || !strings.Contains(string(out), "zigdeps/uucode-0.2.0-ZZjB/build.zig") {
+		t.Errorf("contenido: %v\n%s", err, out)
+	}
+	if ComponentName("ghostty", "1.4.0", "zigdeps") != "ghostty_1.4.0.orig-zigdeps.tar.xz" {
+		t.Error("nombre del componente")
+	}
+}
+
+// TestPrepareComponents: Prepare copia los componentes y escribe
+// debian/upstream/toolchain.
+func TestPrepareComponents(t *testing.T) {
+	in := input(t)
+	comp := filepath.Join(t.TempDir(), "z.tar.xz")
+	os.WriteFile(comp, []byte("tar"), 0o644)
+	in.Components = map[string]string{"zigdeps": comp}
+	in.Toolchain = "name: zig\n"
+	dir := t.TempDir()
+	if err := Prepare(in, dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "tepache-hello_1.0.0.orig-zigdeps.tar.xz")); err != nil {
+		t.Error(err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "debian/upstream/toolchain")); string(b) != "name: zig\n" {
+		t.Errorf("toolchain = %q", b)
 	}
 }

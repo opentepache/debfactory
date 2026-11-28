@@ -10,9 +10,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -70,6 +72,8 @@ type Source struct {
 	DSC       string // <name>_<version>.dsc
 	DebianTar string // <name>_<version>.debian.tar.xz
 	Orig      string // <name>_<upstream>.orig.tar.<ext>
+	// Components son los tarballs adicionales (…orig-<c>.tar.xz; specs/009).
+	Components []string
 }
 
 // GenerateSource genera el paquete fuente de una suite una sola vez
@@ -110,7 +114,10 @@ func GenerateSource(ctx context.Context, s config.Suite, in srcpkg.Input, work s
 	}
 	src := &Source{Dir: out, DSC: in.Name + "_" + in.Version + ".dsc",
 		DebianTar: in.Name + "_" + in.Version + ".debian.tar.xz", Orig: in.OrigName}
-	for _, f := range []string{src.DSC, src.DebianTar, src.Orig} {
+	for _, c := range slices.Sorted(maps.Keys(in.Components)) {
+		src.Components = append(src.Components, srcpkg.ComponentName(in.Name, in.Upstream, c))
+	}
+	for _, f := range append([]string{src.DSC, src.DebianTar, src.Orig}, src.Components...) {
 		if _, err := os.Stat(filepath.Join(out, f)); err != nil {
 			return nil, fmt.Errorf("dpkg-source -b no produjo %s", f)
 		}
@@ -127,8 +134,14 @@ type Spec struct {
 	Package string
 	Version string // con sufijo
 	Epoch   int64
-	Tmpfs   string // tamaño del tmpfs, p. ej. 6g
+	Tmpfs   string // tamaño del tmpfs, p. ej. 6g; vacío = disco del contenedor
 	Variant int    // 0 = entorno normal; 1 = otro entorno (doble compilación, research D8)
+	// Toolchain es el directorio del host con el toolchain verificado de la
+	// arquitectura (specs/009): se monta de solo lectura en /opt/toolchain y
+	// va primero en el PATH. Vacío = sin toolchain.
+	Toolchain string
+	// Timeout de la compilación; 0 = buildTimeout.
+	Timeout time.Duration
 }
 
 // Binary es el resultado de una compilación.
@@ -164,9 +177,25 @@ cp ./*.deb ./*.buildinfo /build/out/
 // Build compila el .dsc de spec.Source en un contenedor nuevo y deja el .deb
 // y el .buildinfo en out.
 func Build(ctx context.Context, spec Spec, out string) (*Binary, error) {
-	ctx, cancel := context.WithTimeout(ctx, buildTimeout)
+	timeout := spec.Timeout
+	if timeout == 0 {
+		timeout = buildTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	v := variants[spec.Variant%len(variants)]
+	mounts := []container.Mount{{Src: spec.Source.Dir, Dst: "/in", ReadOnly: true}}
+	// Sin tamaño de tmpfs se compila en el disco del contenedor: en los
+	// runners de GitHub (16 GB) la memoria es para el compilador (specs/009).
+	var tmpfs []string
+	if spec.Tmpfs != "" {
+		tmpfs = []string{"/build:size=" + spec.Tmpfs + ",exec"}
+	}
+	path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	if spec.Toolchain != "" {
+		mounts = append(mounts, container.Mount{Src: spec.Toolchain, Dst: "/opt/toolchain", ReadOnly: true})
+		path = "/opt/toolchain:" + path
+	}
 	if err := EnsureImage(ctx, spec.Suite, spec.Arch); err != nil {
 		return nil, fmt.Errorf("imagen de construcción: %v", err)
 	}
@@ -175,8 +204,8 @@ func Build(ctx context.Context, spec Spec, out string) (*Binary, error) {
 		Platform: container.Platform(spec.Arch),
 		Network:  "bridge",
 		Hostname: v.hostname,
-		Tmpfs:    []string{"/build:size=" + spec.Tmpfs + ",exec"},
-		Mounts:   []container.Mount{{Src: spec.Source.Dir, Dst: "/in", ReadOnly: true}},
+		Tmpfs:    tmpfs,
+		Mounts:   mounts,
 	})
 	if err != nil {
 		return nil, err
@@ -188,6 +217,7 @@ func Build(ctx context.Context, spec Spec, out string) (*Binary, error) {
 	// repos oficiales de la imagen.
 	apt := []string{"DEBIAN_FRONTEND=noninteractive"}
 	setup := `set -eu
+mkdir -p /build
 cp -r /in /build/in
 mkdir -p ` + BuildPath + `
 chown -R ` + builder + ` /build/in ` + BuildPath + `
@@ -210,7 +240,7 @@ apt-get build-dep -y --no-install-recommends "/build/in/$1"
 	// defecto y lintian (y Debian) lo rechazan como malformed-deb-archive.
 	// La guía de recompilación fija lo mismo (FR-013).
 	env := []string{"SOURCE_DATE_EPOCH=" + strconv.FormatInt(spec.Epoch, 10), "TZ=" + v.tz, "LANG=" + v.lang,
-		"HOME=/home/" + builder, "DPKG_DEB_COMPRESSOR_TYPE=" + Compressor}
+		"HOME=/home/" + builder, "DPKG_DEB_COMPRESSOR_TYPE=" + Compressor, "PATH=" + path}
 	res, err = container.ExecAs(ctx, id, builder, env, []string{"sh", "-c", buildScript, "sh", spec.Source.DSC, spec.Tree, v.umask})
 	if err := failure("dpkg-buildpackage", res, err); err != nil {
 		return nil, err

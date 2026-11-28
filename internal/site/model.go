@@ -218,7 +218,7 @@ func Load(cfg *config.Config, root string, st *repo.State, gen *repo.GenInfo, wa
 
 func loadPackage(cfg *config.Config, root, name string, published []repo.Published, warn func(string)) (Package, error) {
 	p := Package{Name: name, Excluded: []Exclusion{}, Install: "sudo apt install " + name}
-	if _, err := os.Stat(filepath.Join(root, manifest.Path(name))); errors.Is(err, fs.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(root, manifest.PathIn(root, name))); errors.Is(err, fs.ErrNotExist) {
 		if warn != nil {
 			warn(fmt.Sprintf("site: %s está publicado pero no tiene manifiesto; se muestra sin descripción", name))
 		}

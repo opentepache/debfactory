@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
+	"time"
 
 	"debfactory/internal/assemble"
 	"debfactory/internal/config"
@@ -21,6 +22,7 @@ import (
 	"debfactory/internal/report"
 	"debfactory/internal/srcbuild"
 	"debfactory/internal/srcpkg"
+	"debfactory/internal/supply"
 )
 
 // Level2Suites son las suites en las que se compila un paquete de nivel 2:
@@ -48,17 +50,18 @@ func Level2Base(m *manifest.Manifest, s config.Suite, arch string) string {
 // (FR-008). Nada llega a dist/ sin pasar todo, y si una combinación falla no
 // se escribe ninguna (constitución VII).
 func (e *Env) buildLevel2(ctx context.Context, m *manifest.Manifest, lk *lock.File, o Options) error {
+	e = e.forManifest(m)
 	fail := func(stage report.Stage, arch string, err error) error {
 		return report.Wrap(err, stage, m.Name, m.Version, arch)
 	}
 	entry, ok := lk.Versions[m.Version]
 	if !ok {
 		return fail(report.Lock, "", fmt.Errorf("no hay entrada para %s en %s; ejecuta `debfactory lock %s`",
-			m.Version, lock.Path(m.Name), m.Name))
+			m.Version, lock.PathIn(e.Root, m.Name), m.Name))
 	}
 	if err := entry.CompleteSource(); err != nil {
 		return fail(report.Lock, "", fmt.Errorf("entrada incompleta para %s en %s (%v); ejecuta `debfactory lock %s`",
-			m.Version, lock.Path(m.Name), err, m.Name))
+			m.Version, lock.PathIn(e.Root, m.Name), err, m.Name))
 	}
 	suites := Level2Suites(e.Cfg, m)
 	if o.Suite != "" {
@@ -90,20 +93,35 @@ func (e *Env) buildLevel2(ctx context.Context, m *manifest.Manifest, lk *lock.Fi
 		return fail(report.Source, "", err)
 	}
 	defer os.RemoveAll(work)
+	extra, err := e.level2Extras(ctx, m, entry, tarball, arches, work)
+	if err != nil {
+		return err
+	}
 
-	// Un paquete fuente por suite (research D6), con lintian sobre el .dsc.
+	// Un paquete fuente por suite (research D6). lintian sobre el .dsc corre
+	// a la vez que las compilaciones (en un fuente grande tarda minutos); si
+	// falla, las cancela, y nada llega a dist/ sin haberlo pasado.
+	bctx, cancelBuilds := context.WithCancel(ctx)
+	defer cancelBuilds()
 	sources := make([]*srcbuild.Source, len(suites))
+	lintErrs := make([]error, len(suites))
+	var lintWG sync.WaitGroup
 	for i, s := range suites {
 		in := srcpkg.Input{Name: m.Name, Upstream: m.Version, Version: m.SuiteVersion(s.Level2Suffix), Suite: s.Name,
 			Maintainer: e.Cfg.Maintainer, Epoch: entry.SourceDateEpoch, Orig: tarball, OrigName: m.OrigName(),
-			DebianDir: filepath.Join(e.Root, m.DebianDir())}
+			DebianDir: filepath.Join(e.Root, m.DebianDir()), Components: extra.components, Toolchain: extra.toolchainFile}
 		src, err := e.SourceGen(ctx, s, in, filepath.Join(work, s.Name))
 		if err != nil {
 			return report.Wrap(err, report.Source, m.Name, m.Version, s.Name)
 		}
-		if _, err := e.Lint(ctx, e.Cfg, filepath.Join(src.Dir, src.DSC)); err != nil {
-			return report.Wrap(err, report.Lintian, m.Name, m.Version, s.Name)
-		}
+		lintWG.Add(1)
+		go func() {
+			defer lintWG.Done()
+			if _, err := e.Lint(ctx, e.Cfg, filepath.Join(src.Dir, src.DSC)); err != nil {
+				lintErrs[i] = report.Wrap(err, report.Lintian, m.Name, m.Version, s.Name)
+				cancelBuilds()
+			}
+		}()
 		sources[i] = src
 	}
 
@@ -125,6 +143,9 @@ func (e *Env) buildLevel2(ctx context.Context, m *manifest.Manifest, lk *lock.Fi
 	if m.BuildOpts.Tmpfs != "" {
 		tmpfs = m.BuildOpts.Tmpfs
 	}
+	if o.Disk {
+		tmpfs = ""
+	}
 	sem := make(chan struct{}, e.Cfg.Level2.JobsOrDefault())
 	var wg sync.WaitGroup
 	for _, j := range jobs {
@@ -134,17 +155,31 @@ func (e *Env) buildLevel2(ctx context.Context, m *manifest.Manifest, lk *lock.Fi
 			select {
 			case sem <- struct{}{}:
 				defer func() { <-sem }()
-			case <-ctx.Done():
-				j.err = ctx.Err()
+			case <-bctx.Done():
+				j.err = bctx.Err()
 				return
 			}
 			spec := srcbuild.Spec{Suite: j.suite, Arch: j.arch, Source: j.src, Tree: m.Name + "-" + m.Version,
-				Package: m.Name, Version: m.SuiteVersion(j.suite.Level2Suffix), Epoch: entry.SourceDateEpoch, Tmpfs: tmpfs}
-			j.res, j.err = e.compileTwice(ctx, m, spec, filepath.Join(work, j.suite.Name+"-"+j.arch))
+				Package: m.Name, Version: m.SuiteVersion(j.suite.Level2Suffix), Epoch: entry.SourceDateEpoch, Tmpfs: tmpfs,
+				Toolchain: extra.toolchains[j.arch], Timeout: e.Cfg.Level2.TimeoutOrDefault()}
+			j.res, j.err = e.compileTwice(bctx, m, spec, filepath.Join(work, j.suite.Name+"-"+j.arch),
+				o.Parallel || e.Cfg.Level2.ParallelVariants)
 		}()
 	}
 	wg.Wait()
+	lintWG.Wait()
 	var errs report.Errors
+	for _, err := range lintErrs {
+		if err != nil {
+			var re *report.Error
+			if errors.As(err, &re) {
+				errs = append(errs, re)
+			}
+		}
+	}
+	if len(errs) > 0 {
+		return errs.Err() // las compilaciones se cancelaron por lintian
+	}
 	for _, j := range jobs {
 		if j.err != nil {
 			var re *report.Error
@@ -175,7 +210,7 @@ func (e *Env) buildLevel2(ctx context.Context, m *manifest.Manifest, lk *lock.Fi
 	if err != nil {
 		return fail(report.Package, "", err)
 	}
-	lockSHA, err := fetch.SHA256File(filepath.Join(e.Root, lock.Path(m.Name)))
+	lockSHA, err := fetch.SHA256File(filepath.Join(e.Root, lock.PathIn(e.Root, m.Name)))
 	if err != nil {
 		return fail(report.Package, "", err)
 	}
@@ -207,28 +242,48 @@ type level2Result struct {
 
 // compileTwice compila spec con dos entornos (research D8), compara y pasa
 // lintian al .deb.
-func (e *Env) compileTwice(ctx context.Context, m *manifest.Manifest, spec srcbuild.Spec, dir string) (*level2Result, error) {
+func (e *Env) compileTwice(ctx context.Context, m *manifest.Manifest, spec srcbuild.Spec, dir string, parallel bool) (*level2Result, error) {
 	where := spec.Suite.Name + "/" + spec.Arch
 	var shas [2]string
-	var first *srcbuild.Binary
-	for v := range 2 {
-		spec.Variant = v
-		bin, err := e.BinaryBuild(ctx, spec, filepath.Join(dir, fmt.Sprint(v)))
+	var bins [2]*srcbuild.Binary
+	var errs [2]error
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	one := func(v int) {
+		s := spec
+		s.Variant = v
+		bin, err := e.BinaryBuild(ctx, s, filepath.Join(dir, fmt.Sprint(v)))
+		if err == nil {
+			shas[v], err = fetch.SHA256File(bin.Deb)
+		}
 		if err != nil {
-			var f *srcbuild.Failure
-			if errors.As(err, &f) {
-				return nil, &report.Error{Package: m.Name, Version: m.Version, Arch: where, Stage: report.Build,
-					Cause: f.Error(), Detail: f.Tail}
+			cancel() // la otra variante ya no sirve
+		}
+		bins[v], errs[v] = bin, err
+	}
+	if parallel {
+		var wg sync.WaitGroup
+		for v := range 2 {
+			wg.Add(1)
+			go func() { defer wg.Done(); one(v) }()
+		}
+		wg.Wait()
+	} else {
+		for v := range 2 {
+			if one(v); errs[v] != nil {
+				break
 			}
-			return nil, report.Wrap(err, report.Build, m.Name, m.Version, where)
-		}
-		if shas[v], err = fetch.SHA256File(bin.Deb); err != nil {
-			return nil, report.Wrap(err, report.Build, m.Name, m.Version, where)
-		}
-		if v == 0 {
-			first = bin
 		}
 	}
+	if err := firstRealError(errs[:]); err != nil {
+		var f *srcbuild.Failure
+		if errors.As(err, &f) {
+			return nil, &report.Error{Package: m.Name, Version: m.Version, Arch: where, Stage: report.Build,
+				Cause: f.Error(), Detail: f.Tail}
+		}
+		return nil, report.Wrap(err, report.Build, m.Name, m.Version, where)
+	}
+	first := bins[0]
 	if shas[0] != shas[1] {
 		return nil, &report.Error{Package: m.Name, Version: m.Version, Arch: where, Stage: report.Compare,
 			Cause:  "no reproducible: las dos compilaciones del mismo .dsc dan .deb distintos",
@@ -256,6 +311,9 @@ func (e *Env) level2Inputs(ctx context.Context, m *manifest.Manifest, entry *loc
 	tarball, _, err := e.Fetcher.Get(ctx, url, entry.SourceSHA256)
 	if err != nil {
 		return "", downloadErr(err, m, "", "lock")
+	}
+	if _, err := e.verifySignatures(ctx, m, nil, map[string]string{url: tarball}, entry.Signatures); err != nil {
+		return "", err
 	}
 	vars, err := m.Vars("")
 	if err != nil {
@@ -308,4 +366,110 @@ func (e *Env) copyDist(src, name string) error {
 		_, err = io.Copy(w, fh)
 		return err
 	})
+}
+
+// level2Extra es lo que la fase 009 añade a la compilación de un paquete.
+type level2Extra struct {
+	components    map[string]string // componente -> tarball (zigdeps)
+	toolchainFile string            // debian/upstream/toolchain
+	toolchains    map[string]string // arch -> directorio extraído
+}
+
+// level2Extras vuelve a comprobar, con los valores del lockfile, el tarball
+// contra el tag (FR-014), el toolchain de cada arquitectura (FR-001) y las
+// dependencias del lenguaje (FR-003), y prepara el componente zigdeps.
+func (e *Env) level2Extras(ctx context.Context, m *manifest.Manifest, entry *lock.Entry, tarball string,
+	arches []string, work string) (*level2Extra, error) {
+	fail := func(stage report.Stage, err error) error { return report.Wrap(err, stage, m.Name, m.Version, "") }
+	x := &level2Extra{toolchains: map[string]string{}}
+	if entry.TagArchiveSHA256 != "" {
+		tagPath, _, err := e.Fetcher.Get(ctx, TagArchiveURL(m), entry.TagArchiveSHA256)
+		if err != nil {
+			return nil, downloadErr(err, m, "", "lock")
+		}
+		diff, err := supply.CompareTag(tarball, m.Source.Format, tagPath)
+		if err != nil {
+			return nil, fail(report.Stage("tagdiff"), err)
+		}
+		var declared []string
+		for _, f := range m.Source.ExtraFiles {
+			declared = append(declared, f.Path)
+		}
+		locked := entry.ExtraFiles
+		if locked == nil {
+			locked = map[string]string{}
+		}
+		if _, err := diff.CheckExtras(declared, locked); err != nil {
+			return nil, fail(report.Stage("tagdiff"), err)
+		}
+	}
+	if m.Toolchain == nil {
+		return x, nil
+	}
+	v := &supply.Verifier{Root: e.Root, Pkg: m.Name, Sigstore: e.Sigstore}
+	need := slices.Clone(arches)
+	if !slices.Contains(need, srcbuild.HostArch()) && m.Deps != nil {
+		need = append(need, srcbuild.HostArch()) // zig fetch corre en el host
+	}
+	hostTarball := ""
+	for _, arch := range need {
+		want := entry.Toolchain[arch]
+		if want == "" {
+			return nil, fail(report.Lock, fmt.Errorf("falta toolchain.%s en el lockfile; ejecuta `debfactory lock %s`", arch, m.Name))
+		}
+		wantSig := ""
+		if m.Toolchain.Signing != nil {
+			sigURL, _ := m.Toolchain.RenderURL(m.Toolchain.Signing.URL(), arch)
+			wantSig = entry.Signatures[sigURL]
+		}
+		r, err := supply.FetchToolchain(ctx, e.Fetcher, v, m.Toolchain, arch, want, wantSig)
+		if err != nil {
+			return nil, fail(report.Stage("toolchain"), err)
+		}
+		dir := filepath.Join(work, "toolchain-"+arch)
+		if err := supply.ExtractToolchain(ctx, r.Tarball, dir); err != nil {
+			return nil, fail(report.Stage("toolchain"), err)
+		}
+		x.toolchains[arch] = dir
+		if arch == srcbuild.HostArch() {
+			hostTarball = r.Tarball
+		}
+	}
+	x.toolchainFile = toolchainFile(m, entry, e.Cfg.Arches)
+	if m.Deps == nil {
+		return x, nil
+	}
+	depsWork := filepath.Join(work, "deps")
+	if err := os.MkdirAll(depsWork, 0o755); err != nil {
+		return nil, fail(report.Source, err)
+	}
+	list, sha, err := e.resolveDeps(ctx, m, tarball, hostTarball, depsWork, time.Unix(entry.SourceDateEpoch, 0).UTC(), entry.Deps)
+	if err != nil {
+		return nil, err
+	}
+	if !slices.Equal(list, entry.Deps) {
+		return nil, fail(report.Stage("deps"), fmt.Errorf("las dependencias resueltas no son las del lockfile (%d frente a %d o hashes distintos); ejecuta `debfactory lock %s`",
+			len(list), len(entry.Deps), m.Name))
+	}
+	if sha != entry.ZigdepsSHA256 {
+		return nil, fail(report.Stage("deps"), fmt.Errorf("el componente zigdeps da %s y el lockfile dice %s", sha, entry.ZigdepsSHA256))
+	}
+	x.components = map[string]string{"zigdeps": filepath.Join(depsWork, "zigdeps.tar.xz")}
+	return x, nil
+}
+
+// firstRealError devuelve el primer error que no sea la cancelación
+// provocada por el fallo de la otra variante.
+func firstRealError(errs []error) error {
+	for _, err := range errs {
+		if err != nil && !errors.Is(err, context.Canceled) {
+			return err
+		}
+	}
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

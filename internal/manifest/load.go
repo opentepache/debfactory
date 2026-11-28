@@ -50,13 +50,34 @@ func manifestSchema() (*jsonschema.Schema, error) {
 	return compiledSchema, schemaErr
 }
 
-// Path devuelve la ruta relativa del manifiesto de un paquete.
+// Path devuelve la ruta relativa del manifiesto en la ubicación anterior
+// (packages/<name>.yaml).
 func Path(name string) string { return filepath.Join("packages", name+".yaml") }
 
-// Load lee packages/<name>.yaml bajo root, lo valida contra el schema y aplica
-// los defaults. Las reglas semánticas se comprueban aparte (Check).
+// DirPath es la ruta en la ubicación autocontenida (specs/009, research D21):
+// packages/<name>/<name>.yaml.
+func DirPath(name string) string { return filepath.Join("packages", name, name+".yaml") }
+
+// PathIn devuelve la ruta del manifiesto bajo root: la autocontenida si
+// existe y si no la anterior.
+func PathIn(root, name string) string {
+	if _, err := os.Stat(filepath.Join(root, DirPath(name))); err == nil {
+		return DirPath(name)
+	}
+	return Path(name)
+}
+
+// Load lee el manifiesto de name bajo root (packages/<name>/<name>.yaml o
+// packages/<name>.yaml), lo valida contra el schema y aplica los defaults.
+// Las reglas semánticas se comprueban aparte (Check). Las dos ubicaciones a
+// la vez son un error.
 func Load(root, name string) (*Manifest, error) {
-	return LoadFile(root, Path(name))
+	_, errA := os.Stat(filepath.Join(root, DirPath(name)))
+	_, errB := os.Stat(filepath.Join(root, Path(name)))
+	if errA == nil && errB == nil {
+		return nil, validateErr(name, "", Path(name), "", "existe también "+DirPath(name)+"; deja solo una ubicación (debfactory migrate layout)")
+	}
+	return LoadFile(root, PathIn(root, name))
 }
 
 // LoadFile es Load con la ruta relativa del manifiesto.

@@ -41,6 +41,11 @@ type Env struct {
 	// internal/srcbuild); las pruebas sin Docker los sustituyen.
 	SourceGen   func(ctx context.Context, s config.Suite, in srcpkg.Input, work string) (*srcbuild.Source, error)
 	BinaryBuild func(ctx context.Context, spec srcbuild.Spec, out string) (*srcbuild.Binary, error)
+	// Sigstore verifica bundles de sigstore (por defecto cosign en un
+	// contenedor; las pruebas lo sustituyen).
+	Sigstore func(ctx context.Context, s *manifest.SigstoreSig, file, bundle string) error
+	// ZigFetcher crea el ZigFetcher (por defecto zig fetch en un contenedor).
+	ZigFetcher ZigFetcherFactory
 }
 
 // Defaults completa Lint y Generate con las implementaciones en contenedor.

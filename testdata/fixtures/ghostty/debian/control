@@ -1,0 +1,32 @@
+Source: ghostty
+Section: x11
+Priority: optional
+Maintainer: OpenTepache <debfactory@opentepache.invalid>
+Build-Depends: debhelper-compat (= 13),
+ blueprint-compiler,
+ gettext,
+ glslang-dev,
+ libadwaita-1-dev,
+ libbz2-dev,
+ libfontconfig-dev,
+ libfreetype-dev,
+ libgtk-4-dev,
+ libgtk4-layer-shell-dev,
+ libonig-dev,
+ libpng-dev,
+ libxml2-utils,
+ pandoc,
+ patchelf,
+ pkgconf,
+ zlib1g-dev
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://ghostty.org
+
+Package: ghostty
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: fast, native, feature-rich terminal emulator
+ Ghostty is a terminal emulator that differentiates itself by being fast,
+ feature-rich and native, using GTK4 and libadwaita on Linux and GPU
+ acceleration.

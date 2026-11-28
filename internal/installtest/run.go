@@ -38,9 +38,11 @@ type Deb struct {
 	TestCommand string // orden y argumentos separados por espacios
 	Expect      string // subcadena que debe aparecer en la salida
 	// Lifecycle añade la prueba de ciclo de vida de nivel 2 (research D9, en
-	// lugar de piuparts): apt-get remove antes de purgar, autoremove de las
-	// dependencias y ningún archivo nuevo en el sistema fuera de los
-	// directorios volátiles.
+	// lugar de piuparts): las dependencias se instalan antes de la foto del
+	// sistema (así solo se mide el paquete: paquetes protegidos como
+	// systemd-sysv nunca se autoeliminan y sus scripts crean archivos
+	// propios), luego apt-get remove, purge, autoremove de lo que trajo la
+	// instalación y ningún archivo nuevo fuera de los directorios volátiles.
 	Lifecycle bool
 }
 
@@ -84,6 +86,10 @@ func RunSuite(ctx context.Context, s config.Suite, d Deb) Result {
 	apt := []string{"DEBIAN_FRONTEND=noninteractive"}
 	var before []string
 	if d.Lifecycle {
+		res, err := container.Exec(ctx, id, apt, []string{"sh", "-c", satisfyScript, "sh", "/dist/" + filepath.Base(abs)})
+		if reason, bad := failed(res, err); bad {
+			return fail(StageInstall, "dependencias: "+reason)
+		}
 		if before, err = snapshot(ctx, id); err != nil {
 			return fail(StageLifecycle, err.Error())
 		}
@@ -153,6 +159,11 @@ func RunSuite(ctx context.Context, s config.Suite, d Deb) Result {
 // purgar (registros, cachés, índices de apt y la base de dpkg).
 var volatile = []string{"/proc", "/sys", "/dev", "/run", "/tmp", "/var/tmp", "/var/log", "/var/cache",
 	"/var/lib/apt", "/var/lib/dpkg", "/var/lib/systemd", "/etc/ld.so.cache"}
+
+// satisfyScript instala las Pre-Depends y Depends del .deb (sin el paquete).
+const satisfyScript = `set -eu
+deps=$(printf '%s, %s' "$(dpkg-deb -f "$1" Pre-Depends)" "$(dpkg-deb -f "$1" Depends)" | sed 's/^, //; s/, $//')
+[ -z "$deps" ] || apt-get satisfy -y "$deps"`
 
 // snapshotScript lista los archivos del sistema fuera de los directorios
 // volátiles, que llegan como argumentos posicionales.

@@ -77,7 +77,7 @@ func TestStateInvalid(t *testing.T) {
 }
 
 func TestStateRoundTrip(t *testing.T) {
-	for _, f := range []string{"ok.yaml", "ok-level2.yaml"} {
+	for _, f := range []string{"ok.yaml", "ok-level2.yaml", "ok-arches.yaml", "ok-components.yaml"} {
 		t.Run(f, func(t *testing.T) { roundTrip(t, f) })
 	}
 }
