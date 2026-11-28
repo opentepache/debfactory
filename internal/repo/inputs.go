@@ -47,8 +47,15 @@ func ManifestVersion(root string, cfg *config.Config, name string) (string, erro
 // prueba cubra todas las suites (FR-007, constitución VII; research D8).
 // Devuelve todos los errores, no solo el primero.
 func Inputs(root string, cfg *config.Config, name, version string) (*Input, error) {
-	if m, err := manifest.Load(root, name); err == nil && m.Level2() && m.DebVersion() == version {
+	m, merr := manifest.Load(root, name)
+	if merr == nil && m.Level2() && m.DebVersion() == version {
 		return inputsLevel2(root, cfg, m)
+	}
+	// Arquitecturas de la versión (specs/009, exclude.arches): las del
+	// manifiesto si es esa versión; si no, todas las de la configuración.
+	arches := cfg.Arches
+	if merr == nil && m.DebVersion() == version {
+		arches = m.Arches(cfg.Arches)
 	}
 	var errs report.Errors
 	fail := func(arch, format string, args ...any) {
@@ -58,7 +65,7 @@ func Inputs(root string, cfg *config.Config, name, version string) (*Input, erro
 	in := &Input{Package: name, Published: Published{Version: version, Debs: map[string]string{}},
 		Paths: map[string]string{}}
 	suitesByArch := map[string][]string{}
-	for _, arch := range cfg.Arches {
+	for _, arch := range arches {
 		base := fmt.Sprintf("%s_%s_%s", name, version, arch)
 		deb := filepath.Join(root, "dist", base+".deb")
 		if _, err := os.Stat(deb); err != nil {
@@ -125,14 +132,17 @@ func Inputs(root string, cfg *config.Config, name, version string) (*Input, erro
 		in.Paths[arch] = deb
 	}
 	if len(errs) == 0 {
-		first := cfg.Arches[0]
-		for _, arch := range cfg.Arches[1:] {
+		first := arches[0]
+		for _, arch := range arches[1:] {
 			if !slices.Equal(suitesByArch[first], suitesByArch[arch]) {
 				fail("", "suites distintas entre %s [%s] y %s [%s]", first,
 					strings.Join(suitesByArch[first], " "), arch, strings.Join(suitesByArch[arch], " "))
 			}
 		}
 		in.Published.Suites = suitesByArch[first]
+		if !slices.Equal(arches, cfg.Arches) {
+			in.Published.Arches = slices.Clone(arches)
+		}
 	}
 	if len(errs) > 0 {
 		return nil, errs
@@ -186,7 +196,7 @@ func inputsLevel2(root string, cfg *config.Config, m *manifest.Manifest) (*Input
 		b := Build{Version: v, Debs: map[string]string{}, Buildinfo: map[string]string{}}
 		b.DSC = sha(su.Name, DscFile(m.Name, v))
 		b.DebianTar = sha(su.Name, DebianTarFile(m.Name, v))
-		for _, arch := range cfg.Arches {
+		for _, arch := range m.Arches(cfg.Arches) {
 			where := su.Name + "/" + arch
 			base := fmt.Sprintf("%s_%s_%s", m.Name, v, arch)
 			deb := sha(where, base+".deb")
@@ -225,6 +235,9 @@ func inputsLevel2(root string, cfg *config.Config, m *manifest.Manifest) (*Input
 	}
 	if len(in.Published.Suites) == 0 {
 		fail("", "el manifiesto excluye todas las suites")
+	}
+	if a := m.Arches(cfg.Arches); !slices.Equal(a, cfg.Arches) {
+		in.Published.Arches = slices.Clone(a)
 	}
 	if len(errs) > 0 {
 		return nil, errs

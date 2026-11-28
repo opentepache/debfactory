@@ -72,8 +72,11 @@ func (e *Env) buildLevel2(ctx context.Context, m *manifest.Manifest, lk *lock.Fi
 		}
 		suites = suites[i : i+1]
 	}
-	arches := e.Cfg.Arches
+	arches := m.Arches(e.Cfg.Arches)
 	if o.Arch != "" {
+		if !slices.Contains(arches, o.Arch) {
+			return fail(report.Validate, o.Arch, fmt.Errorf("el manifiesto excluye la arquitectura %s (exclude.arches)", o.Arch))
+		}
 		arches = []string{o.Arch}
 	}
 	if e.SourceGen == nil {
@@ -362,7 +365,7 @@ func (e *Env) level2Inputs(ctx context.Context, m *manifest.Manifest, entry *loc
 
 // copyDist copia un archivo a dist/<name> de forma atómica.
 func (e *Env) copyDist(src, name string) error {
-	dist := filepath.Join(e.Root, "dist")
+	dist := e.distDir()
 	if err := os.MkdirAll(dist, 0o755); err != nil {
 		return err
 	}
@@ -450,7 +453,7 @@ func (e *Env) level2Extras(ctx context.Context, m *manifest.Manifest, entry *loc
 			hostTarball = r.Tarball
 		}
 	}
-	x.toolchainFile = toolchainFile(m, entry, e.Cfg.Arches)
+	x.toolchainFile = toolchainFile(m, entry, m.Arches(e.Cfg.Arches))
 	x.toolchain = &supply.ToolchainReport{Name: m.Toolchain.Name, Version: m.Toolchain.Version, OK: true}
 	if m.Deps == nil {
 		return x, nil

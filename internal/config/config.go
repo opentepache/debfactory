@@ -147,7 +147,13 @@ type Watch struct {
 	Cooldown     *Duration `yaml:"cooldown"`      // espera desde el release; global; 48h
 	RateReserve  *int      `yaml:"rate_reserve"`  // peticiones que el ciclo deja sin usar; 500
 	BranchPrefix string    `yaml:"branch_prefix"` // ramas del detector; debfactory/update/
+	// AIModel es el modelo de GitHub Models del resumen de cambios de los PR
+	// (specs/009, research D13); vacío = DefaultAIModel.
+	AIModel string `yaml:"ai_model"`
 }
+
+// DefaultAIModel es el modelo del resumen de cambios si watch.ai_model está vacío.
+const DefaultAIModel = "openai/gpt-4.1-mini"
 
 // Level2 configura la compilación de paquetes de nivel 2
 // (specs/008-source-builds, data-model §4). Todos los campos son opcionales.

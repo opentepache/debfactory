@@ -225,6 +225,29 @@ func (r *Runner) GitHubChecks(ctx context.Context, gh *forge.Client, fix bool) [
 			}
 		}
 		add("ruleset de main sin bypass", ok, info)
+		// Commits firmados en main (constitución III/VII, specs/009 FR-025).
+		signed := false
+		for _, s := range rs {
+			inc := s.Conditions.RefName.Include
+			if s.Target != "branch" || s.Enforcement != "active" || len(s.BypassActors) > 0 ||
+				(!slices.Contains(inc, "~DEFAULT_BRANCH") && !slices.Contains(inc, "refs/heads/main") && !slices.Contains(inc, "~ALL")) {
+				continue
+			}
+			for _, rule := range s.Rules {
+				signed = signed || rule.Type == "required_signatures"
+			}
+		}
+		add("main exige commits firmados (Require signed commits)", signed,
+			"agrega required_signatures al ruleset de main (T049)")
+	}
+	// La herramienta es pública: cualquiera puede revisar y recompilar lo que
+	// construye los paquetes (specs/009, research D5).
+	if tr := r.Cfg.CI.ToolRepository; tr != "" {
+		if info, err := gh.WithRepo(tr).GetRepo(ctx); err != nil {
+			add("herramienta pública ("+tr+")", false, err.Error())
+		} else {
+			add("herramienta pública ("+tr+")", !info.Private, "el repositorio es privado")
+		}
 	}
 	label := r.Cfg.CI.FailureLabel
 	if _, err := gh.GetLabel(ctx, label); err == nil {
@@ -368,7 +391,13 @@ func (r *Runner) HostChecks(h Host) []Check {
 		}
 		return "?"
 	}
-	for _, name := range []string{"dfci", "dfpub"} {
+	// El runner ci (dfci) se retiró en la fase 009: las PR corren en runners
+	// de GitHub (research D20). Si sigue instalado, solo se avisa.
+	if _, err := h.LookupUser("dfci"); err == nil {
+		cs = append(cs, Check{Name: "runner ci retirado", Warn: true,
+			Info: "el usuario dfci sigue existiendo; retíralo con sudo ci/host/setup.sh --remove ci (specs/009, T050)"})
+	}
+	for _, name := range []string{"dfpub"} {
 		u, err := h.LookupUser(name)
 		if err != nil {
 			add("usuario "+name, false, "no existe (sudo ci/host/setup.sh)")
@@ -385,12 +414,10 @@ func (r *Runner) HostChecks(h Host) []Check {
 		path, owner string
 		perm        fs.FileMode
 	}{
-		{"/srv/debfactory/ci/work", "dfci", 0o700},
 		{"/srv/debfactory/pub/work", "dfpub", 0o700},
 		{"/srv/debfactory/data", "dfpub", 0o700},
 		{"/srv/debfactory/rclone", "dfpub", 0o700},
 		{"/srv/debfactory/cache-pub", "dfpub", 0o700},
-		{"/var/lib/dfci", "dfci", 0o700},
 		{"/var/lib/dfpub", "dfpub", 0o700},
 		{"/etc/credstore", "root", 0o700},
 		{ToolsDir, "root", 0o755},
@@ -409,12 +436,7 @@ func (r *Runner) HostChecks(h Host) []Check {
 		cs = append(cs, Check{Name: "PAT en /etc/credstore/debfactory-gh-runner", Warn: true,
 			Info: "no se puede comprobar sin root (el directorio es root:700); sudo ls -l /etc/credstore"})
 	}
-	if _, err := h.Stat("/etc/nftables.d/debfactory-ci.nft"); err != nil {
-		add("regla nftables de dfci", false, "falta /etc/nftables.d/debfactory-ci.nft")
-	} else {
-		add("regla nftables de dfci instalada", true, "comprueba que está cargada: sudo nft list table inet debfactory_ci")
-	}
-	units := []string{"debfactory-runner@ci.service", "debfactory-runner@pub.service", "debfactory-refresh.timer"}
+	units := []string{"debfactory-runner@pub.service", "debfactory-refresh.timer"}
 	if r.watchInstalled() {
 		units = append(units, "debfactory-watch.timer")
 	}

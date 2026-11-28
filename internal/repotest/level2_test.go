@@ -134,7 +134,7 @@ func TestE2ELevel2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, step := range []string{"srcadd", "source", "builddeps", "rebuild", "compare"} {
+	for _, step := range []string{"srcadd", "source", "builddeps", "toolchain", "rebuild", "compare"} {
 		if rebuild[step] == "" {
 			t.Fatalf("docs/recompilar-nivel2.md sin el bloque %s", step)
 		}
@@ -172,7 +172,7 @@ func TestE2ELevel2(t *testing.T) {
 						t.Errorf("tepache-hello: %s", out)
 					}
 					// US3: la guía de recompilación, tal cual.
-					for _, step := range []string{"srcadd", "source", "builddeps", "rebuild"} {
+					for _, step := range []string{"srcadd", "source", "builddeps", "toolchain", "rebuild"} {
 						run(step, rebuild[step])
 					}
 					if out := run("compare", rebuild["compare"]); !strings.Contains(out, "idéntico al publicado") {

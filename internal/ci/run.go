@@ -252,6 +252,16 @@ func (x *run) syncVerify(ctx context.Context) error {
 // fetch, verify, license, assemble, package, lintian) y la prueba de
 // instalación en cada suite y arquitectura. No reimplementa ninguna etapa.
 func (r *Runner) gates(ctx context.Context, root, name string, lim installtest.Limiter, out *report.Printer) (map[string]string, error) {
+	return r.gatesMode(ctx, root, name, lim, out, r.accept != nil)
+}
+
+// gatesMode es gates con la elección explícita de accept (modo hospedado) o
+// del flujo local; no toca estado compartido (los paquetes van en paralelo).
+func (r *Runner) gatesMode(ctx context.Context, root, name string, lim installtest.Limiter, out *report.Printer, hosted bool) (map[string]string, error) {
+	if hosted && r.accept != nil {
+		a := *r.accept
+		return r.AcceptPackage(ctx, root, name, &a)
+	}
 	if r.Gates != nil {
 		return r.Gates(ctx, root, name)
 	}
@@ -265,7 +275,7 @@ func (r *Runner) gates(ctx context.Context, root, name string, lim installtest.L
 		return nil, err
 	}
 	var errs report.Errors
-	for _, arch := range r.Cfg.Arches {
+	for _, arch := range m.Arches(r.Cfg.Arches) {
 		if _, err := installtest.TestPackage(ctx, root, r.Cfg, m, arch, installtest.Options{Limiter: lim}, out); err != nil {
 			var e *report.Error
 			var list report.Errors
@@ -304,7 +314,7 @@ func (r *Runner) runGates(ctx context.Context, root string, aps []AffectedPackag
 			defer wg.Done()
 			out, flush := r.Out.Buffered()
 			defer flush()
-			shas, err := r.gates(ctx, root, ap.Package, lim, out)
+			shas, err := r.gatesFor(ctx, root, ap, lim, out)
 			res[i] = gateResult{ap: ap, shas: shas, err: err}
 			if err == nil {
 				out.Line("%s %s: build ok · lint ok · test ok", ap.Package, ap.Version)
@@ -427,16 +437,21 @@ func (x *run) publish(ctx context.Context, passed []gateResult, commit string) (
 		}
 		if was {
 			added := slices.DeleteFunc(slices.Clone(p.Suites), func(su string) bool { return slices.Contains(prev.Suites, su) })
-			if len(added) == 0 {
+			prevArches := prev.ArchList(x.Cfg.Arches)
+			addedArches := slices.DeleteFunc(slices.Clone(p.ArchList(x.Cfg.Arches)), func(a string) bool { return slices.Contains(prevArches, a) })
+			if len(added) == 0 && len(addedArches) == 0 {
 				continue
 			}
-			x.Out.Line("repo: %s %s: + %s", g.ap.Package, g.ap.Version, strings.Join(added, " "))
+			x.Out.Line("repo: %s %s: + %s", g.ap.Package, g.ap.Version, strings.Join(append(slices.Clone(added), addedArches...), " "))
 			entries = append(entries, extendEntry(Entry{Time: x.now().UTC(), Op: OpExtend, Package: g.ap.Package,
-				Version: g.ap.Version, Suites: added, Commit: c, Serial: st.Serial, Run: &run}, p, added))
+				Version: g.ap.Version, Suites: added, Arches: addedArches, Commit: c, Serial: st.Serial, Run: &run}, p, added))
 			continue
 		}
 		entries = append(entries, publishEntry(Entry{Time: p.Published, Op: OpPublish, Package: g.ap.Package,
 			Version: g.ap.Version, Commit: c, Serial: st.Serial, Run: &run}, p))
+	}
+	if err := x.provenance(entries, st, commit); err != nil {
+		return nil, err
 	}
 	if _, err := AppendAudit(x.Root, entries...); err != nil {
 		return nil, err
@@ -477,6 +492,17 @@ func (x *run) pushState(ctx context.Context) {
 func (r *Runner) Main(ctx context.Context, o Options) error {
 	if err := r.Env.RequireWriter(r.Cfg); err != nil {
 		return err
+	}
+	if o.Artifacts != "" && o.Local {
+		return &InputError{"ci main: --artifacts y --local no se combinan"}
+	}
+	if o.Artifacts != "" {
+		a, err := r.hostedAccept(ctx, o.Artifacts)
+		if err != nil {
+			return err
+		}
+		r.accept = a
+		defer func() { r.accept = nil }()
 	}
 	x, err := r.newRun(ctx)
 	if err != nil {
@@ -686,6 +712,10 @@ func (r *Runner) Dispatch(ctx context.Context, cmd string, o Options) error {
 	switch cmd {
 	case "plan":
 		return r.Plan(ctx, o)
+	case "matrix":
+		return r.Matrix(ctx, o)
+	case "review":
+		return r.Review(ctx, o)
 	case "main":
 		return r.Main(ctx, o)
 	case "pr":

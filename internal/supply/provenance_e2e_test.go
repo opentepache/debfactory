@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,4 +39,25 @@ func TestProvenanceAquaReal(t *testing.T) {
 			t.Errorf("%s@%s: se esperaba ProvenanceError, %v", c.repo, c.tag, err)
 		}
 	}
+}
+
+// TestVerifyRunRealCosign (T028): con el cosign real, los argumentos de
+// VerifyRun son válidos y una atestación de otro workflow (la de aqua viene
+// de un workflow reutilizable de otro repositorio) se rechaza por identidad.
+func TestVerifyRunRealCosign(t *testing.T) {
+	ctx := context.Background()
+	f := fetch.New(filepath.Join(os.TempDir(), "debfactory-e2e-cache"), 5*time.Minute, nil)
+	file, _, err := f.Get(ctx, "https://github.com/aquaproj/aqua/releases/download/v2.66.1/aqua_linux_amd64.tar.gz", aquaAMD64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gh := &fetch.GitHub{Token: os.Getenv("GITHUB_TOKEN")}
+	a := &Attestor{List: gh.Attestations}
+	run := Run{Repo: "aquaproj/aqua", Workflow: ".github/workflows/release.yaml", Ref: "refs/tags/v2.66.1", Commit: strings.Repeat("0", 40)}
+	err = a.VerifyRun(ctx, run, file, aquaAMD64)
+	var ae *AttestError
+	if !errors.As(err, &ae) || strings.Contains(err.Error(), "unknown flag") || strings.Contains(err.Error(), "flag provided but not defined") {
+		t.Fatalf("se esperaba rechazo por identidad: %v", err)
+	}
+	t.Logf("rechazo esperado: %v", err)
 }

@@ -16,6 +16,7 @@ type Report struct {
 	TarballVsTag *TagReport       `json:"tarball_vs_tag,omitempty"`
 	Toolchain    *ToolchainReport `json:"toolchain,omitempty"`
 	Deps         *DepsReport      `json:"deps,omitempty"`
+	Scorecard    *Scorecard       `json:"scorecard,omitempty"` // aviso, no bloquea (FR-017)
 }
 
 // SignatureReport: Type es minisign, gpg o sigstore; "none" si upstream no

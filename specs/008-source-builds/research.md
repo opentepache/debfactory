@@ -56,6 +56,8 @@ abajo como D1′; reemplaza a D1 en todo lo que sigue.
 
 ## D1′. Contenedor de la suite como entorno de construcción (decisión vigente)
 
+> **Fase 009**: el mismo contenedor de la suite corre ahora en los runners hospedados de GitHub (`level2 build`, en disco con `--disk`, sin tmpfs); la PC solo lo usa en el modo local y en las ampliaciones.
+
 Cada compilación corre en un contenedor nuevo de la imagen de construcción de la suite y
 arquitectura (D16), con `--platform linux/<arch>` y `--tmpfs /build:size=<n>,exec`. Pasos:
 
@@ -72,6 +74,8 @@ lectura) y una salida. Sin `--privileged`, sin abrir seccomp ni AppArmor. Equiva
 sbuild: sistema limpio de la suite, dependencias de los repos oficiales, build sin red.
 
 ## D2. tmpfs dimensionado para 31 GB
+
+> **Fase 009**: en los runners hospedados (16 GB) se compila en el disco del contenedor; el tmpfs sigue en la PC (modo local). `level2.parallel_variants` compila las dos variantes a la vez.
 
 **Hecho**: la PC tiene **31 GB** de RAM (constitución IX), no 64; hoy hay ~24 GB disponibles con los
 servicios en marcha.
@@ -213,6 +217,8 @@ TLS de pruebas que ya existe (`citest.Upstream`), con checksum en su lockfile. N
 (clarify).
 
 ## D15. Dónde corre
+
+> **Fase 009**: el nivel 2 se compila en los runners hospedados de GitHub (las dos variantes en jobs distintos, amd64 y arm64 nativos) y la PC verifica (`accept`); en la PC solo en el modo local (`ci main --local`) y en las ampliaciones.
 
 | Ejecución | Runner | Qué hace |
 |---|---|---|

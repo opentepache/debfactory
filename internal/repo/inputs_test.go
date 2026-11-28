@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"debfactory/internal/testutil"
 )
 
 func suiteNames(t *testing.T) []string {
@@ -81,5 +83,29 @@ func TestInputs(t *testing.T) {
 				t.Errorf("err = %v\nwant %q", err, tc.want)
 			}
 		})
+	}
+}
+
+// TestInputsExcludedArch (specs/009, T041): con exclude.arches.arm64 en el
+// manifiesto, inputs no exige los archivos de arm64 y registra arches.
+func TestInputsExcludedArch(t *testing.T) {
+	cfg := loadCfg(t)
+	root := t.TempDir()
+	const v = "4.3.0-0~tepache1"
+	writeRelease(t, root, suiteNames(t), release{name: "bob", version: v,
+		debs: map[string][]byte{"amd64": []byte("deb-amd64")}})
+	src, err := os.ReadFile(filepath.Join(testutil.ProjectRoot(), "packages", "bob.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := strings.Replace(string(src), "exclude:\n", "exclude:\n  arches:\n    arm64: no cabe en el runner estandar\n", 1)
+	os.MkdirAll(filepath.Join(root, "packages"), 0o755)
+	os.WriteFile(filepath.Join(root, "packages", "bob.yaml"), []byte(m), 0o644)
+	in, err := Inputs(root, cfg, "bob", v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(in.Published.Arches, ",") != "amd64" || len(in.Published.Debs) != 1 {
+		t.Errorf("published = %+v", in.Published)
 	}
 }

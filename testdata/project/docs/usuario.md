@@ -11,6 +11,9 @@ lintian y una prueba de instalación real en cada distribución antes de publica
 | `buf` | herramientas para Protocol Buffers | — |
 | `aqua` | gestor declarativo de herramientas CLI | — |
 
+Un paquete puede no estar en alguna distribución o arquitectura; la página de cada paquete en
+el sitio lo indica con su motivo (por ejemplo, "no se compila para arm64").
+
 **Llave del repositorio** (llave maestra; compruébala antes de confiar en el repositorio):
 
 ```text
@@ -109,6 +112,45 @@ sudo curl -fsSLo /etc/apt/keyrings/debfactory.gpg https://apt.opentepache.org/de
 ```
 
 El archivo `.sources` no cambia.
+
+## Qué garantiza este repositorio (y qué no)
+
+**Garantiza:**
+
+- **Integridad**: cada `.deb` está en un índice firmado con la llave del repositorio; apt
+  rechaza cualquier archivo alterado.
+- **Procedencia**: cada paquete sale de la versión estable oficial de su proyecto, descargada
+  con su sha256 fijado y, si el proyecto firma sus versiones, con su firma comprobada contra una
+  llave fijada en el manifiesto; si publica procedencia (SLSA), también se comprueba. En los
+  paquetes que se compilan desde el código fuente se compara además el tarball con el tag de git.
+- **Reproducibilidad**: los paquetes se construyen en un entorno controlado; los que se compilan
+  desde el código fuente se compilan dos veces en entornos distintos y solo se publican si dan el
+  mismo `.deb`. Cualquiera puede repetirlo.
+- **Transparencia**: la herramienta que construye los paquetes es pública, y cada versión tiene
+  una página de procedencia con el commit, la ejecución, las atestaciones (registro de
+  transparencia de Sigstore) y los resultados de las pruebas.
+- **Retiro rápido**: una versión con un problema se retira de todas las distribuciones.
+
+**No garantiza** que el software de upstream sea de fiar: si el proyecto original publica una
+versión con un fallo o con código malicioso, este repositorio la empaqueta tal cual. Las
+comprobaciones aseguran que lo que instalas es exactamente lo que publicó upstream y que nadie
+lo alteró por el camino.
+
+## Comprobar un paquete por tu cuenta
+
+La página de procedencia de cada versión (`https://apt.opentepache.org/packages/<paquete>/<versión>/`)
+muestra de dónde salió y qué se comprobó antes de firmarlo, y enlaza a su `provenance.json`.
+
+Con la herramienta pública (`debfactory`), sin credenciales:
+
+```sh
+debfactory verify fnm 1.39.0-0~tepache1 --suite trixie --arch amd64
+```
+
+Comprueba la firma del índice con el keyring publicado, que el `.deb` es el registrado en la
+procedencia, su atestación de GitHub (si se compiló allí) y lo reconstruye en contenedores desde
+el commit del manifiesto para comparar el sha256. Informa "verificado" o "no verificado" con el
+motivo. Con `--no-rebuild` omite la reconstrucción (más rápido).
 
 ## Quitar el repositorio
 

@@ -56,9 +56,13 @@ type Entry struct {
 	Builds map[string]repo.Build `json:"builds,omitempty"`
 	// Toolchain de upstream con el que se compiló (nivel 2, specs/009).
 	Toolchain *Toolchain `json:"toolchain,omitempty"`
-	Serial    int        `json:"serial"`
-	Run       *string    `json:"run"`
-	Reason    string     `json:"reason,omitempty"`
+	// Provenance es el sha256 de provenance.json de la versión (specs/009,
+	// data-model §8): el archivo vive en <data> y en el sitio; su huella,
+	// aquí, en la rama de estado.
+	Provenance string  `json:"provenance_sha256,omitempty"`
+	Serial     int     `json:"serial"`
+	Run        *string `json:"run"`
+	Reason     string  `json:"reason,omitempty"`
 }
 
 // Toolchain es el toolchain de upstream registrado en la auditoría.
@@ -127,6 +131,9 @@ func (e Entry) MarshalJSON() ([]byte, error) {
 	}
 	if len(e.Builds) > 0 {
 		field("builds", e.Builds) // encoding/json ordena las claves de los mapas
+	}
+	if e.Provenance != "" {
+		field("provenance_sha256", e.Provenance)
 	}
 	if e.Toolchain != nil {
 		field("toolchain", e.Toolchain)

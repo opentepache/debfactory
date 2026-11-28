@@ -34,6 +34,7 @@ col_date: Publicada
 col_available: Disponible en
 col_arch: Arquitecturas
 not_on: "no en %s"
+not_for: "no se compila para %s"
 no_packages: Todavía no hay paquetes publicados.
 verify_title: Comprobar la llave
 verify_intro: El archivo de la llave descargada debe corresponder a esta llave maestra. Compara el fingerprint de abajo con el que muestra el comando.
@@ -71,3 +72,41 @@ footer_serial: Serial del repositorio
 source_title: código fuente
 source_intro: "Compilado desde el código fuente para cada distribución: cada suite tiene su propio binario, compilado desde el paquete fuente publicado junto a él en este repositorio."
 source_note: "Con deb-src activado en el archivo de fuentes, baja el código exacto de la versión instalada."
+# Página de procedencia (specs/009, T036).
+prov_title: "Procedencia de %s %s"
+prov_intro: De dónde salió esta versión y qué se comprobó antes de firmarla. Todo lo que aparece aquí se puede comprobar por separado.
+prov_upstream: Fuentes de upstream
+col_file: Archivo
+col_digest: SHA-256
+col_rekor: Atestación
+prov_signature: Firma de upstream
+prov_sig_none: upstream no firma sus versiones
+prov_sig_ok: verificada con la llave fijada
+prov_slsa: Procedencia de upstream (SLSA)
+prov_slsa_ok: verificada (repositorio y tag)
+prov_slsa_absent: upstream no la publica
+prov_tag: Tarball de release contra el tag de git
+prov_tag_same: idénticos
+prov_tag_extra: "archivos extra declarados:"
+prov_toolchain: Toolchain de upstream
+prov_deps: Dependencias del lenguaje
+prov_deps_count: "%d verificadas una por una contra el hash que declara upstream"
+prov_build: Compilación
+prov_mode_hosted: Compilado y probado en los runners estándar de GitHub y verificado después, por separado, en la máquina del mantenedor antes de firmarlo.
+prov_mode_local: Compilado, probado y firmado en la máquina del mantenedor.
+prov_commit: Commit del manifiesto
+prov_run: Ejecución del workflow
+prov_audit: Entrada del registro de auditoría
+prov_rekor_link: registro de transparencia
+prov_pc: Comprobado antes de firmar
+prov_pc_attest: cada artefacto lleva una atestación de GitHub de este repositorio, workflow y commit
+prov_pc_variants: dos compilaciones en entornos distintos dieron el mismo .deb
+prov_pc_rebuild: la máquina del mantenedor reconstruyó el .deb y obtuvo el mismo SHA-256
+prov_pc_lintian: lintian pasó en cada .deb
+prov_pc_smoke: se instaló y ejecutó en un contenedor amd64 limpio
+col_suite: Versión del sistema
+col_result: Resultado
+prov_verify_title: Compruébalo tú
+prov_verify_intro: "Con la herramienta pública, sin credenciales:"
+prov_json: Descargar provenance.json
+prov_link: procedencia

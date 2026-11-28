@@ -161,3 +161,6 @@ ci-lint:
     sh ci/runner/hooks/trusted-gate_test.sh
     sh ci/runner/launcher_test.sh
     sh ci/runner/dispatch_test.sh
+    # Plantillas de workflows de packages (specs/009): sin secretos ni escritura
+    # en runners hospedados, solo publish en la PC, acciones fijadas por sha.
+    go test ./internal/ci -run 'TestWorkflow' -count=1

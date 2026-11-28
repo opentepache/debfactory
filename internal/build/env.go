@@ -45,6 +45,12 @@ type Env struct {
 	// Sigstore verifica bundles de sigstore (por defecto cosign en un
 	// contenedor; las pruebas lo sustituyen).
 	Sigstore func(ctx context.Context, s *manifest.SigstoreSig, o supply.Origin, file, bundle string) error
+	// Scorecard consulta OpenSSF Scorecard de un upstream (aviso; nil = no
+	// se consulta, como en las pruebas). La CLI lo activa.
+	Scorecard func(ctx context.Context, upstream string) *supply.Scorecard
+	// Dist es la carpeta de salida (por defecto <Root>/dist); los jobs
+	// hospedados la cambian con --out (specs/009).
+	Dist string
 	// Provenance comprueba la procedencia de upstream de un archivo (por
 	// defecto, atestaciones de GitHub verificadas con cosign; specs/009).
 	Provenance func(ctx context.Context, repo, tag, file, sha256 string) (*supply.Provenance, error)

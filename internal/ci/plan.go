@@ -36,6 +36,9 @@ type AffectedPackage struct {
 	Reason  string `json:"reason"`
 	// Suites son las que se agregan, solo en extend.
 	Suites []string `json:"suites,omitempty"`
+	// Arches son las arquitecturas que se agregan (exclude.arches quitado;
+	// specs/009, T042), solo en extend.
+	Arches []string `json:"arches,omitempty"`
 }
 
 // PkgVersion es un paquete y una versión.
@@ -103,7 +106,7 @@ func (p *Plan) Summary() string {
 	if len(p.Extend) > 0 {
 		var s []string
 		for _, a := range p.Extend {
-			s = append(s, a.Package+" → "+strings.Join(a.Suites, " "))
+			s = append(s, a.Package+" → "+strings.Join(append(slices.Clone(a.Suites), a.Arches...), " "))
 		}
 		parts = append(parts, fmt.Sprintf("ampliar %d (%s)", len(p.Extend), strings.Join(s, ", ")))
 	}
@@ -211,8 +214,10 @@ func PlanMain(root string, cfg *config.Config, ref *repo.State, refInfo Referenc
 		case perr != nil:
 			p.Errors = append(p.Errors, *perr)
 		case skip != "":
-			if suites := MissingSuites(root, cfg, ref, name, version); len(suites) > 0 {
-				p.Extend = append(p.Extend, AffectedPackage{Package: name, Version: version, Commit: head, Reason: Extend, Suites: suites})
+			suites, arches := MissingSuites(root, cfg, ref, name, version), MissingArches(root, cfg, ref, name, version)
+			if len(suites) > 0 || len(arches) > 0 {
+				p.Extend = append(p.Extend, AffectedPackage{Package: name, Version: version, Commit: head, Reason: Extend,
+					Suites: suites, Arches: arches})
 				continue
 			}
 			p.Skipped = append(p.Skipped, Skip{Package: name, Reason: skip})
@@ -392,4 +397,28 @@ func firstLine(s string) string {
 		return s[:i]
 	}
 	return s
+}
+
+// MissingArches devuelve las arquitecturas que el manifiesto de root ya no
+// excluye y que la versión publicada de name no tiene, si es la versión más
+// alta (specs/009, constitución 1.9.0: quitar la exclusión amplía la versión
+// vigente). Se recalcula en cada ejecución: una ampliación que falló se
+// reintenta sola.
+func MissingArches(root string, cfg *config.Config, ref *repo.State, name, version string) []string {
+	pubs := ref.Packages[name]
+	if len(pubs) == 0 || pubs[0].Version != version {
+		return nil
+	}
+	m, err := manifest.Load(root, name)
+	if err != nil {
+		return nil
+	}
+	have := pubs[0].ArchList(cfg.Arches)
+	var out []string
+	for _, a := range m.Arches(cfg.Arches) {
+		if !slices.Contains(have, a) {
+			out = append(out, a)
+		}
+	}
+	return out
 }

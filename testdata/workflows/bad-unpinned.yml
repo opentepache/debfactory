@@ -1,0 +1,9 @@
+# espera: acción sin fijar por sha
+name: main
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions: {contents: read}
+    steps:
+      - uses: actions/checkout@v7

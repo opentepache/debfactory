@@ -26,6 +26,7 @@ type Change struct {
 	Package string
 	Version string
 	Suites  []string
+	Arches  []string // arquitecturas agregadas a una versión ya publicada (specs/009)
 	Reason  string
 }
 
@@ -55,8 +56,10 @@ func differentArtifacts(old, p Published) []string {
 		return []string{"nivel"}
 	}
 	if !p.Level2() {
+		// Solo las arquitecturas que ya tenía: una nueva es una ampliación
+		// (specs/009, exclude.arches quitado), no una reescritura.
 		for arch, sha := range p.Debs {
-			if old.Debs[arch] != sha {
+			if prev, ok := old.Debs[arch]; ok && prev != sha {
 				diff = append(diff, arch)
 			}
 		}
@@ -71,7 +74,7 @@ func differentArtifacts(old, p Published) []string {
 		if !ok {
 			continue
 		}
-		if !ob.Equal(p.Builds[su]) {
+		if !ob.EqualCommon(p.Builds[su]) {
 			diff = append(diff, su)
 		}
 	}
@@ -109,10 +112,13 @@ func (s *State) Apply(cfg *config.Config, now time.Time, ops ...Op) (*State, []C
 					continue
 				}
 				// Mismos .deb: si trae suites aprobadas que la publicada no
-				// tiene, se agregan (specs/007-configurable-suites, research D2).
+				// tiene, se agregan (specs/007-configurable-suites, research D2);
+				// lo mismo con arquitecturas (specs/009, exclude.arches quitado).
 				added := slices.DeleteFunc(slices.Clone(p.Suites), func(su string) bool { return contains(old.Suites, su) })
-				if len(added) == 0 {
-					continue // sin cambios; nunca se quitan suites
+				oldArches := old.ArchList(cfg.Arches)
+				addedArches := slices.DeleteFunc(slices.Clone(p.ArchList(cfg.Arches)), func(a string) bool { return contains(oldArches, a) })
+				if len(added) == 0 && len(addedArches) == 0 {
+					continue // sin cambios; nunca se quitan suites ni arquitecturas
 				}
 				versions := next.Packages[o.Package]
 				if err := sortVersions(versions); err != nil {
@@ -136,8 +142,37 @@ func (s *State) Apply(cfg *config.Config, now time.Time, ops ...Op) (*State, []C
 						versions[0].Builds[su] = p.Builds[su]
 					}
 				}
+				if len(addedArches) > 0 {
+					cur := &versions[0]
+					for _, a := range addedArches {
+						if !p.Level2() {
+							cur.Debs[a] = p.Debs[a]
+							continue
+						}
+						for su, b := range cur.Builds {
+							if nb, ok := p.Builds[su]; ok && !contains(added, su) {
+								b.Debs[a], b.Buildinfo[a] = nb.Debs[a], nb.Buildinfo[a]
+								cur.Builds[su] = b
+							}
+						}
+					}
+					var arches []string
+					for _, a := range cfg.Arches {
+						if contains(oldArches, a) || contains(addedArches, a) {
+							arches = append(arches, a)
+						}
+					}
+					cur.Arches = arches
+					if slices.Equal(arches, cfg.Arches) {
+						cur.Arches = nil
+					}
+				}
+				reason := "ampliada a suites nuevas"
+				if len(added) == 0 {
+					reason = "ampliada a arquitecturas nuevas"
+				}
 				changes = append(changes, Change{Kind: KindAdd, Package: o.Package, Version: p.Version, Suites: added,
-					Reason: "ampliada a suites nuevas"})
+					Arches: addedArches, Reason: reason})
 				rc, err := next.retain(cfg, o.Package, versions[0])
 				if err != nil {
 					fail(o.Package, p.Version, "%v", err)

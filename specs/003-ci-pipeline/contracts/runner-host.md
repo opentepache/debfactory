@@ -1,6 +1,9 @@
 # Contrato: configuración de la PC para los runners
 
 > **Fase 004** ([cambios-003.md](../../004-split-repos/contracts/cambios-003.md)): `DEBFACTORY_REPOSITORY=opentepache/packages`; el PAT solo tiene acceso a ese repositorio; `/srv/debfactory/tools` y el lanzador (abajo, § Imagen).
+>
+> **Fase 009** ([specs/009](../../009-hosted-hardened-builds/plan.md)): solo queda el runner `pub` (`dfpub`). El runner `ci` (`dfci`) se retira porque las PR corren en runners hospedados de GitHub: `sudo ci/host/setup.sh --remove ci` (T050); `setup.sh` ya no lo crea salvo con `--with-ci`.
+
 
 Lo instala `sudo ci/host/setup.sh` (idempotente) y lo comprueba `debfactory ci doctor`. La
 operación diaria se documenta en `docs/operacion-ci.md`. Diseño en research D2, D4, D5, D11, D13

@@ -29,10 +29,13 @@ func TestCISite(t *testing.T) {
 	if err := f.main(); err != nil {
 		t.Fatalf("%v\n%s", err, f.out.String())
 	}
-	if !strings.Contains(f.out.String(), "site: serial 1, 10 páginas, ") || !strings.Contains(f.out.String(), "ci-local: subidas ") {
+	// 10 páginas + la de procedencia de cada versión publicada en los dos
+	// idiomas (specs/009, T036): 4 paquetes × 2 = 8.
+	if !strings.Contains(f.out.String(), "site: serial 1, 18 páginas, ") || !strings.Contains(f.out.String(), "ci-local: subidas ") {
 		t.Errorf("salida:\n%s", f.out.String())
 	}
-	for _, name := range []string{"index.html", "es/index.html", "packages/bob/index.html", "es/packages/fnm/index.html", "site.json", "dists/trixie/InRelease"} {
+	for _, name := range []string{"index.html", "es/index.html", "packages/bob/index.html", "es/packages/fnm/index.html", "site.json", "dists/trixie/InRelease",
+		"packages/fnm/1.39.0-0~tepache1/index.html", "packages/fnm/1.39.0-0~tepache1/provenance.json"} {
 		if page(name) == "" {
 			t.Errorf("falta %s en el destino", name)
 		}

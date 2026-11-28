@@ -97,6 +97,20 @@ func (b Build) Equal(o Build) bool {
 		maps.Equal(b.Debs, o.Debs) && maps.Equal(b.Buildinfo, o.Buildinfo)
 }
 
+// EqualCommon es Equal solo en las arquitecturas que tienen las dos: una
+// arquitectura nueva es una ampliación (specs/009), no una reescritura.
+func (b Build) EqualCommon(o Build) bool {
+	if b.Version != o.Version || b.DSC != o.DSC || b.DebianTar != o.DebianTar {
+		return false
+	}
+	for a, sha := range o.Debs {
+		if prev, ok := b.Debs[a]; ok && (prev != sha || b.Buildinfo[a] != o.Buildinfo[a]) {
+			return false
+		}
+	}
+	return true
+}
+
 // Artifact es un archivo publicado de una versión: su nombre en el pool, su
 // sha256 y, si aplica, la suite y la arquitectura.
 type Artifact struct {

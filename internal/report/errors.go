@@ -53,6 +53,7 @@ const (
 	Provenance Stage = "provenance" // procedencia SLSA de upstream
 	Toolchain  Stage = "toolchain"  // toolchain de upstream verificado
 	Deps       Stage = "deps"       // dependencias del lenguaje verificadas
+	Attest     Stage = "attest"     // atestación de un artefacto de GitHub Actions (accept)
 	// Tool: la herramienta en ejecución no es la que fija debfactory.version
 	// (specs/004-split-repos, contracts/herramienta.md).
 	Tool Stage = "tool"

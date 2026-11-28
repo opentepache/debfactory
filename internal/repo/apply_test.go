@@ -109,3 +109,32 @@ func TestApplyExtendRetention(t *testing.T) {
 		t.Errorf("fnm = %+v", next.Packages["fnm"])
 	}
 }
+
+// TestApplyExtendArches (specs/009, T042): una versión publicada solo en
+// amd64 gana arm64 sin tocar amd64; un amd64 distinto se rechaza.
+func TestApplyExtendArches(t *testing.T) {
+	cfg := loadCfg(t)
+	now := time.Date(2026, 11, 27, 10, 0, 0, 0, time.UTC)
+	only := pub("1.0.0-0~tepache1", "1", "2", "trixie")
+	delete(only.Debs, "arm64")
+	only.Arches = []string{"amd64"}
+	st, _, err := Empty().Apply(cfg, now, Add{"fnm", only})
+	if err != nil {
+		t.Fatal(err)
+	}
+	next, ch, err := st.Apply(cfg, now.Add(time.Hour), Add{"fnm", pub("1.0.0-0~tepache1", "1", "2", "trixie")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, _ := next.Find("fnm", "1.0.0-0~tepache1")
+	if p.Arches != nil || len(p.Debs) != 2 || next.Serial != st.Serial+1 {
+		t.Errorf("ampliada = %+v", p)
+	}
+	if len(ch) != 1 || strings.Join(ch[0].Arches, ",") != "arm64" || ch[0].Reason != "ampliada a arquitecturas nuevas" {
+		t.Errorf("cambios = %+v", ch)
+	}
+	if _, _, err := st.Apply(cfg, now, Add{"fnm", pub("1.0.0-0~tepache1", "9", "2", "trixie")}); err == nil ||
+		!strings.Contains(err.Error(), "ya publicada con otro sha256") {
+		t.Errorf("amd64 distinto: %v", err)
+	}
+}

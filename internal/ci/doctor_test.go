@@ -39,8 +39,10 @@ func goodConfig(gh *citest.FakeGitHub) {
 	gh.Config["/rulesets/1"] = map[string]any{"id": 1, "name": "main", "target": "branch", "enforcement": "active",
 		"bypass_actors": []any{}, "conditions": map[string]any{"ref_name": map[string]any{"include": []string{"~DEFAULT_BRANCH"}}},
 		"rules": []map[string]any{{"type": "pull_request"}, {"type": "non_fast_forward"}, {"type": "deletion"},
+			{"type": "required_signatures"},
 			{"type": "required_status_checks", "parameters": map[string]any{
 				"required_status_checks": []map[string]any{{"context": "verify", "integration_id": 15368}}}}}}
+	gh.Config["/repos/opentepache/debfactory"] = map[string]any{"private": false}
 	gh.Labels = []string{"pipeline-failure"}
 	pinned := parseEnv(runner.Env)["RUNNER_VERSION"]
 	gh.Config["/repos/actions/runner/releases/latest"] = map[string]any{"tag_name": "v" + pinned, "published_at": time.Now().Add(-40 * 24 * time.Hour)}
@@ -207,11 +209,21 @@ func TestDoctorHost(t *testing.T) {
 	}
 	cs := r.HostChecks(h)
 	got := strings.Join(failing(cs), "; ")
-	for _, want := range []string{"usuario dfci sin los grupos docker", "usuario dfpub", "/home/x con permisos 700", "/srv/debfactory/data",
-		"regla nftables", "debfactory-refresh.timer", "/srv/debfactory/tools", "debfactory bf077e169e7c instalada"} {
+	for _, want := range []string{"usuario dfpub", "/home/x con permisos 700", "/srv/debfactory/data",
+		"debfactory-refresh.timer", "/srv/debfactory/tools", "debfactory bf077e169e7c instalada"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("falta el fallo %q en %s", want, got)
 		}
+	}
+	// El runner ci se retiró (specs/009): ya no se exige, y si dfci sigue
+	// existiendo solo se avisa cómo quitarlo.
+	for _, gone := range []string{"dfci", "regla nftables", "debfactory-runner@ci"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("se sigue exigiendo el runner ci (%q) en %s", gone, got)
+		}
+	}
+	if !slices.ContainsFunc(cs, func(c Check) bool { return c.Warn && strings.Contains(c.Info, "--remove ci") }) {
+		t.Error("no avisa de que dfci sigue instalado")
 	}
 	var warned bool
 	for _, c := range cs {
@@ -268,5 +280,21 @@ func TestLevel2Checks(t *testing.T) {
 	r.Cfg.Level2 = config.Level2{Jobs: 4, Tmpfs: "6g"}
 	if c := r.Level2Checks(); c[0].OK || !strings.Contains(c[0].Info, "24 GB supera") {
 		t.Errorf("4 × 6g: %+v", c)
+	}
+}
+
+// TestDoctorSignedCommitsAndPublicTool (T039): sin la regla de commits
+// firmados o con la herramienta privada, doctor falla.
+func TestDoctorSignedCommitsAndPublicTool(t *testing.T) {
+	ctx := context.Background()
+	r, gh, c := doctorRunner(t)
+	goodConfig(gh)
+	rs := gh.Config["/rulesets/1"].(map[string]any)
+	rules := rs["rules"].([]map[string]any)
+	rs["rules"] = slices.DeleteFunc(slices.Clone(rules), func(m map[string]any) bool { return m["type"] == "required_signatures" })
+	gh.Config["/repos/opentepache/debfactory"] = map[string]any{"private": true}
+	got := strings.Join(failing(r.GitHubChecks(ctx, c, false)), "; ")
+	if !strings.Contains(got, "commits firmados") || !strings.Contains(got, "herramienta pública") {
+		t.Fatalf("fallos = %s", got)
 	}
 }

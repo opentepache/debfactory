@@ -42,6 +42,35 @@ versión. El `.buildinfo` publicado junto al `.deb` (en el mismo directorio de `
 versiones exactas (`Installed-Build-Depends`); instálalas desde el archivo histórico de la
 distribución (`snapshot.debian.org` para Debian) antes de compilar.
 
+## 3b. Toolchain de upstream (solo si el paquete lo usa)
+
+Algunos paquetes se compilan con el toolchain oficial de su proyecto (por ejemplo, Zig para
+ghostty), que no está en la distribución. El paquete fuente lo declara en
+`debian/upstream/toolchain`: URL y sha256 por arquitectura y, si el proyecto firma con minisign,
+su llave y la firma. Si el archivo no existe, este paso no hace nada.
+
+```sh debfactory:toolchain
+cd /build/reproducible-path/tepache-hello-*/
+if [ -f debian/upstream/toolchain ]; then
+  sudo apt-get install -y curl minisign xz-utils
+  arch=$(dpkg --print-architecture)
+  line=$(grep "^$arch: " debian/upstream/toolchain)
+  url=$(echo "$line" | sed -n 's/.*url: \([^,}]*\).*/\1/p')
+  sha=$(echo "$line" | sed -n 's/.*sha256: \([0-9a-f]*\).*/\1/p')
+  curl -fsSLo /tmp/toolchain.tar.xz "$url"
+  echo "$sha  /tmp/toolchain.tar.xz" | sha256sum -c -
+  key=$(sed -n 's/^minisign_key: //p' debian/upstream/toolchain)
+  sig=$(echo "$line" | sed -n 's/.*minisig: \([^,}]*\).*/\1/p')
+  if [ -n "$key" ]; then
+    curl -fsSLo /tmp/toolchain.tar.xz.minisig "$sig"
+    minisign -Vm /tmp/toolchain.tar.xz -x /tmp/toolchain.tar.xz.minisig -P "$key"
+  fi
+  sudo mkdir -p /opt/toolchain
+  sudo tar -xJf /tmp/toolchain.tar.xz -C /opt/toolchain --strip-components=1
+  for f in /opt/toolchain/*; do [ -f "$f" ] && [ -x "$f" ] && sudo ln -sf "$f" /usr/local/bin/; done
+fi
+```
+
 ## 4. Compilar
 
 ```sh debfactory:rebuild

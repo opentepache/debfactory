@@ -3,6 +3,7 @@ package ci
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 
 	"debfactory/internal/build"
@@ -27,7 +28,7 @@ func distShas(root string, cfg *config.Config, m *manifest.Manifest) (map[string
 		return nil
 	}
 	if !m.Level2() {
-		for _, arch := range cfg.Arches {
+		for _, arch := range m.Arches(cfg.Arches) {
 			if err := sha(arch, m.DebBase(arch)+".deb"); err != nil {
 				return nil, err
 			}
@@ -38,7 +39,7 @@ func distShas(root string, cfg *config.Config, m *manifest.Manifest) (map[string
 		if err := sha(su.Name+"/dsc", repo.DscFile(m.Name, m.SuiteVersion(su.Level2Suffix))); err != nil {
 			return nil, err
 		}
-		for _, arch := range cfg.Arches {
+		for _, arch := range m.Arches(cfg.Arches) {
 			if err := sha(su.Name+"/"+arch, build.Level2Base(m, su, arch)+".deb"); err != nil {
 				return nil, err
 			}
@@ -97,12 +98,29 @@ func compareShas(pkg, version string, got map[string]string, pub repo.Published,
 func extendEntry(e Entry, p repo.Published, added []string) Entry {
 	if !p.Level2() {
 		e.Debs = p.Debs
+		if len(e.Arches) > 0 { // ampliación por arquitectura: solo los .deb nuevos
+			e.Debs = map[string]string{}
+			for _, a := range e.Arches {
+				e.Debs[a] = p.Debs[a]
+			}
+		}
 		return e
 	}
 	e.Orig = p.Orig
 	e.Builds = map[string]repo.Build{}
 	for _, su := range added {
 		e.Builds[su] = p.Builds[su]
+	}
+	for _, su := range p.Suites { // arquitecturas nuevas en las suites que ya estaban
+		if len(e.Arches) == 0 || slices.Contains(added, su) {
+			continue
+		}
+		b := p.Builds[su]
+		nb := repo.Build{Version: b.Version, DSC: b.DSC, DebianTar: b.DebianTar, Debs: map[string]string{}, Buildinfo: map[string]string{}}
+		for _, a := range e.Arches {
+			nb.Debs[a], nb.Buildinfo[a] = b.Debs[a], b.Buildinfo[a]
+		}
+		e.Builds[su] = nb
 	}
 	return e
 }

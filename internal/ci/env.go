@@ -22,6 +22,7 @@ type Env struct {
 	EventName   string // GITHUB_EVENT_NAME
 	Ref         string // GITHUB_REF
 	SHA         string // GITHUB_SHA
+	WorkflowRef string // GITHUB_WORKFLOW_REF (<repo>/<ruta del workflow>@<ref>)
 	Repository  string // GITHUB_REPOSITORY
 	RunID       string // GITHUB_RUN_ID
 	ServerURL   string // GITHUB_SERVER_URL
@@ -44,7 +45,7 @@ type Env struct {
 
 // envKeys son las variables que se leen del entorno o de --env-file.
 var envKeys = []string{
-	"GITHUB_EVENT_NAME", "GITHUB_REF", "GITHUB_SHA", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
+	"GITHUB_EVENT_NAME", "GITHUB_REF", "GITHUB_SHA", "GITHUB_WORKFLOW_REF", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
 	"GITHUB_SERVER_URL", "GITHUB_API_URL", "GITHUB_STEP_SUMMARY", "RUNNER_TEMP", "RUNNER_LABELS",
 	"GITHUB_TOKEN", "GITHUB_ACTIONS", "INPUT_ACTION", "INPUT_PACKAGE", "INPUT_VERSION", "INPUT_REASON", "INPUT_LAST",
 	"INPUT_FORCE", "DEBFACTORY_APP_TOKEN", "DEBFACTORY_APP_SLUG",
@@ -89,6 +90,7 @@ func newEnv(cfg *config.Config, vars map[string]string) *Env {
 		EventName:   vars["GITHUB_EVENT_NAME"],
 		Ref:         vars["GITHUB_REF"],
 		SHA:         vars["GITHUB_SHA"],
+		WorkflowRef: vars["GITHUB_WORKFLOW_REF"],
 		Repository:  vars["GITHUB_REPOSITORY"],
 		RunID:       vars["GITHUB_RUN_ID"],
 		ServerURL:   vars["GITHUB_SERVER_URL"],

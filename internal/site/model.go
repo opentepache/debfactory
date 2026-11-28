@@ -80,8 +80,11 @@ type Package struct {
 	Homepage    string      `json:"homepage"`
 	Upstream    string      `json:"upstream"` // owner/repo en GitHub
 	Excluded    []Exclusion `json:"excluded"`
-	Install     string      `json:"install"`
-	Versions    []Version   `json:"versions"` // de mayor a menor; la primera es la actual
+	// ExcludedArches son las arquitecturas que el manifiesto excluye, con su
+	// motivo (specs/009, constitución 1.9.0).
+	ExcludedArches []ArchExclusion `json:"excluded_arches,omitempty"`
+	Install        string          `json:"install"`
+	Versions       []Version       `json:"versions"` // de mayor a menor; la primera es la actual
 }
 
 // Text es un texto en inglés con su traducción opcional al español.
@@ -103,6 +106,12 @@ type Exclusion struct {
 	Reason string `json:"reason"`
 }
 
+// ArchExclusion es una arquitectura excluida por el manifiesto, con su motivo.
+type ArchExclusion struct {
+	Arch   string `json:"arch"`
+	Reason string `json:"reason"`
+}
+
 // Version es una versión publicada de un paquete.
 type Version struct {
 	Version       string   `json:"version"`
@@ -117,6 +126,16 @@ type Version struct {
 	// suite (lleva su sufijo) y la orden para bajar el código fuente.
 	SuiteVersions map[string]string `json:"suite_versions,omitempty"`
 	Source        string            `json:"source,omitempty"`
+	// ProvenanceFile es provenance.json de la versión, byte a byte como en
+	// <data> (su sha256 está en la auditoría; specs/009 T035/T036). El sitio
+	// lo publica en packages/<p>/<versión>/provenance.json y lo muestra.
+	ProvenanceFile []byte `json:"provenance_file,omitempty"`
+}
+
+// ProvenanceFile es la ruta de provenance.json de una versión en <data>
+// (la misma que escribe ci al publicar).
+func ProvenanceFile(data, pkg, version string) string {
+	return filepath.Join(data, "provenance", pkg, version+".json")
 }
 
 // SuiteVersion es la versión del paquete en una suite.
@@ -243,6 +262,11 @@ func loadPackage(cfg *config.Config, root, name string, published []repo.Publish
 		for _, s := range cfg.Suites {
 			if reason, ok := mf.Exclude.Suites[s.Name]; ok {
 				p.Excluded = append(p.Excluded, Exclusion{Suite: s.Name, Reason: strings.TrimSpace(reason)})
+			}
+		}
+		for _, a := range cfg.Arches {
+			if reason, ok := mf.Exclude.Arches[a]; ok {
+				p.ExcludedArches = append(p.ExcludedArches, ArchExclusion{Arch: a, Reason: strings.TrimSpace(reason)})
 			}
 		}
 	}
@@ -386,6 +410,15 @@ func FromData(cfg *config.Config, root string, st *repo.State, dataDir string, w
 	}
 	if err := Verify(m, gen.Dir(dataDir)); err != nil {
 		return nil, err
+	}
+	for i := range m.Packages {
+		p := &m.Packages[i]
+		for j := range p.Versions {
+			b, err := os.ReadFile(ProvenanceFile(dataDir, p.Name, p.Versions[j].Version))
+			if err == nil {
+				p.Versions[j].ProvenanceFile = b
+			}
+		}
 	}
 	return m, nil
 }

@@ -2,7 +2,8 @@
 # Prepara la PC para los runners de debfactory (specs/003-ci-pipeline,
 # contracts/runner-host.md). Idempotente. Se ejecuta como root:
 #
-#   sudo ci/host/setup.sh [--repository OWNER/NOMBRE] [--runner-tag TAG] [--token-stdin]
+#   sudo ci/host/setup.sh [--repository OWNER/NOMBRE] [--runner-tag TAG] [--token-stdin] [--with-ci]
+#   sudo ci/host/setup.sh --remove ci [--yes]
 #
 #   --repository   repositorio de GitHub (se guarda en /etc/default/debfactory-runner)
 #   --runner-tag   etiqueta que imprimió `just runner-image`: carga las dos imágenes
@@ -11,6 +12,12 @@
 #   --token-stdin  lee el fine-grained PAT de la entrada estándar (sin eco) y lo
 #                  guarda en /etc/credstore/debfactory-gh-runner (root, 600).
 #                  Nunca se pasa como argumento ni se imprime.
+#   --with-ci      instala también el runner no confiable (dfci). Desde la fase 009
+#                  las PR corren en runners de GitHub y dfci se retira (research
+#                  D20): sin esta opción solo se mantiene si dfci ya existe.
+#   --remove ci    retira el runner ci: servicio, Docker rootless y usuario dfci,
+#                  /srv/debfactory/ci y la regla de nftables. Pide confirmación
+#                  (escribir "ci") salvo con --yes.
 #
 # No arranca los runners: eso lo hace el mantenedor tras `just runner-image`
 # (systemctl enable --now debfactory-runner@ci debfactory-runner@pub).
@@ -22,12 +29,15 @@ libdir=/usr/local/lib/debfactory
 defaults=/etc/default/debfactory-runner
 credstore=/etc/credstore/debfactory-gh-runner
 
-repository= tag= token_stdin=0
+repository= tag= token_stdin=0 with_ci=0 remove= assume_yes=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --repository) repository=${2:?}; shift 2 ;;
         --runner-tag) tag=${2:?}; shift 2 ;;
         --token-stdin) token_stdin=1; shift ;;
+        --with-ci) with_ci=1; shift ;;
+        --remove) remove=${2:?}; shift 2 ;;
+        --yes) assume_yes=1; shift ;;
         *) echo "setup: opción desconocida $1" >&2; exit 2 ;;
     esac
 done
@@ -36,6 +46,49 @@ say() { echo "setup: $*"; }
 die() { echo "setup: $*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "ejecútalo con sudo"
+
+# Retiro del runner ci (specs/009, research D20; T050).
+remove_ci() {
+    if [ "$assume_yes" != 1 ]; then
+        [ -t 0 ] || die "--remove ci pide confirmación; en modo no interactivo usa --yes"
+        printf 'Se borrará el runner ci: servicio, Docker rootless y usuario dfci, /srv/debfactory/ci y su regla de nftables.
+Escribe "ci" para confirmar: ' >&2
+        IFS= read -r answer
+        [ "$answer" = ci ] || die "cancelado"
+    fi
+    systemctl disable --now debfactory-runner@ci >/dev/null 2>&1 || true
+    if id dfci >/dev/null 2>&1; then
+        systemctl --user -M dfci@ disable --now docker >/dev/null 2>&1 || true
+        loginctl disable-linger dfci >/dev/null 2>&1 || true
+        pkill -u dfci >/dev/null 2>&1 || true
+        deluser --system --remove-home dfci >/dev/null
+        delgroup --only-if-empty dfci >/dev/null 2>&1 || true
+        sed -i '/^dfci:/d' /etc/subuid /etc/subgid
+        say "usuario dfci borrado"
+    fi
+    rm -rf /srv/debfactory/ci
+    if nft list table inet debfactory_ci >/dev/null 2>&1; then
+        nft delete table inet debfactory_ci
+    fi
+    rm -f /etc/nftables.d/debfactory-ci.nft "$libdir/dockerd-ci-dns.sh"
+    if [ -f "$defaults" ]; then
+        sed -i 's/^DEBFACTORY_RUNNER_ID_CI=.*/DEBFACTORY_RUNNER_ID_CI=/' "$defaults"
+    fi
+    systemctl daemon-reload
+    say "runner ci retirado. Los runners JIT son efímeros; si GitHub aún lista uno con la etiqueta debfactory-pr, bórralo en Settings → Actions → Runners."
+}
+case "$remove" in
+    "") ;;
+    ci) remove_ci; exit 0 ;;
+    *) die "--remove solo admite ci" ;;
+esac
+
+# Niveles a instalar: pub siempre; ci solo si ya existe o con --with-ci.
+levels=pub
+if [ "$with_ci" = 1 ] || id dfci >/dev/null 2>&1; then
+    levels="ci pub"
+fi
+has_ci() { case " $levels " in *" ci "*) return 0 ;; esac; return 1; }
 
 # 1. Requisitos (paquetes de Debian; docker-ce-rootless-extras ya está instalado).
 missing=
@@ -55,6 +108,7 @@ fi
 # 3. Usuarios de sistema, sin contraseña ni shell, con home propio.
 start=2100000000
 for level in ci pub; do
+    has_ci || [ "$level" != ci ] || { start=$((start + 65536)); continue; }
     user=df$level
     if ! id "$user" >/dev/null 2>&1; then
         adduser --system --group --home "/var/lib/$user" --shell /usr/sbin/nologin "$user" >/dev/null
@@ -75,7 +129,7 @@ for level in ci pub; do
 done
 
 # 4. Docker rootless de cada usuario (necesita su sesión de systemd).
-for level in ci pub; do
+for level in $levels; do
     user=df$level
     if ! systemctl --user -M "$user@" is-active --quiet docker 2>/dev/null; then
         say "instalando Docker rootless para $user"
@@ -91,6 +145,7 @@ done
 # contenedores por daemon.json y el propio dockerd (descargas de imágenes) por
 # dockerd-ci-dns.sh, que la unidad lanza en lugar de dockerd.
 install -d -m 755 "$libdir"
+if has_ci; then
 install -m 755 "$here/dockerd-ci-dns.sh" "$libdir/dockerd-ci-dns.sh"
 cfg=/var/lib/dfci/.config
 want_json='{"dns":["9.9.9.9","149.112.112.112"]}'
@@ -109,13 +164,16 @@ if [ "$(cat "$cfg/docker/daemon.json" 2>/dev/null)" != "$want_json" ] ||
     systemctl --user -M dfci@ is-active --quiet docker || die "docker de dfci no arranca; journalctl --user -M dfci@ -u docker"
     say "DNS del Docker de dfci (contenedores y daemon): 9.9.9.9 y 149.112.112.112"
 fi
+fi
 
 # 5. Directorios (contracts/runner-host.md § Usuarios y directorios).
 install -d -m 755 -o root -g root /srv/debfactory
 # Versiones de debfactory que instala `just tool-install` (specs/004-split-repos D3).
 install -d -m 755 -o root -g root /srv/debfactory/tools
-install -d -m 755 -o dfci -g dfci /srv/debfactory/ci
-install -d -m 700 -o dfci -g dfci /srv/debfactory/ci/work
+if has_ci; then
+    install -d -m 755 -o dfci -g dfci /srv/debfactory/ci
+    install -d -m 700 -o dfci -g dfci /srv/debfactory/ci/work
+fi
 install -d -m 755 -o dfpub -g dfpub /srv/debfactory/pub
 install -d -m 700 -o dfpub -g dfpub /srv/debfactory/pub/work
 install -d -m 700 -o dfpub -g dfpub /srv/debfactory/data /srv/debfactory/rclone /srv/debfactory/cache-pub
@@ -131,7 +189,8 @@ for f in debfactory-runner@.service debfactory-refresh.service debfactory-refres
     install -m 644 "$here/$f" "/etc/systemd/system/$f"
 done
 
-# 7. Red del runner no confiable (research D14).
+# 7. Red del runner no confiable (research D14), solo si sigue instalado.
+if has_ci; then
 install -d -m 755 /etc/nftables.d
 install -m 644 "$here/debfactory-ci.nft" /etc/nftables.d/debfactory-ci.nft
 if ! grep -qs 'include "/etc/nftables.d/\*.nft"' /etc/nftables.conf; then
@@ -140,6 +199,7 @@ fi
 nft list table inet debfactory_ci >/dev/null 2>&1 && nft delete table inet debfactory_ci
 nft -f /etc/nftables.d/debfactory-ci.nft
 systemctl enable nftables >/dev/null 2>&1 || true
+fi
 
 # 8. Credencial (PAT) por la entrada estándar.
 if [ "$token_stdin" = 1 ]; then
@@ -174,7 +234,7 @@ if [ -f "$defaults" ]; then
     id_pub=$(sed -n 's/^DEBFACTORY_RUNNER_ID_PUB=//p' "$defaults")
 fi
 if [ -n "$tag" ]; then
-    for level in ci pub; do
+    for level in $levels; do
         user=df$level
         uid=$(id -u "$user")
         img="debfactory-runner:$tag-$level"
@@ -222,4 +282,6 @@ say "listo."
 [ -n "$repository" ] || say "falta --repository OWNER/NOMBRE"
 [ -s "$credstore" ] || say "falta el PAT: sudo ci/host/setup.sh --token-stdin"
 [ -n "$tag" ] || say "falta --runner-tag (just runner-image)"
-say "para arrancar: sudo systemctl enable --now debfactory-runner@ci debfactory-runner@pub"
+units=
+for level in $levels; do units="$units debfactory-runner@$level"; done
+say "para arrancar: sudo systemctl enable --now$units"

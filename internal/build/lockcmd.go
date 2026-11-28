@@ -77,7 +77,7 @@ func (e *Env) Lock(ctx context.Context, name string, force bool) error {
 		entry.SourceSHA256 = d.sha
 		artifacts[""] = d
 	}
-	for _, arch := range e.Cfg.Arches {
+	for _, arch := range m.Arches(e.Cfg.Arches) {
 		if m.Level2() {
 			break
 		}
@@ -109,7 +109,7 @@ func (e *Env) Lock(ctx context.Context, name string, force bool) error {
 		if err != nil {
 			return fail(report.Verify, "", fmt.Errorf("%s: %v", url, err))
 		}
-		for _, arch := range e.Cfg.Arches {
+		for _, arch := range m.Arches(e.Cfg.Arches) {
 			a := artifacts[arch]
 			if err := fetch.VerifyChecksum(sums, url, a.url, a.sha); err != nil {
 				return downloadErr(err, m, arch, "lock")
@@ -127,7 +127,7 @@ func (e *Env) Lock(ctx context.Context, name string, force bool) error {
 			files[d.url] = d.path
 		}
 	}
-	if entry.Signatures, err = e.verifySignatures(ctx, m, e.Cfg.Arches, files, nil); err != nil {
+	if entry.Signatures, err = e.verifySignatures(ctx, m, m.Arches(e.Cfg.Arches), files, nil); err != nil {
 		return err
 	}
 	prov := map[string]provFile{}
@@ -220,7 +220,7 @@ func (e *Env) lockLicense(ctx context.Context, m *manifest.Manifest, tag string,
 		return t, nil
 	}
 	var text []byte
-	for _, arch := range e.Cfg.Arches {
+	for _, arch := range m.Arches(e.Cfg.Arches) {
 		vars, err := m.Vars(arch)
 		if err != nil {
 			return nil, fail(err)

@@ -84,7 +84,7 @@ func (e *Env) lockLevel2(ctx context.Context, m *manifest.Manifest, entry *lock.
 	v := &supply.Verifier{Root: e.Root, Pkg: m.Name, Sigstore: e.Sigstore}
 	entry.Toolchain = map[string]string{}
 	var hostTarball string
-	for _, arch := range e.Cfg.Arches {
+	for _, arch := range m.Arches(e.Cfg.Arches) {
 		r, err := supply.FetchToolchain(ctx, e.Fetcher, v, m.Toolchain, arch, "", "")
 		if err != nil {
 			return fail(report.Toolchain, err)
@@ -183,12 +183,24 @@ func mustRender(m *manifest.Manifest, tmpl string) string {
 }
 
 // toolchainFile es el contenido de debian/upstream/toolchain (research D3).
+// Lleva lo necesario para que cualquiera lo baje y lo verifique por su
+// cuenta (guía de recompilación, FR-024a): URL y sha256 por arquitectura y,
+// si upstream firma con minisign, la llave fijada y la URL de cada firma.
 func toolchainFile(m *manifest.Manifest, entry *lock.Entry, arches []string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "name: %s\nversion: %s\n", m.Toolchain.Name, m.Toolchain.Version)
+	sig := m.Toolchain.Signing
+	if sig != nil && sig.Minisign != nil {
+		fmt.Fprintf(&b, "minisign_key: %s\n", sig.Minisign.Key)
+	}
 	for _, a := range arches {
 		u, _ := m.Toolchain.RenderURL(m.Toolchain.URL, a)
-		fmt.Fprintf(&b, "%s: {url: %s, sha256: %s}\n", a, u, entry.Toolchain[a])
+		line := fmt.Sprintf("%s: {url: %s, sha256: %s", a, u, entry.Toolchain[a])
+		if sig != nil && sig.Minisign != nil {
+			su, _ := m.Toolchain.RenderURL(sig.Minisign.File, a)
+			line += ", minisig: " + su
+		}
+		fmt.Fprintf(&b, "%s}\n", line)
 	}
 	return b.String()
 }

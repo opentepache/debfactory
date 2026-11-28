@@ -35,7 +35,9 @@ var (
 // page es lo que recibe cada plantilla.
 type page struct {
 	M      *Model
-	P      *Package // nil en la portada
+	P      *Package  // nil en la portada
+	V      *Version  // página de procedencia
+	Prov   *provView // página de procedencia
 	Lang   string
 	T      Strings
 	Home   string // ruta de la portada en este idioma: "/" o "/es/"
@@ -122,6 +124,10 @@ func Build(m *Model, out string) (err error) {
 	if err != nil {
 		return err
 	}
+	provTmpl, err := parse("provenance.html")
+	if err != nil {
+		return err
+	}
 	for _, lang := range Langs {
 		t := strs[lang]
 		base := page{M: m, Lang: lang, T: t, Home: langRoot(lang), CSS: "/" + cssPath, JS: "/" + jsPath, OG: m.URL + "/" + ogPath}
@@ -142,6 +148,28 @@ func Build(m *Model, out string) (err error) {
 			pg.Title, pg.Desc, pg.JSONLD = packageSEO(m, p, t, lang)
 			if err := render(files, pkgTmpl, pg); err != nil {
 				return err
+			}
+			// Procedencia de cada versión (specs/009, T036).
+			for j := range p.Versions {
+				v := &p.Versions[j]
+				if len(v.ProvenanceFile) == 0 {
+					continue
+				}
+				var pv provView
+				if err := json.Unmarshal(v.ProvenanceFile, &pv); err != nil {
+					return siteErr("provenance.json de %s %s: %v", p.Name, v.Version, err)
+				}
+				vrel := rel + v.Version + "/"
+				pp := pg
+				pp.V, pp.Prov, pp.Self, pp.Alt = v, &pv, langRoot(lang)+vrel, alts(strs, lang, vrel)
+				pp.Title = fmt.Sprintf(t["prov_title"], p.Name, v.Version)
+				pp.Desc, pp.JSONLD = t["prov_intro"], ""
+				if err := render(files, provTmpl, pp); err != nil {
+					return err
+				}
+				if lang == Langs[0] {
+					files[vrel+"provenance.json"] = v.ProvenanceFile // byte a byte (su sha256 está en la auditoría)
+				}
 			}
 		}
 	}
@@ -390,4 +418,54 @@ func Files(dir string) ([]string, error) {
 	})
 	slices.Sort(names)
 	return names, err
+}
+
+// provView es lo que la página de procedencia lee de provenance.json
+// (data-model §8); el archivo se publica tal cual.
+type provView struct {
+	Upstream struct {
+		Files map[string]string `json:"files"`
+	} `json:"upstream"`
+	ManifestCommit string `json:"manifest_commit"`
+	RunURL         string `json:"run_url"`
+	Attestations   []struct {
+		Subject  string `json:"subject"`
+		Digest   string `json:"digest"`
+		RekorURL string `json:"rekor_url"`
+	} `json:"attestations"`
+	Tests []struct {
+		Suite  string `json:"suite"`
+		Arch   string `json:"arch"`
+		Status string `json:"status"`
+	} `json:"tests"`
+	AuditSeq     int `json:"audit_seq"`
+	VerifiedByPC struct {
+		Mode          string `json:"mode"`
+		Attestations  bool   `json:"attestations"`
+		Lintian       bool   `json:"lintian"`
+		RebuildLevel1 bool   `json:"rebuild_level1"`
+		TwoVariants   bool   `json:"two_variants"`
+		SmokeAMD64    bool   `json:"smoke_amd64"`
+	} `json:"verified_by_pc"`
+	Supply []struct {
+		Arch      string `json:"arch"`
+		Signature struct {
+			Type string `json:"type"`
+			OK   bool   `json:"ok"`
+		} `json:"signature"`
+		Provenance struct {
+			Present bool `json:"present"`
+			OK      bool `json:"ok"`
+		} `json:"provenance"`
+		TarballVsTag *struct {
+			Extra []string `json:"extra"`
+		} `json:"tarball_vs_tag"`
+		Toolchain *struct {
+			Name    string `json:"name"`
+			Version string `json:"version"`
+		} `json:"toolchain"`
+		Deps *struct {
+			Count int `json:"count"`
+		} `json:"deps"`
+	} `json:"supply"`
 }

@@ -39,6 +39,7 @@
 </table>
 </div>
 {{range $p.Excluded}}<p class="hint">{{tf $.T "not_on" (suiteLabel $.M .Suite)}}: <span lang="en">{{.Reason}}</span></p>{{end}}
+{{range $p.ExcludedArches}}<p class="hint">{{tf $.T "not_for" .Arch}}: <span lang="en">{{.Reason}}</span></p>{{end}}
 </div>
 </section>
 {{if $cur.Source}}
@@ -61,7 +62,7 @@
 <table>
 <thead><tr><th scope="col">{{t $.T "col_version"}}</th><th scope="col">{{t $.T "col_date"}}</th><th scope="col">{{t $.T "col_install"}}</th></tr></thead>
 <tbody>{{range .}}
-<tr><th scope="row">{{.Upstream}}</th><td class="when"><time datetime="{{.Published}}">{{.Published}}</time></td><td><code>{{.Install}}</code></td></tr>{{end}}
+<tr><th scope="row">{{.Upstream}}{{if .ProvenanceFile}} · <a href="{{$.Home}}packages/{{$p.Name}}/{{.Version}}/">{{t $.T "prov_link"}}</a>{{end}}</th><td class="when"><time datetime="{{.Published}}">{{.Published}}</time></td><td><code>{{.Install}}</code></td></tr>{{end}}
 </tbody>
 </table>
 </div>
@@ -74,7 +75,8 @@
 <p class="status">● {{t .T "published"}}</p>
 <dl>
 <dt>{{t .T "published_version"}}</dt><dd class="ver">{{$cur.Upstream}}</dd>
-<dt>{{t .T "debian_version"}}</dt><dd><code>{{$cur.Version}}{{if $cur.SuiteVersions}}+…{{end}}</code></dd>
+<dt>{{t .T "debian_version"}}</dt><dd><code>{{$cur.Version}}{{if $cur.SuiteVersions}}+…{{end}}</code></dd>{{if $cur.ProvenanceFile}}
+<dt>{{t .T "prov_link"}}</dt><dd><a href="{{.Home}}packages/{{$p.Name}}/{{$cur.Version}}/">{{t .T "prov_build"}} · {{t .T "prov_pc"}}</a></dd>{{end}}
 <dt>{{t .T "published_date"}}</dt><dd><time datetime="{{$cur.Published}}">{{$cur.Published}}</time></dd>
 {{if $p.License}}<dt>{{t .T "license"}}</dt><dd>{{$p.License}}</dd>{{end}}
 {{if $p.Homepage}}<dt>{{t .T "upstream"}}</dt><dd><a href="{{$p.Homepage}}" rel="noopener">{{if $p.Upstream}}{{$p.Upstream}}{{else}}{{$p.Homepage}}{{end}}</a></dd>{{end}}

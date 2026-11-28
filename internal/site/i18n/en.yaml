@@ -34,6 +34,7 @@ col_date: Published
 col_available: Available on
 col_arch: Architectures
 not_on: "not on %s"
+not_for: "not built for %s"
 no_packages: No packages are published yet.
 verify_title: Check the key
 verify_intro: The downloaded key file must belong to this primary key. Compare the fingerprint below with the one the command prints.
@@ -71,3 +72,41 @@ footer_serial: Repository serial
 source_title: source code
 source_intro: "Built from source for each distribution: every suite has its own binary, built from the source package published next to it in this repository."
 source_note: "With deb-src enabled in the sources file, this downloads the exact source of the installed version."
+# Provenance page (specs/009, T036).
+prov_title: "Provenance of %s %s"
+prov_intro: Where this version came from and what was checked before it was signed. Everything here can be checked independently.
+prov_upstream: Upstream sources
+col_file: File
+col_digest: SHA-256
+col_rekor: Attestation
+prov_signature: Upstream signature
+prov_sig_none: upstream does not sign its releases
+prov_sig_ok: verified with the pinned key
+prov_slsa: Upstream provenance (SLSA)
+prov_slsa_ok: verified (repository and tag)
+prov_slsa_absent: not published by upstream
+prov_tag: Release tarball vs git tag
+prov_tag_same: identical
+prov_tag_extra: "declared extra files:"
+prov_toolchain: Upstream toolchain
+prov_deps: Language dependencies
+prov_deps_count: "%d verified one by one against the hash declared by upstream"
+prov_build: Build
+prov_mode_hosted: Built and tested on GitHub's standard runners, then verified independently on the maintainer's machine before signing.
+prov_mode_local: Built, tested and signed on the maintainer's machine.
+prov_commit: Manifest commit
+prov_run: Workflow run
+prov_audit: Audit log entry
+prov_rekor_link: transparency log
+prov_pc: Checked before signing
+prov_pc_attest: every artifact carries a GitHub attestation from this repository, workflow and commit
+prov_pc_variants: two builds in different environments produced the same .deb
+prov_pc_rebuild: the maintainer's machine rebuilt the .deb and got the same SHA-256
+prov_pc_lintian: lintian passed on every .deb
+prov_pc_smoke: installed and run in a clean amd64 container
+col_suite: Release
+col_result: Result
+prov_verify_title: Verify it yourself
+prov_verify_intro: "With the public tool, no credentials needed:"
+prov_json: Download provenance.json
+prov_link: provenance

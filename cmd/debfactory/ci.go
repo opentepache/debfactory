@@ -54,7 +54,7 @@ func (a *app) ci(ctx context.Context, pos []string) error {
 		return err
 	}
 	switch sub {
-	case "plan", "pr", "main", "rebuild", "retire", "refresh", "restore-state-pr", "notify", "audit check", "doctor", "watch":
+	case "plan", "matrix", "review", "pr", "main", "rebuild", "retire", "refresh", "restore-state-pr", "notify", "audit check", "doctor", "watch":
 		return r.Dispatch(ctx, sub, a.ciOptions())
 	}
 	return usageError{fmt.Sprintf("orden de ci desconocida %q", sub)}
@@ -66,6 +66,7 @@ func (a *app) ciOptions() ci.Options {
 		Reason: a.opts.reason, Last: a.opts.last, Stage: a.opts.stage, StageFile: a.opts.stageFile,
 		Against: a.opts.against, Fix: a.opts.fix, Jobs: a.opts.jobs,
 		Force: a.opts.force, DryRun: a.opts.dryRun,
+		Artifacts: a.opts.artifacts, Local: a.opts.local,
 	}
 }
 

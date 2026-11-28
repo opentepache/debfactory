@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -48,8 +49,12 @@ func (e *Env) Build(ctx context.Context, name string, o Options) error {
 	if m.Level2() {
 		return e.buildLevel2(ctx, m, lk, o)
 	}
-	arches := e.Cfg.Arches
+	arches := m.Arches(e.Cfg.Arches)
 	if o.Arch != "" {
+		if !slices.Contains(arches, o.Arch) {
+			return report.Wrap(fmt.Errorf("el manifiesto excluye la arquitectura %s (exclude.arches)", o.Arch),
+				report.Validate, m.Name, m.Version, o.Arch)
+		}
 		arches = []string{o.Arch}
 	}
 	for _, arch := range arches {
@@ -138,7 +143,7 @@ func (e *Env) buildArch(ctx context.Context, m *manifest.Manifest, lk *lock.File
 		return fail(report.Lock, fmt.Errorf("no hay entrada para %s en %s; ejecuta `debfactory lock %s`",
 			m.Version, lock.PathIn(e.Root, m.Name), m.Name))
 	}
-	if err := entry.Complete(e.Cfg.Arches, m.Checksums != nil); err != nil {
+	if err := entry.Complete(m.Arches(e.Cfg.Arches), m.Checksums != nil); err != nil {
 		return fail(report.Lock, fmt.Errorf("entrada incompleta para %s en %s (%v); ejecuta `debfactory lock %s`",
 			m.Version, lock.PathIn(e.Root, m.Name), err, m.Name))
 	}
@@ -366,7 +371,7 @@ func defaultTestCommand(files []assemble.File) (string, error) {
 // a dist/.tmp-<archivo> y luego rename dentro de dist/ (el workdir está en
 // tmpfs y rename entre sistemas de archivos falla con EXDEV).
 func (e *Env) publishDist(deb string, info *pkg.BuildInfo, base string) error {
-	dist := filepath.Join(e.Root, "dist")
+	dist := e.distDir()
 	if err := os.MkdirAll(dist, 0o755); err != nil {
 		return err
 	}

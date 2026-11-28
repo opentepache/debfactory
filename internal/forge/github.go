@@ -464,3 +464,11 @@ func (c *Client) Dispatch(ctx context.Context, workflow, ref string, inputs map[
 		map[string]any{"ref": ref, "inputs": inputs}, nil)
 	return err
 }
+
+// WithRepo devuelve un cliente igual (API, token, transporte) para otro
+// repositorio (p. ej. comprobar que la herramienta es pública).
+func (c *Client) WithRepo(repo string) *Client {
+	cp := *c
+	cp.repo = repo
+	return &cp
+}

@@ -1,6 +1,9 @@
 # Contrato: workflows de GitHub Actions
 
 > **Fase 004** ([cambios-003.md](../../004-split-repos/contracts/cambios-003.md)): los dos workflows viven en `opentepache/packages`, no compilan nada y llaman a `debfactory`, el lanzador de la imagen que ejecuta la versión fijada en `debfactory.version`.
+>
+> **Fase 009** ([contracts/pipeline.md](../../009-hosted-hardened-builds/contracts/pipeline.md)): `main.yml` y `pr.yml` compilan y prueban en runners hospedados estándar (sin secretos ni escritura, con atestación); en runner propio solo queda el job `publish` de `main.yml`, que acepta los artefactos (`ci main --artifacts`). Plantillas en `ci/workflows/` de debfactory.
+
 
 Hay dos archivos en `.github/workflows/`. Ninguno usa actions de terceros salvo
 `actions/checkout`, fijada por sha de commit (research D16). Ninguno lee secretos de GitHub:

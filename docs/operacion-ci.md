@@ -392,3 +392,92 @@ entre suites (`libssl3` en bookworm, `libssl3t64` en trixie y noble).
    - `lifecycle`: los scripts del paquete dejan archivos tras purgar.
 9. **Recompilar a mano**: `docs/recompilar-nivel2.md` del repositorio de paquetes (la prueba
    `TestE2ELevel2` la sigue tal cual en cada suite y arquitectura).
+
+## 10. Compilación hospedada y cadena de suministro (fase 009)
+
+**Modelo** (constitución 1.11.1 y 1.12.0; specs/009-hosted-hardened-builds):
+
+- **GitHub compila y prueba.** En los runners estándar gratuitos (`ubuntu-24.04`,
+  `ubuntu-24.04-arm`): `plan` (`debfactory ci matrix`), `l1-build`, `l2-source`, `l2-build` (las
+  dos variantes en jobs distintos) y `test`. Ningún job hospedado recibe secretos ni escritura
+  del repositorio; solo `id-token` y `attestations` para atestar cada archivo
+  (`actions/attest-build-provenance`). Las plantillas están en `ci/workflows/`; `just ci-lint`
+  las revisa.
+- **La PC verifica, firma y publica.** El job `publish` (runner `debfactory-main`) descarga los
+  artefactos y ejecuta `debfactory ci main --artifacts DIR` (`accept`, research D17):
+  - atestación de cada archivo, del repositorio, del workflow y del commit exactos;
+  - nivel 2: las dos variantes tienen que ser idénticas;
+  - nivel 1: la PC reconstruye y exige el mismo sha256;
+  - lintian local;
+  - prueba de humo amd64;
+  - los informes de prueba de cada suite y arquitectura.
+
+  Solo entonces firma y publica. Si `packages` no es público, el modo hospedado se niega
+  (FR-012).
+- **Las PR corren enteras en GitHub** (`pr.yml`), sin runners propios. Los jobs `review`
+  (GitHub Models, `models: read`) y `comment` (sin IA) dejan un comentario de aviso con el
+  cambio del fuente y Scorecard; no bloquean.
+- **Modo local** (respaldo si GitHub no está disponible): `debfactory ci main --local` hace todo
+  en la PC como en la fase 008.
+- **Ampliaciones** (suite o arquitectura nueva en una versión ya publicada): van por el flujo
+  local en la PC (`gatesFor`). La matriz hospedada solo compila versiones nuevas. Una ampliación
+  a arm64 de un paquete de nivel 2 se compila emulada (ghostty, alrededor de una hora).
+
+**Paquetes de nivel 2 con toolchain** (ghostty):
+
+- El manifiesto declara `toolchain` (Zig oficial con sha256 y firma minisign fijados) y `deps`
+  (`exclude_paths`, `skip` para dependencias que el build no usa, con motivo).
+- `lock` verifica:
+  - la firma del fuente;
+  - el tarball contra el tag de git (los archivos extra, en `source.extra_files`);
+  - el toolchain de cada arquitectura;
+  - cada dependencia de Zig (bajada una por una con `zig fetch` en un contenedor, con el hash
+    que declara upstream) y su licencia (`license_exceptions`, constitución 1.12.0).
+- Las dependencias viajan en el paquete fuente como `.orig-zigdeps.tar.xz`.
+- Las actualizaciones de nivel 2 llegan por PR manual: el detector de versiones las omite.
+- La imagen de lintian lleva un parche en `debian/copyright/dep5`, que se colgaba con un XML
+  "billion laughs" (libxml2 `test/recurse`). Hay un borrador del bug para Debian en specs/009.
+  Lintian tiene además un límite de tiempo (`lintian.timeout`, 30m).
+
+**Firmas y procedencia de upstream:**
+
+- Si upstream firma sus versiones, el manifiesto MUST fijar la llave (`signing`: minisign, GPG o
+  sigstore); una firma con otra llave hace fallar `lock` y el build. Con sigstore y
+  certificados de GitHub Actions se exige además el repositorio y el tag de upstream.
+- Si upstream publica atestaciones SLSA en GitHub, se verifican. El lockfile registra
+  `provenance: verified`, y un build no puede perderla.
+- Cada build deja `dist/*.supply.json`.
+
+**Exclusión de arquitecturas:**
+
+- `exclude.arches: {arm64: motivo}` publica solo las demás.
+- Quitar la exclusión amplía la versión vigente (`MissingArches`, auditoría `extend` con
+  `arches`).
+- El sitio muestra el motivo.
+
+**Transparencia:**
+
+- Cada publicación genera `provenance.json` en `<data>/provenance/<p>/<versión>.json`. Su sha256
+  va en la entrada de auditoría.
+- El sitio publica el archivo y una página de procedencia por versión
+  (`/packages/<p>/<versión>/`).
+- Cualquiera puede comprobar un paquete con `debfactory verify <p> <versión>`, sin credenciales.
+- `ci doctor` comprueba que `main` exige commits firmados y que `debfactory` es público.
+
+**Retiro del runner `ci`:**
+
+- Una semana después de que los workflows nuevos funcionen sin incidentes, ejecuta
+  `sudo ci/host/setup.sh --remove ci` (T050). Borra el servicio, el usuario `dfci`, su Docker
+  rootless, `/srv/debfactory/ci` y la regla de nftables.
+- `ci doctor` deja de exigirlo y avisa mientras siga instalado.
+
+**Acciones del mantenedor:**
+
+- T034: copiar `ci/workflows/*.yml` a `packages/.github/workflows/` y probar con una PR.
+- T049:
+  - `just tool-install`;
+  - activar "Require signed commits" en el ruleset de `main` de `packages`;
+  - actualizar `config/licenses.yaml` y las firmas de buf y aqua;
+  - `migrate layout`;
+  - agregar ghostty.
+- T050: retirar el runner `ci`.

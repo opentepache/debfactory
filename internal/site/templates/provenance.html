@@ -1,0 +1,82 @@
+{{define "content"}}{{$p := .P}}{{$v := .V}}{{$pv := .Prov}}
+<div class="wrap">
+<nav class="crumbs" aria-label="{{t .T "breadcrumb"}}"><ol><li><a href="{{.Home}}">{{.M.Name}}</a></li><li><a href="{{.Home}}#packages">{{t .T "packages_title"}}</a></li><li><a href="{{.Home}}packages/{{$p.Name}}/">{{$p.Name}}</a></li><li aria-current="page">{{$v.Version}}</li></ol></nav>
+<div class="man">
+<article>
+<h1>{{tf .T "prov_title" $p.Name $v.Version}}</h1>
+<p class="sub">{{t .T "prov_intro"}}</p>
+
+<section aria-labelledby="h-upstream">
+<h2 id="h-upstream">{{t .T "prov_upstream"}}</h2>
+<div class="body">
+<div class="scroll" tabindex="0" role="region" aria-labelledby="h-upstream">
+<table>
+<thead><tr><th scope="col">{{t .T "col_file"}}</th><th scope="col">{{t .T "col_digest"}}</th></tr></thead>
+<tbody>{{range $u, $sha := $pv.Upstream.Files}}
+<tr><th scope="row"><a href="{{$u}}">{{$u}}</a></th><td><code>{{$sha}}</code></td></tr>{{end}}
+</tbody>
+</table>
+</div>
+<dl>{{range $pv.Supply}}{{if .Arch}}<dt>{{.Arch}}</dt><dd></dd>{{end}}
+<dt>{{t $.T "prov_signature"}}</dt><dd>{{if eq .Signature.Type "none"}}{{t $.T "prov_sig_none"}}{{else}}{{.Signature.Type}}: {{t $.T "prov_sig_ok"}}{{end}}</dd>
+<dt>{{t $.T "prov_slsa"}}</dt><dd>{{if .Provenance.OK}}{{t $.T "prov_slsa_ok"}}{{else}}{{t $.T "prov_slsa_absent"}}{{end}}</dd>
+{{with .TarballVsTag}}<dt>{{t $.T "prov_tag"}}</dt><dd>{{if .Extra}}{{t $.T "prov_tag_extra"}} <code>{{join .Extra ", "}}</code>{{else}}{{t $.T "prov_tag_same"}}{{end}}</dd>{{end}}
+{{with .Toolchain}}<dt>{{t $.T "prov_toolchain"}}</dt><dd>{{.Name}} {{.Version}}: {{t $.T "prov_sig_ok"}}</dd>{{end}}
+{{with .Deps}}<dt>{{t $.T "prov_deps"}}</dt><dd>{{tf $.T "prov_deps_count" .Count}}</dd>{{end}}{{end}}
+</dl>
+</div>
+</section>
+
+<section aria-labelledby="h-build">
+<h2 id="h-build">{{t .T "prov_build"}}</h2>
+<div class="body">
+<p>{{if eq $pv.VerifiedByPC.Mode "hosted"}}{{t .T "prov_mode_hosted"}}{{else}}{{t .T "prov_mode_local"}}{{end}}</p>
+<dl>
+<dt>{{t .T "prov_commit"}}</dt><dd><code>{{$pv.ManifestCommit}}</code></dd>
+{{if $pv.RunURL}}<dt>{{t .T "prov_run"}}</dt><dd><a href="{{$pv.RunURL}}">{{$pv.RunURL}}</a></dd>{{end}}
+<dt>{{t .T "prov_audit"}}</dt><dd>#{{$pv.AuditSeq}}</dd>
+</dl>
+<div class="scroll" tabindex="0" role="region" aria-labelledby="h-build">
+<table>
+<thead><tr><th scope="col">{{t .T "col_file"}}</th><th scope="col">{{t .T "col_digest"}}</th><th scope="col">{{t .T "col_rekor"}}</th></tr></thead>
+<tbody>{{range $pv.Attestations}}
+<tr><th scope="row">{{.Subject}}</th><td><code>{{.Digest}}</code></td><td>{{if .RekorURL}}<a href="{{.RekorURL}}">{{t $.T "prov_rekor_link"}}</a>{{else}}—{{end}}</td></tr>{{end}}
+</tbody>
+</table>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="h-checks">
+<h2 id="h-checks">{{t .T "prov_pc"}}</h2>
+<div class="body">
+<ul>
+{{if $pv.VerifiedByPC.Attestations}}<li>{{t .T "prov_pc_attest"}}</li>{{end}}
+{{if $pv.VerifiedByPC.TwoVariants}}<li>{{t .T "prov_pc_variants"}}</li>{{end}}
+{{if $pv.VerifiedByPC.RebuildLevel1}}<li>{{t .T "prov_pc_rebuild"}}</li>{{end}}
+{{if $pv.VerifiedByPC.Lintian}}<li>{{t .T "prov_pc_lintian"}}</li>{{end}}
+{{if $pv.VerifiedByPC.SmokeAMD64}}<li>{{t .T "prov_pc_smoke"}}</li>{{end}}
+</ul>
+<div class="scroll" tabindex="0" role="region" aria-labelledby="h-checks">
+<table>
+<thead><tr><th scope="col">{{t .T "col_suite"}}</th><th scope="col">{{t .T "col_arch"}}</th><th scope="col">{{t .T "col_result"}}</th></tr></thead>
+<tbody>{{range $pv.Tests}}
+<tr><th scope="row">{{.Suite}}</th><td>{{.Arch}}</td><td>{{.Status}}</td></tr>{{end}}
+</tbody>
+</table>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="h-verify">
+<h2 id="h-verify">{{t .T "prov_verify_title"}}</h2>
+<div class="body">
+<p>{{t .T "prov_verify_intro"}}</p>
+<pre><code>debfactory verify {{$p.Name}} {{$v.Version}}</code></pre>
+<p><a href="provenance.json">{{t .T "prov_json"}}</a></p>
+</div>
+</section>
+</article>
+</div>
+</div>
+{{end}}
