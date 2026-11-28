@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+# Compila con el toolchain oficial de Zig que debfactory monta en el PATH
+# (debian/upstream/toolchain; specs/009 T051). -mcpu=baseline: el binario no
+# depende de la CPU de la máquina que compila.
+export ZIG_GLOBAL_CACHE_DIR := $(CURDIR)/.zig-global-cache
+export ZIG_LOCAL_CACHE_DIR := $(CURDIR)/.zig-cache
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	$(MAKE) CC="zig cc -mcpu=baseline -ffile-prefix-map=$(CURDIR)=."
+
+override_dh_auto_install:
+	dh_auto_install -- PREFIX=/usr
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -rf .zig-global-cache .zig-cache

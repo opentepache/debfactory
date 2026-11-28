@@ -1,0 +1,41 @@
+schema: 1
+name: tepache-hello
+version: 1.0.0
+revision: 1
+level: 2
+justification: |
+  Links against the system libcrypto, which changes per suite (libssl3 in
+  bookworm, libssl3t64 in trixie); a single upstream binary cannot serve all.
+summary: prints the OpenSSL version it links against (built with zig cc)
+description: |
+  Test package for level-2 source builds; never published in production.
+homepage: https://github.com/opentepache/tepache-hello
+upstream: opentepache/tepache-hello
+license:
+  spdx: MIT
+  file: {archive: "tepache-hello-{{version}}/LICENSE"}
+value: Test fixture for level-2 source builds; it never reaches production.
+source:
+  url: https://github.com/opentepache/tepache-hello/archive/refs/tags/{{tag}}.tar.gz
+  format: tar.gz
+test:
+  command: tepache-hello
+  expect: OpenSSL
+exclude:
+  suites:
+    bookworm: acotar la prueba del toolchain a trixie (specs/009 T051)
+    forky: acotar la prueba del toolchain a trixie (specs/009 T051)
+    sid: acotar la prueba del toolchain a trixie (specs/009 T051)
+    noble: acotar la prueba del toolchain a trixie (specs/009 T051)
+    resolute: acotar la prueba del toolchain a trixie (specs/009 T051)
+  arches:
+    arm64: acotar la prueba del toolchain a amd64 (specs/009 T051)
+toolchain:
+  name: zig
+  version: 0.17.0
+  url: https://ziglang.org/download/{{version}}/zig-{{arch}}-linux-{{version}}.tar.xz
+  arch_map: {amd64: x86_64, arm64: aarch64}
+  signing:
+    minisign:
+      key: RWSGOq2NVecA2UPNdBUZykf1CCb147pkmdtYxgb3Ti+JO/wCYvhbAb/U
+      file: https://ziglang.org/download/{{version}}/zig-{{arch}}-linux-{{version}}.tar.xz.minisig

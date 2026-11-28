@@ -89,7 +89,7 @@ site-serve: site bin
 # (specs/008-source-builds: compilar, publicar, instalar y recompilar).
 e2e: bin
     bin/debfactory build --root {{project}} --all
-    go test -tags e2e -run 'TestE2E(Repo|Lifecycle|Failures|SyncLocal|RebuildFromGit|Site|A11y|Level2)' ./internal/repotest/ -timeout 120m -v
+    go test -tags e2e -run 'TestE2E(Repo|Lifecycle|Failures|SyncLocal|RebuildFromGit|Site|A11y|Level2|RebuildToolchain|Verify)' ./internal/repotest/ -timeout 120m -v
 
 # Prueba E2E de la llave (SC-006).
 e2e-key: bin

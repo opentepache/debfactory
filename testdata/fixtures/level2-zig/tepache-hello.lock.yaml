@@ -1,0 +1,11 @@
+# Generado por `debfactory lock`; no se edita a mano. Se revisa en el diff de git.
+schema: 1
+versions:
+  1.0.0:
+    source_date_epoch: 1767225600
+    license_sha256: af7d839fb80752aa7faf8a512adc9ae09a46e4213099270ba6cb165360ab871a
+    source_sha256: 9634823f1cca1766fe7167e77252c9d6062b73c1b6322622b12961cd27ee47da
+    toolchain:
+      amd64: 1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026
+    signatures:
+      https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz.minisig: b3bddb10f84e8ab5aa095761700f8bb482377e4adb9064b338cfda92900c00ca

@@ -33,20 +33,25 @@ var level2Suites = map[string]string{"bookworm": "libssl3 ", "trixie": "libssl3t
 
 // level2Env prepara una raíz con la configuración de testdata/project y solo
 // el paquete de prueba, y un "GitHub" local que sirve su tarball.
-func level2Env(t *testing.T) *build.Env {
+func level2Env(t *testing.T) *build.Env { return level2EnvFrom(t, level2Fixture) }
+
+// level2EnvFrom es level2Env con otro fixture (el tarball de tepache-hello
+// sale siempre de level2Fixture). Solo github.com va al servidor local; el
+// resto (p. ej. ziglang.org para el toolchain) va a la red real.
+func level2EnvFrom(t *testing.T, fixture string) *build.Env {
 	t.Helper()
 	root := t.TempDir()
 	for _, d := range []string{"config", "docs"} {
 		copyDir(t, filepath.Join(testutil.ProjectRoot(), d), filepath.Join(root, d))
 	}
 	pk := filepath.Join(root, "packages")
-	copyDir(t, level2Fixture, pk)
+	copyDir(t, fixture, pk)
 	os.RemoveAll(filepath.Join(pk, "src"))
-	tarball, err := os.ReadFile(filepath.Join(pk, "tepache-hello-1.0.0.tar.gz"))
+	os.Remove(filepath.Join(pk, "tepache-hello-1.0.0.tar.gz"))
+	tarball, err := os.ReadFile(filepath.Join(level2Fixture, "tepache-hello-1.0.0.tar.gz"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.Remove(filepath.Join(pk, "tepache-hello-1.0.0.tar.gz"))
 	os.Chmod(filepath.Join(pk, "tepache-hello", "debian", "rules"), 0o755)
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Host == "github.com" && r.URL.Path == "/opentepache/tepache-hello/archive/refs/tags/v1.0.0.tar.gz" {
@@ -62,10 +67,20 @@ func level2Env(t *testing.T) *build.Env {
 	}
 	w := captureWriter{testWriter{t}}
 	e := &build.Env{Root: root, Workdir: t.TempDir(), Cfg: cfg,
-		Fetcher: fetch.New(t.TempDir(), time.Minute, testutil.Redirect{Server: srv}),
+		Fetcher: fetch.New(filepath.Join(os.TempDir(), "debfactory-e2e-l2-cache"), 10*time.Minute, githubOnly{testutil.Redirect{Server: srv}}),
 		Out:     &report.Printer{Out: w, Err: w}}
 	e.Defaults()
 	return e
+}
+
+// githubOnly manda github.com al servidor local y lo demás a la red.
+type githubOnly struct{ local http.RoundTripper }
+
+func (g githubOnly) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.URL.Host == "github.com" {
+		return g.local.RoundTrip(r)
+	}
+	return http.DefaultTransport.RoundTrip(r)
 }
 
 // TestE2ELevel2 recorre el nivel 2 de punta a punta con contenedores reales

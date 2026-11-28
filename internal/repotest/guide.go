@@ -109,7 +109,11 @@ func SiteBlocks(path string) (map[string]string, error) {
 func Render(block, publicURL, testURL string, vars map[string]string) string {
 	var out []string
 	for _, l := range strings.Split(block, "\n") {
-		out = append(out, strings.ReplaceAll(strings.TrimPrefix(l, "sudo "), "&& sudo ", "&& "))
+		// Los clientes de prueba son root: sin sudo, también en líneas con
+		// sangría (bloques if).
+		body := strings.TrimLeft(l, " \t")
+		indent := l[:len(l)-len(body)]
+		out = append(out, indent+strings.ReplaceAll(strings.TrimPrefix(body, "sudo "), "&& sudo ", "&& "))
 	}
 	s := strings.Join(out, "\n")
 	if publicURL == "" {

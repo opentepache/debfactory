@@ -1,0 +1,15 @@
+Source: tepache-hello
+Section: utils
+Priority: optional
+Maintainer: OpenTepache <debfactory@opentepache.invalid>
+Build-Depends: debhelper-compat (= 13), libssl-dev
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/opentepache/tepache-hello
+
+Package: tepache-hello
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: prints the OpenSSL version it links against
+ Test package for OpenTepache level-2 source builds. It links against the
+ libcrypto of each suite, so every suite gets its own binary.
