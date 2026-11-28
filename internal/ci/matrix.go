@@ -28,7 +28,11 @@ type MatrixEntry struct {
 // Matrix es la matriz de los jobs hospedados (specs/009, contracts/pipeline.md).
 // Las listas vacías salen como [] para que el workflow omita el job.
 type Matrix struct {
-	Packages []string      `json:"packages"`
+	Packages []string `json:"packages"`
+	// Compare son los paquetes ya publicados que el PR reconstruye para
+	// exigir el mismo sha256 (cambio de herramienta o de manifiesto sin subir
+	// revision; ci compare).
+	Compare  []string      `json:"compare"`
 	L1Build  []MatrixEntry `json:"l1_build"`
 	L2Source []MatrixEntry `json:"l2_source"`
 	L2Build  []MatrixEntry `json:"l2_build"`
@@ -40,11 +44,19 @@ type Matrix struct {
 // jobs distintos); pruebas por suite × arquitectura. Respeta exclude.suites y
 // exclude.arches; en una ampliación solo entran las suites nuevas.
 func BuildMatrix(root string, cfg *config.Config, p *Plan) (*Matrix, error) {
-	mx := &Matrix{Packages: []string{}, L1Build: []MatrixEntry{}, L2Source: []MatrixEntry{},
+	mx := &Matrix{Packages: []string{}, Compare: []string{}, L1Build: []MatrixEntry{}, L2Source: []MatrixEntry{},
 		L2Build: []MatrixEntry{}, Test: []MatrixEntry{}}
 	// Las ampliaciones (suite o arquitectura nueva) se validan en la PC con
 	// el flujo local (gatesFor): no entran en la matriz.
 	affected := append(append([]AffectedPackage{}, p.Publish...), p.Test...)
+	// Las comparaciones se compilan igual pero no se prueban (como en la
+	// fase 003): solo cuenta que den el sha256 publicado.
+	for _, c := range p.Compare {
+		if !slices.ContainsFunc(affected, func(a AffectedPackage) bool { return a.Package == c.Package }) {
+			affected = append(affected, AffectedPackage{Package: c.Package, Version: c.Version, Reason: "compare"})
+		}
+		mx.Compare = append(mx.Compare, c.Package)
+	}
 	for _, a := range affected {
 		if slices.Contains(mx.Packages, a.Package) {
 			continue
@@ -79,6 +91,9 @@ func BuildMatrix(root string, cfg *config.Config, p *Plan) (*Matrix, error) {
 				}
 			} else if a.Reason != Extend { // el .deb de nivel 1 sirve a todas las suites
 				mx.L1Build = append(mx.L1Build, MatrixEntry{Package: a.Package, Version: a.Version, Arch: arch, Runner: runner})
+			}
+			if a.Reason == "compare" {
+				continue
 			}
 			for _, s := range suites {
 				mx.Test = append(mx.Test, MatrixEntry{Package: a.Package, Version: a.Version, Suite: s, Arch: arch, Runner: runner})
@@ -133,7 +148,7 @@ func writeMatrix(w interface{ Write([]byte) (int, error) }, mx *Matrix) error {
 	for _, kv := range []struct {
 		k string
 		v any
-	}{{"packages", mx.Packages}, {"l1_build", mx.L1Build}, {"l2_source", mx.L2Source},
+	}{{"packages", mx.Packages}, {"compare", mx.Compare}, {"l1_build", mx.L1Build}, {"l2_source", mx.L2Source},
 		{"l2_build", mx.L2Build}, {"test", mx.Test}} {
 		b, err := json.Marshal(kv.v)
 		if err != nil {

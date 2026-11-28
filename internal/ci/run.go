@@ -716,6 +716,8 @@ func (r *Runner) Dispatch(ctx context.Context, cmd string, o Options) error {
 		return r.Matrix(ctx, o)
 	case "review":
 		return r.Review(ctx, o)
+	case "compare":
+		return r.CompareArtifacts(ctx, o)
 	case "main":
 		return r.Main(ctx, o)
 	case "pr":
