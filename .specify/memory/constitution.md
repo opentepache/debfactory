@@ -72,9 +72,23 @@ cada eslabón previo es verificable.
 - Antes de construir, MUST validarse la licencia upstream de la versión exacta a empaquetar.
 - Solo se permiten licencias libres incluidas en una lista explícita (allowlist) versionada en el
   repositorio. Contenido inicial: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0,
-  GPL-2.0, GPL-3.0, LGPL-2.1, LGPL-3.0. Ampliarla requiere documentar el motivo y que la
-  licencia sea libre (aprobada por OSI y compatible con las DFSG).
-- Licencia desconocida, propietaria o no identificable MUST hacer fallar el build.
+  GPL-2.0, GPL-3.0, LGPL-2.1, LGPL-3.0. Ampliada el 2026-11-27 (licencias permisivas de
+  dependencias de nivel 2, compatibles con GPL): Zlib, libpng-2.0, 0BSD, CC0-1.0, OFL-1.1,
+  HPND-sell-variant, MIT-Modern-Variant, curl y MIT-CMU. Ampliarla requiere documentar el motivo
+  y que la licencia sea libre.
+- **Licencia libre** significa: aprobada por la OSI, o libre según la FSF, o aceptada por Debian
+  en `main` (cumple las DFSG). La lista de SPDX no basta para descartar una licencia: sus marcas
+  de OSI y FSF están incompletas.
+- **Excepciones por paquete**: un manifiesto MAY declarar excepciones de licencia que valen solo
+  para ese paquete, para el propio paquete o para una dependencia concreta de su fuente, cada una
+  con la licencia SPDX, la dependencia y un motivo. Una excepción solo MAY permitir licencias
+  libres (en el sentido de arriba) listadas en `exception_only` de `config/licenses.yaml`, nunca
+  una propietaria ni con restricciones de uso o de redistribución; se revisa en el PR como cualquier cambio de manifiesto y no amplía la allowlist
+  global.
+- El gate aplica también a cada dependencia del lenguaje incluida en el paquete fuente que se
+  redistribuye (todas las que se descargan, se compilen o no en el binario).
+- Licencia desconocida, propietaria o no identificable, y no cubierta por la allowlist ni por una
+  excepción del paquete, MUST hacer fallar el build.
 - Cada paquete MUST incluir su licencia en `debian/copyright`.
 
 *Rationale*: ante la duda no se publica; un error de licencia es más caro que un paquete ausente.
@@ -280,4 +294,4 @@ se notifica según el principio VIII:
   de los principios I–X en su sección "Constitution Check". Toda desviación MUST justificarse en
   la tabla de seguimiento de complejidad del plan o el plan no se aprueba.
 
-**Version**: 1.11.1 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-27
+**Version**: 1.12.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-27
