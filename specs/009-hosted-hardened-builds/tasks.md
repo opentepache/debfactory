@@ -147,7 +147,7 @@ se comprueba en cada fase y al final.
 - [X] T047 [P] Notas en specs anteriores: `specs/003-ci-pipeline/contracts/runner-host.md` y `workflows.md` (solo `pub`, jobs hospedados), `specs/008-source-builds/research.md` D1′/D2/D15 (dónde corre el nivel 2 ahora).
 - [X] T048 US6: `just check` y `just e2e` en verde; `TestLevel1Unchanged` y la E2E de tepache-hello sin cambios (SC-006); `migrate layout` aplicado a `testdata/project` sin cambiar ningún `.deb`.
 - [ ] T049 **(manual)** `just tool-install`; activar "Require signed commits" en `main` de `packages` (agregarlo al ruleset "package"); PR en `packages`: herramienta nueva, workflows (T031), `migrate layout`, firmas de buf y aqua (T023), y ghostty (T017); comprobar en la PR los jobs hospedados, el informe de cadena de suministro, Scorecard y el resumen; integrar y comprobar la publicación de ghostty en trixie y forky (amd64, arm64), `apt install ghostty` y `ghostty +version` (SC-001, SC-002), su página de procedencia y `debfactory verify` (SC-007).
-- [ ] T050 **(manual)** Retirar el runner `ci` (`ci/runner/setup.sh --remove ci`) tras una semana sin incidentes de los workflows nuevos; `ci doctor` en verde (SC-008).
+- [ ] T050 **(manual)** Retirar el runner `ci` (`sudo ci/host/setup.sh --remove ci`) junto con T034: el `pr.yml` nuevo ya no lo usa y nada depende de él (decisión del mantenedor, 2026-11-28; sin esperar una semana); `ci doctor` en verde (SC-008).
 
 ---
 
@@ -161,7 +161,7 @@ se comprueba en cada fase y al final.
 - US7: T035 tras T029; T036 y T037 tras T035; T038 tras T037; T051 tras T016 y T037; T039 y T040 en paralelo.
 - US3: tras la fase 2; T042 tras T041.
 - US5: T044 en paralelo; T045 tras T026.
-- Polish al final; T049 tras T048; T050 tras T049.
+- Polish al final; T049 tras T048; T050 junto con T034 (al copiar el `pr.yml` nuevo).
 
 ### Parallel Opportunities
 

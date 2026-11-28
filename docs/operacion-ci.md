@@ -466,8 +466,9 @@ entre suites (`libssl3` en bookworm, `libssl3t64` en trixie y noble).
 
 **Retiro del runner `ci`:**
 
-- Una semana después de que los workflows nuevos funcionen sin incidentes, ejecuta
-  `sudo ci/host/setup.sh --remove ci` (T050). Borra el servicio, el usuario `dfci`, su Docker
+- Al copiar los workflows nuevos a `packages` (T034), ejecuta `sudo ci/host/setup.sh --remove ci`
+  (T050): el `pr.yml` nuevo ya no usa el runner `ci`. No lo retires antes de copiar el `pr.yml`
+  nuevo, porque el viejo lo necesita y las PR se quedarían esperando el check `verify`. Borra el servicio, el usuario `dfci`, su Docker
   rootless, `/srv/debfactory/ci` y la regla de nftables.
 - `ci doctor` deja de exigirlo y avisa mientras siga instalado.
 
@@ -480,4 +481,4 @@ entre suites (`libssl3` en bookworm, `libssl3t64` en trixie y noble).
   - actualizar `config/licenses.yaml` y las firmas de buf y aqua;
   - `migrate layout`;
   - agregar ghostty.
-- T050: retirar el runner `ci`.
+- T050: retirar el runner `ci`, junto con T034.
